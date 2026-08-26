@@ -38,7 +38,7 @@ WhatsApp ou e-mail, só nome, categoria e cidade. Ver a ressalva de LGPD no
    Formato (cabeçalho obrigatório, nessa ordem): `name,category,city,state`
    — `state` é opcional. `category` precisa ser um destes valores (iguais
    ao app): `eletricista, encanador, pedreiro, pintor, jardineiro,
-   limpeza, marceneiro, serralheiro, climatizacao, vidraceiro, outro`.
+   limpeza, marceneiro, serralheiro, climatizacao, vidraceiro, azulejista, outro`.
 
 4. Rodar (o script mostra tudo que vai gravar e pede confirmação antes de
    tocar no banco de verdade):

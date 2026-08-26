@@ -16,6 +16,7 @@ enum ServiceCategory {
   serralheiro,
   climatizacao,
   vidraceiro,
+  azulejista,
   outro,
 }
 
@@ -38,6 +39,7 @@ extension ServiceCategoryWire on ServiceCategory {
         ServiceCategory.serralheiro => 'Serralheiro',
         ServiceCategory.climatizacao => 'Climatização',
         ServiceCategory.vidraceiro => 'Vidraceiro',
+        ServiceCategory.azulejista => 'Azulejista',
         ServiceCategory.outro => 'Outro',
       };
 
@@ -55,6 +57,7 @@ extension ServiceCategoryWire on ServiceCategory {
         ServiceCategory.serralheiro => Icons.hardware,
         ServiceCategory.climatizacao => Icons.ac_unit,
         ServiceCategory.vidraceiro => Icons.window,
+        ServiceCategory.azulejista => Icons.grid_on,
         ServiceCategory.outro => Icons.handyman_rounded,
       };
 }

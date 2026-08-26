@@ -39,7 +39,7 @@
  * `category` precisa ser um destes valores (os mesmos do enum
  * ServiceCategory do app — lib/features/marketplace/models/service_category.dart):
  *   eletricista, encanador, pedreiro, pintor, jardineiro, limpeza,
- *   marceneiro, serralheiro, climatizacao, vidraceiro, outro
+ *   marceneiro, serralheiro, climatizacao, vidraceiro, azulejista, outro
  * `state` é opcional (sigla, ex.: SC).
  */
 
@@ -50,7 +50,7 @@ const admin = require('firebase-admin');
 
 const VALID_CATEGORIES = new Set([
   'eletricista', 'encanador', 'pedreiro', 'pintor', 'jardineiro',
-  'limpeza', 'marceneiro', 'serralheiro', 'climatizacao', 'vidraceiro', 'outro',
+  'limpeza', 'marceneiro', 'serralheiro', 'climatizacao', 'vidraceiro', 'azulejista', 'outro',
 ]);
 
 /** Parser de CSV simples que respeita campos entre aspas (nomes com vírgula). */
