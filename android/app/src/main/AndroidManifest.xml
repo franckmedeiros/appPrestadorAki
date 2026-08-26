@@ -5,6 +5,11 @@
          builds de debug, mas não em release — declarar aqui garante que
          funciona nos dois casos. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Só pro botão "usar minha localização atual" na busca do
+         cliente (pré-preencher a cidade) — nunca gravada, só usada em
+         memória pra achar a cidade mais próxima. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="prestadoraki"
         android:name="${applicationName}"

@@ -16,6 +16,8 @@
 	<string>6.0</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID para entrar no PrestadorAki mais rápido.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Usamos sua localização só pra sugerir sua cidade na busca por prestadores — nunca é salva nem compartilhada.</string>
 	<key>CFBundleName</key>
 	<string>prestadoraki</string>
 	<key>CFBundlePackageType</key>

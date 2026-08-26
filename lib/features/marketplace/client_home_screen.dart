@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart' as geocoding;
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
@@ -10,7 +12,9 @@ import 'provider_directory_repository.dart';
 
 /// Home do lado do cliente — busca no diretório público de prestadores
 /// por categoria e cidade. Ver ProviderDirectoryRepository para as
-/// limitações honestas da busca (sem geolocalização, sem nota média).
+/// limitações honestas da busca (sem nota média). A busca por localização
+/// atual (abaixo) só preenche o campo cidade a partir do GPS — não é busca
+/// por proximidade/raio de verdade, isso ainda não existe.
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({super.key});
 
@@ -21,28 +25,23 @@ class ClientHomeScreen extends StatefulWidget {
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   ServiceCategory? _category;
   String? _city;
-  List<String> _cities = [];
+  late Future<List<String>> _citiesFuture;
+  TextEditingController? _cityFieldController;
+  bool _locating = false;
   late Future<List<ProviderListing>> _future;
 
   @override
   void initState() {
     super.initState();
     _future = _search();
-    _loadCities();
-  }
-
-  // Lista de cidades pra escolher, em vez de campo de texto livre — ver
-  // ProviderDirectoryRepository.listCities(). Carrega em paralelo com a
-  // busca inicial; se falhar, o dropdown só fica com "Todas as cidades"
-  // (não trava a tela por causa disso).
-  Future<void> _loadCities() async {
-    try {
-      final cities = await context.read<ProviderDirectoryRepository>().listCities();
-      if (mounted) setState(() => _cities = cities);
-    } catch (_) {
-      // busca por categoria continua funcionando mesmo sem a lista de
-      // cidades — não é um erro que precise de tela própria.
-    }
+    // Carregado uma vez só, antes do campo de cidade existir de verdade
+    // (ver FutureBuilder abaixo) — assim o Autocomplete já nasce com a
+    // lista pronta. Antes disso era um campo separado (_cities) atualizado
+    // por setState depois que a tela já tinha montado, e o Autocomplete
+    // não percebia a lista chegar no meio da digitação (só reavalia
+    // opções quando o TEXTO muda, não quando `_cities` muda sozinho) —
+    // por isso a lista "não vinha carregada" ao digitar.
+    _citiesFuture = context.read<ProviderDirectoryRepository>().listCities();
   }
 
   Future<List<ProviderListing>> _search() =>
@@ -63,6 +62,87 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     return result;
   }
 
+  // Categorias em ordem alfabética pelo rótulo — "Outro" sempre por
+  // último, como opção coringa, independente de onde caia no alfabeto.
+  List<ServiceCategory> get _sortedCategories {
+    final list = ServiceCategory.values.where((c) => c != ServiceCategory.outro).toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+    return [...list, ServiceCategory.outro];
+  }
+
+  // Usa o GPS do aparelho pra descobrir a cidade atual e já preencher o
+  // filtro — não é busca por proximidade de verdade (isso pediria
+  // geohash + índice), só um jeito rápido de não precisar digitar/rolar
+  // pra achar a própria cidade.
+  Future<void> _useCurrentLocation() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _locating = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Ative a localização do aparelho pra usar isso.')),
+        );
+        return;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Sem permissão de localização — pode escolher a cidade na lista.'),
+          ),
+        );
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+      );
+      final placemarks = await geocoding.placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      if (placemarks.isEmpty) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Não conseguimos identificar sua cidade.')),
+        );
+        return;
+      }
+      final detected = placemarks.first.locality ?? placemarks.first.subAdministrativeArea ?? '';
+      if (detected.isEmpty) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Não conseguimos identificar sua cidade.')),
+        );
+        return;
+      }
+      // Se a cidade detectada já existe no diretório (ignorando
+      // acento/maiúscula), usa o nome exatamente como está gravado —
+      // senão a busca por igualdade exata do Firestore não bateria.
+      final cities = await _citiesFuture;
+      final match = cities.firstWhere(
+        (c) => _normalize(c) == _normalize(detected),
+        orElse: () => detected,
+      );
+      _cityFieldController?.text = match;
+      setState(() => _city = match);
+      _runSearch();
+      if (!cities.contains(match)) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Ainda não temos prestadores em $match.')),
+        );
+      }
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Não foi possível obter sua localização.')),
+      );
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,8 +159,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   items: [
                     const DropdownMenuItem<ServiceCategory?>(
                         value: null, child: Text('Todas as categorias')),
-                    ...ServiceCategory.values
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c.label))),
+                    ..._sortedCategories.map((c) => DropdownMenuItem(value: c, child: Text(c.label))),
                   ],
                   onChanged: (value) {
                     setState(() => _category = value);
@@ -92,35 +171,62 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 // cidade do iFood: vai filtrando a lista conforme digita,
                 // em vez de abrir tudo pra rolar. Continua escolhendo de
                 // uma lista (nunca digita livre), então a busca exata do
-                // Firestore continua batendo certinho.
-                Autocomplete<String>(
-                  initialValue: TextEditingValue(text: _city ?? ''),
-                  optionsBuilder: (value) {
-                    final query = _normalize(value.text);
-                    if (query.isEmpty) return _cities;
-                    return _cities.where((c) => _normalize(c).contains(query));
-                  },
-                  onSelected: (city) {
-                    setState(() => _city = city);
-                    _runSearch();
-                  },
-                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                    return TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      decoration: const InputDecoration(
-                        labelText: 'Cidade',
-                        hintText: 'Todas as cidades',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
-                      onSubmitted: (_) => onFieldSubmitted(),
-                      onChanged: (text) {
-                        // Limpou o campo à mão (sem escolher uma opção da
-                        // lista) — volta a buscar em todas as cidades.
-                        if (text.isEmpty && _city != null) {
-                          setState(() => _city = null);
-                          _runSearch();
-                        }
+                // Firestore continua batendo certinho. Fica dentro de um
+                // FutureBuilder pra só existir depois que a lista de
+                // cidades já chegou (ver nota em _citiesFuture).
+                FutureBuilder<List<String>>(
+                  future: _citiesFuture,
+                  builder: (context, snapshot) {
+                    final cities = snapshot.data ?? const <String>[];
+                    final loadingCities =
+                        snapshot.connectionState == ConnectionState.waiting;
+                    return Autocomplete<String>(
+                      initialValue: TextEditingValue(text: _city ?? ''),
+                      optionsBuilder: (value) {
+                        final query = _normalize(value.text);
+                        if (query.isEmpty) return cities;
+                        return cities.where((c) => _normalize(c).contains(query));
+                      },
+                      onSelected: (city) {
+                        setState(() => _city = city);
+                        _runSearch();
+                      },
+                      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                        _cityFieldController = controller;
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          enabled: !loadingCities,
+                          decoration: InputDecoration(
+                            labelText: 'Cidade',
+                            hintText: loadingCities ? 'Carregando...' : 'Todas as cidades',
+                            prefixIcon: const Icon(Icons.location_on_outlined),
+                            suffixIcon: _locating
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                  )
+                                : IconButton(
+                                    tooltip: 'Usar minha localização atual',
+                                    icon: const Icon(Icons.my_location),
+                                    onPressed: loadingCities ? null : _useCurrentLocation,
+                                  ),
+                          ),
+                          onSubmitted: (_) => onFieldSubmitted(),
+                          onChanged: (text) {
+                            // Limpou o campo à mão (sem escolher uma opção
+                            // da lista) — volta a buscar em todas as
+                            // cidades.
+                            if (text.isEmpty && _city != null) {
+                              setState(() => _city = null);
+                              _runSearch();
+                            }
+                          },
+                        );
                       },
                     );
                   },
