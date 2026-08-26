@@ -2,7 +2,7 @@ workflows:
   android-debug:
     name: Android - build debug
     max_build_duration: 30
-    instance_type: mac_mini_m2
+    instance_type: linux_x2
     environment:
       flutter: stable
       vars:
@@ -20,6 +20,37 @@ workflows:
         script: flutter build apk --debug
     artifacts:
       - build/app/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - franck.medeiros.silva@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  ios-simulator:
+    name: iOS - build simulador (sem assinatura)
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        BUNDLE_ID: "com.opoutsourcing.prestadoraki"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Instalar dependências
+        script: flutter pub get
+      - name: Build iOS (simulador, sem assinatura)
+        script: flutter build ios --simulator --debug
+    artifacts:
+      - build/ios/iphonesimulator/Runner.app
     publishing:
       email:
         recipients:
