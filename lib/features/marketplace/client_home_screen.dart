@@ -50,6 +50,19 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   void _runSearch() => setState(() => _future = _search());
 
+  // Remove acentos pra comparar digitação com o nome da cidade sem exigir
+  // que o usuário digite certinho (ex.: "sertaozi" ou "Sertãozi" acham
+  // "Sertãozinho" do mesmo jeito).
+  static const _accented = 'áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ';
+  static const _plain = 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC';
+  String _normalize(String value) {
+    var result = value.toLowerCase();
+    for (var i = 0; i < _accented.length; i++) {
+      result = result.replaceAll(_accented[i].toLowerCase(), _plain[i].toLowerCase());
+    }
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,19 +88,41 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   },
                 ),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String?>(
-                  initialValue: _city,
-                  decoration: const InputDecoration(
-                    labelText: 'Cidade',
-                    prefixIcon: Icon(Icons.location_on_outlined),
-                  ),
-                  items: [
-                    const DropdownMenuItem<String?>(value: null, child: Text('Todas as cidades')),
-                    ..._cities.map((c) => DropdownMenuItem(value: c, child: Text(c))),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _city = value);
+                // Autocomplete em vez de dropdown — igual o campo de
+                // cidade do iFood: vai filtrando a lista conforme digita,
+                // em vez de abrir tudo pra rolar. Continua escolhendo de
+                // uma lista (nunca digita livre), então a busca exata do
+                // Firestore continua batendo certinho.
+                Autocomplete<String>(
+                  initialValue: TextEditingValue(text: _city ?? ''),
+                  optionsBuilder: (value) {
+                    final query = _normalize(value.text);
+                    if (query.isEmpty) return _cities;
+                    return _cities.where((c) => _normalize(c).contains(query));
+                  },
+                  onSelected: (city) {
+                    setState(() => _city = city);
                     _runSearch();
+                  },
+                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(
+                        labelText: 'Cidade',
+                        hintText: 'Todas as cidades',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
+                      onSubmitted: (_) => onFieldSubmitted(),
+                      onChanged: (text) {
+                        // Limpou o campo à mão (sem escolher uma opção da
+                        // lista) — volta a buscar em todas as cidades.
+                        if (text.isEmpty && _city != null) {
+                          setState(() => _city = null);
+                          _runSearch();
+                        }
+                      },
+                    );
                   },
                 ),
               ],
