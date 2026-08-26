@@ -99,8 +99,56 @@ service cloud.firestore {
     // não reivindicada sozinho.
     match /providerDirectory/{listingId} {
       allow read: if true;
-      allow create, update: if isOwner(listingId);
+
+      // O próprio prestador (perfil reivindicado) nunca pode gravar
+      // `featured`/`featuredUntil` nele mesmo — o selo "Destaque" (plano
+      // mensal, cobrado por fora do app por enquanto — ver
+      // scripts/set_provider_plan.js) só é ligado/desligado via Admin SDK,
+      // que ignora esta regra. `hasOnly`/`affectedKeys` do lado de quem
+      // avalia (abaixo) garante que uma escrita normal do app (que nunca
+      // inclui esses dois campos — ver upsertOwnListing) sempre passa.
+      allow create: if isOwner(listingId) &&
+        !('featured' in request.resource.data) &&
+        !('featuredUntil' in request.resource.data);
+      allow update: if (isOwner(listingId) &&
+          request.resource.data.get('featured', false) == resource.data.get('featured', false) &&
+          request.resource.data.get('featuredUntil', null) == resource.data.get('featuredUntil', null)) ||
+        // Agregado de avaliações (ratingAverage/ratingCount — ver
+        // ProviderDirectoryRepository.rate): precisa ser gravável por
+        // QUALQUER cliente autenticado, não só o dono do perfil, porque é
+        // o cliente que avalia quem atualiza a média. Ressalva honesta:
+        // isso só valida formato e que a nota não "recua" mais que uma
+        // avaliação de cada vez — não confirma que o número foi calculado
+        // certinho a partir da subcoleção `ratings`. Fechar essa brecha de
+        // verdade pediria uma Cloud Function recalculando no servidor
+        // (ver a nota em ProviderDirectoryRepository.rate).
+        (request.auth != null &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingAverage', 'ratingCount']) &&
+         request.resource.data.ratingCount is int &&
+         request.resource.data.ratingCount >= resource.data.get('ratingCount', 0) &&
+         request.resource.data.ratingCount <= resource.data.get('ratingCount', 0) + 1 &&
+         request.resource.data.ratingAverage is number &&
+         request.resource.data.ratingAverage >= 0 &&
+         request.resource.data.ratingAverage <= 5);
       allow delete: if false;
+
+      // Avaliações por estrelas (ver models/provider_rating.dart) — id do
+      // documento é o uid de quem avaliou, então só existe uma avaliação
+      // por cliente por prestador. Leitura pública (fazem parte do perfil
+      // que qualquer um pode ver); escrita só pelo próprio cliente dono da
+      // avaliação. A checagem de "só quem contratou pode avaliar" fica no
+      // app (ver ServiceRequestsRepository.hasAcceptedRequestWith) — mesma
+      // ressalva de "simplificação honesta" que já existe pra
+      // serviceRequests logo abaixo.
+      match /ratings/{clientUid} {
+        allow read: if true;
+        allow create, update: if request.auth != null &&
+          request.auth.uid == clientUid &&
+          request.resource.data.stars is int &&
+          request.resource.data.stars >= 1 &&
+          request.resource.data.stars <= 5;
+        allow delete: if false;
+      }
     }
 
     // Pedidos de orçamento do marketplace (cliente → prestador do

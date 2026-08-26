@@ -5,16 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
-import '../../widgets/app_list_card.dart';
 import 'models/provider_listing.dart';
 import 'models/service_category.dart';
 import 'provider_directory_repository.dart';
+import 'widgets/provider_listing_card.dart';
 
 /// Home do lado do cliente — busca no diretório público de prestadores
-/// por categoria e cidade. Ver ProviderDirectoryRepository para as
-/// limitações honestas da busca (sem nota média). A busca por localização
-/// atual (abaixo) só preenche o campo cidade a partir do GPS — não é busca
-/// por proximidade/raio de verdade, isso ainda não existe.
+/// por categoria e cidade, com prestadores "Destaque" sempre no topo (ver
+/// ProviderDirectoryRepository.search). A busca por localização atual
+/// (abaixo) só preenche o campo cidade a partir do GPS — não é busca por
+/// proximidade/raio de verdade, isso ainda não existe.
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({super.key});
 
@@ -266,30 +266,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final listing = listings[index];
-                    return AppListCard(
-                      leading: AppListCard.iconAvatar(listing.category.icon),
-                      title: listing.name,
-                      subtitle: '${listing.category.label} · ${listing.locationLabel}',
-                      // A seta fica igual pros dois casos (reivindicado ou
-                      // não) — os dois são clicáveis, levam pro perfil
-                      // público. O selo "ainda não usa" vai no rodapé do
-                      // card (footer), não do lado do título — do lado, o
-                      // texto inteiro espremia o nome/categoria/cidade do
-                      // prestador (ver histórico); embaixo, com a largura
-                      // do card inteiro, cabe numa linha só sem apertar
-                      // nada.
-                      trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
-                      footer: listing.claimed
-                          ? null
-                          : Align(
-                              alignment: Alignment.centerLeft,
-                              child: Chip(
-                                label: const Text('Ainda não usa o PrestadorAki',
-                                    style: TextStyle(fontSize: 10)),
-                                visualDensity: VisualDensity.compact,
-                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                            ),
+                    return providerListingCard(
+                      listing: listing,
                       onTap: () => context.push('/prestador/${listing.id}'),
                     );
                   },

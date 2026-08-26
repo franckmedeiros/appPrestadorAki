@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/biometric_service.dart';
+import '../marketplace/favorites_repository.dart';
 
 /// Mostrada quando `AuthStatus.locked` — já existe uma sessão salva, mas o
-/// prestador ativou o cadeado biométrico (a opção é oferecida logo após o
-/// primeiro login bem-sucedido, ver LoginScreen). Só aparece depois do
-/// bootstrap, nunca no primeiro login.
+/// usuário ativou o cadeado biométrico (a opção é oferecida no cadastro,
+/// ver RegisterScreen, ou depois pelo cartão do Dashboard do lado do
+/// prestador). Só aparece depois do bootstrap, nunca no primeiro login.
 class BiometricUnlockScreen extends StatefulWidget {
   const BiometricUnlockScreen({super.key});
 
@@ -32,8 +33,17 @@ class _BiometricUnlockScreenState extends State<BiometricUnlockScreen> {
       _checking = true;
       _error = null;
     });
-    final result = await context.read<AuthController>().unlockWithBiometrics();
+    final auth = context.read<AuthController>();
+    final result = await auth.unlockWithBiometrics();
     if (!mounted) return;
+    if (result == BiometricResult.success && auth.role == AccountRole.client) {
+      // "quando abrir o sistema, se tiver biometria, já carregar os
+      // favoritos" — dispara em segundo plano, sem esperar: a aba
+      // Favoritos (ver FavoritesRepository.warmUp) já encontra o
+      // resultado pronto quando o cliente abrir ela, em vez de mostrar um
+      // spinner na hora.
+      context.read<FavoritesRepository>().warmUp();
+    }
     setState(() {
       _checking = false;
       if (result != BiometricResult.success) _error = result.message;

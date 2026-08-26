@@ -22,6 +22,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   AccountRole _role = AccountRole.client;
   ServiceCategory _category = ServiceCategory.eletricista;
 
+  // Mesma ideia da LoginScreen/DashboardScreen: oferece biometria já no
+  // cadastro, em vez de só depois do primeiro login — assim quem já sabe
+  // que quer usar biometria nem precisa passar pelo cartão de oferta do
+  // Dashboard depois. Continua funcionando pros dois papéis (cliente e
+  // prestador), diferente do cartão do Dashboard, que só existe do lado
+  // do prestador.
+  bool? _biometricAvailable;
+  bool _useBiometrics = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    final available = await context.read<AuthController>().biometricAvailable;
+    if (!mounted) return;
+    setState(() => _biometricAvailable = available);
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -34,7 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _submit(AuthController auth) async {
     if (!_formKey.currentState!.validate()) return;
-    await auth.register(
+    final ok = await auth.register(
       _nameController.text.trim(),
       _emailController.text.trim(),
       _passwordController.text,
@@ -43,6 +64,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       city: _role == AccountRole.provider ? _cityController.text.trim() : null,
       state: _role == AccountRole.provider ? _stateController.text.trim().toUpperCase() : null,
     );
+    if (ok && _useBiometrics) {
+      await auth.setBiometricEnabled(true);
+    }
   }
 
   @override
@@ -140,6 +164,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     'Cidade e categoria são o que faz você aparecer nas buscas '
                     'dos clientes no PrestadorAki.',
                     style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                ],
+                if (_biometricAvailable == true) ...[
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: _useBiometrics,
+                    onChanged: (value) => setState(() => _useBiometrics = value ?? false),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Usar biometria pra entrar mais rápido'),
+                    subtitle: const Text(
+                      'Digital ou reconhecimento facial, na próxima vez que abrir o app. '
+                      'Dá pra ativar depois também, quando quiser.',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
                 ],
                 if (auth.errorMessage != null) ...[

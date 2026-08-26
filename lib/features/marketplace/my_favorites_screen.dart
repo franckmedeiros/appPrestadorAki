@@ -3,11 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
-import '../../widgets/app_list_card.dart';
 import 'client_auth_gate.dart';
 import 'favorites_repository.dart';
 import 'models/provider_listing.dart';
-import 'models/service_category.dart';
+import 'widgets/provider_listing_card.dart';
 
 class MyFavoritesScreen extends StatefulWidget {
   const MyFavoritesScreen({super.key});
@@ -76,11 +75,8 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
                     separatorBuilder: (context, index) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
                       final listing = favorites[index];
-                      return AppListCard(
-                        leading: AppListCard.iconAvatar(listing.category.icon),
-                        title: listing.name,
-                        subtitle: '${listing.category.label} · ${listing.locationLabel}',
-                        trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
+                      return providerListingCard(
+                        listing: listing,
                         onTap: () => context.push('/prestador/${listing.id}'),
                       );
                     },

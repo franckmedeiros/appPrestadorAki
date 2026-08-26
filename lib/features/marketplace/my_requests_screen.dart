@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
@@ -75,6 +76,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     separatorBuilder: (context, index) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
                       final request = requests[index];
+                      final accepted = request.status == ServiceRequestStatus.aceito;
                       return AppListCard(
                         leading: AppListCard.iconAvatar(request.category.icon),
                         title: request.providerName,
@@ -92,6 +94,27 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                               ),
                           ],
                         ),
+                        // Só pedidos aceitos liberam avaliação (ver
+                        // ServiceRequestsRepository.hasAcceptedRequestWith)
+                        // — leva pro perfil público, onde a seção de
+                        // avaliação de verdade mora (evita duplicar o
+                        // formulário de estrelas em duas telas).
+                        footer: accepted
+                            ? Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () =>
+                                      context.push('/prestador/${request.providerDirectoryId}'),
+                                  icon: const Icon(Icons.star_outline, size: 16),
+                                  label: const Text('Avaliar este prestador'),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: const Size(0, 32),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                              )
+                            : null,
                       );
                     },
                   );

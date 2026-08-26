@@ -15,6 +15,10 @@ class ProviderListing {
     this.state,
     required this.claimed,
     this.providerUid,
+    this.ratingAverage = 0,
+    this.ratingCount = 0,
+    this.featured = false,
+    this.featuredUntil,
   });
 
   factory ProviderListing.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -27,6 +31,10 @@ class ProviderListing {
       state: data['state'] as String?,
       claimed: data['claimed'] as bool? ?? false,
       providerUid: data['providerUid'] as String?,
+      ratingAverage: (data['ratingAverage'] as num?)?.toDouble() ?? 0,
+      ratingCount: (data['ratingCount'] as num?)?.toInt() ?? 0,
+      featured: data['featured'] as bool? ?? false,
+      featuredUntil: (data['featuredUntil'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -37,6 +45,28 @@ class ProviderListing {
   final String? state;
   final bool claimed;
   final String? providerUid;
+
+  /// Média (0-5) e quantidade de avaliações — ver
+  /// `ProviderDirectoryRepository.rate`/`getMyRating` e a subcoleção
+  /// `ratings` no DATA_MODEL.md. Mantidos como campos agregados no próprio
+  /// documento (em vez de somar as avaliações a cada leitura) pra a busca
+  /// e os cards de lista não pagarem o preço de ler a subcoleção inteira
+  /// toda vez.
+  final double ratingAverage;
+  final int ratingCount;
+
+  /// "Destaque" pago — plano mensal controlado manualmente por enquanto
+  /// (ver scripts/set_provider_plan.js), sem checkout dentro do app ainda.
+  /// `featured` sozinho não é suficiente pra decidir se o selo aparece:
+  /// como é uma assinatura MENSAL, o selo só vale enquanto `featuredUntil`
+  /// ainda não passou — assim, se o prestador não renovar, o destaque some
+  /// sozinho no próximo app aberto, sem precisar de nenhum job/Cloud
+  /// Function rodando no fundo pra "desligar" nada.
+  final bool featured;
+  final DateTime? featuredUntil;
+
+  bool get isFeatured =>
+      featured && featuredUntil != null && featuredUntil!.isAfter(DateTime.now());
 
   String get locationLabel => state == null || state!.isEmpty ? city : '$city/$state';
 }

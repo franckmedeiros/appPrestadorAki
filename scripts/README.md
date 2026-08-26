@@ -56,3 +56,24 @@ duplicar (o id de cada documento é gerado a partir de nome+cidade).
 - Nenhuma validação de duplicata "parecida" (dois nomes escritos
   diferente pra o mesmo prestador viram duas entradas) — revisão manual
   do CSV antes de rodar é o que evita isso, por enquanto.
+
+## Selo "Destaque" / plano pago (`set_provider_plan.js`)
+
+Liga ou desliga o selo "Destaque" de um prestador — hoje é sempre uma
+assinatura MENSAL cobrada por fora do app (você combina o pagamento direto
+com o prestador; não existe checkout dentro do PrestadorAki ainda). O
+`firestore.rules` bloqueia o próprio prestador de gravar isso no perfil
+dele, então esse script (Admin SDK) é a única forma de marcar quem pagou.
+
+```
+node set_provider_plan.js caminho/pra/service-account.json <providerDirectoryId> ativar [dias]
+node set_provider_plan.js caminho/pra/service-account.json <providerDirectoryId> desativar
+```
+
+`dias` é opcional (padrão 30). O id é o do documento em
+`providerDirectory` — pra um perfil reivindicado é o mesmo uid da conta do
+prestador (dá pra achar pelo nome no Console do Firebase). Como é uma
+assinatura mensal de verdade, `ativar` sempre grava uma data de validade;
+se o prestador não renovar, o selo some sozinho no app quando a data
+passar — não precisa rodar `desativar` todo mês, só rodar `ativar` de novo
+quando ele pagar a próxima mensalidade.

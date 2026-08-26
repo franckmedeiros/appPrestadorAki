@@ -241,8 +241,12 @@ segunda conta), mas é uma aresta que ainda não foi resolvida.
   `scripts/README.md`). A curadoria em si — decidir quais prestadores
   entram e conseguir o consentimento deles — continua sendo trabalho
   manual de vocês, o script só faz a parte de escrever no Firestore.
-- Nota média (`ratingAverage`) e busca por proximidade real (geolocalização)
-  ainda não existem — a busca hoje é só por igualdade exata de
+- ~~Nota média (`ratingAverage`) ainda não existe~~ — já existe avaliação
+  por estrelas (1 a 5, só quem teve um pedido aceito com o prestador pode
+  avaliar — ver `ProviderDirectoryRepository.rate` e a subcoleção
+  `ratings` no `DATA_MODEL.md`). Busca por proximidade real
+  (geolocalização de verdade, não só preencher a cidade pelo GPS) ainda
+  não existe — a busca continua sendo por igualdade exata de
   categoria/cidade.
 - O link de convite pro profissional "não reivindicado" ainda é um
   placeholder (`[link do app aqui]`) — só vira um link de verdade quando

@@ -222,6 +222,10 @@ city          string
 state         string?
 claimed       bool     — true se tem conta de verdade no PrestadorAki
 providerUid   string?  — só quando claimed == true
+ratingAverage number?  — média 0-5, agregada a partir da subcoleção ratings
+ratingCount   number?  — quantidade de avaliações
+featured      bool?    — selo "Destaque" (plano pago mensal, ver abaixo)
+featuredUntil Timestamp? — validade do Destaque; expirado = não conta mais
 createdAt, updatedAt   Timestamp
 ```
 
@@ -251,9 +255,39 @@ próprio prestador cria a conta — até lá, o cliente pode registrar um
 pedido e, se quiser, convidar o profissional por fora do app usando texto
 que ele mesmo escolhe compartilhar (`RequestQuoteFormScreen`).
 
-Nenhum campo de nota/avaliação existe ainda (`ratingAverage` fica de fora
-por enquanto) nem busca por proximidade real (os filtros são por
+Busca por proximidade real ainda não existe (os filtros são por
 igualdade exata de categoria/cidade, não geolocalização).
+
+#### `providerDirectory/{listingId}/ratings/{clientUid}`
+
+```
+stars       number   — 1 a 5
+comment     string?
+createdAt, updatedAt   Timestamp
+```
+
+Id do documento é o uid de quem avaliou — um cliente só tem uma avaliação
+por prestador (avaliar de novo edita, nunca duplica). Só pode avaliar quem
+já teve um pedido com status `aceito` com esse prestador (checado no app,
+ver `ServiceRequestsRepository.hasAcceptedRequestWith` — **lacuna
+consciente**: não é validado no firestore.rules, ver a ressalva lá).
+`ratingAverage`/`ratingCount` no documento pai são recalculados numa
+transação a cada avaliação nova ou editada (ver
+`ProviderDirectoryRepository.rate`).
+
+#### Selo "Destaque" (`featured`/`featuredUntil`)
+
+Plano pago do prestador — por decisão do Franck, a cobrança é uma
+assinatura MENSAL feita por fora do app (sem checkout integrado ainda);
+quem liga/desliga o selo é só o script administrativo
+`scripts/set_provider_plan.js` (Admin SDK, ignora firestore.rules). O
+`firestore.rules` bloqueia explicitamente o próprio prestador de gravar
+esses dois campos no perfil dele mesmo. Efeito no app: prestadores com
+Destaque em dia (`featured: true` e `featuredUntil` no futuro) aparecem
+com um selo e sempre no topo dos resultados de busca, antes dos demais
+(ver `ProviderListing.isFeatured`, `ProviderDirectoryRepository.search`).
+Se a assinatura vencer, o selo some sozinho no próximo app aberto — não
+depende de nenhum job/Cloud Function rodando pra "desligar" nada.
 
 ### `serviceRequests/{requestId}` (coleção no topo, fora de `/providers`)
 

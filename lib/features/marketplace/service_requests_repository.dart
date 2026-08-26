@@ -106,4 +106,24 @@ class ServiceRequestsRepository {
       throw ApiException(0, e.message ?? 'Não foi possível responder à solicitação.');
     }
   }
+
+  /// Usado como condição pra liberar a avaliação por estrelas (ver
+  /// ProviderDirectoryRepository.rate): só quem já teve um pedido aceito
+  /// com esse prestador pode avaliar - evita nota de quem nunca contratou.
+  /// Três filtros de igualdade sem `orderBy` não exigem índice composto no
+  /// Firestore (diferente de listForClient/listForProvider acima).
+  Future<bool> hasAcceptedRequestWith(String providerDirectoryId) async {
+    try {
+      final snapshot = await _collection
+          .where('clientUid', isEqualTo: _auth.currentUser!.uid)
+          .where('providerDirectoryId', isEqualTo: providerDirectoryId)
+          .where('status', isEqualTo: ServiceRequestStatus.aceito.wireValue)
+          .limit(1)
+          .get();
+      return snapshot.docs.isNotEmpty;
+    } on FirebaseException catch (e) {
+      throw ApiException(
+          0, e.message ?? 'Não foi possível verificar seu histórico com esse prestador.');
+    }
+  }
 }
