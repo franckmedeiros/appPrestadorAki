@@ -9,7 +9,14 @@ plugins {
 
 android {
     namespace = "com.opoutsourcing.prestadoraki"
-    compileSdk = flutter.compileSdkVersion
+    // Travado em 36 (em vez de usar flutter.compileSdkVersion, que essa
+    // versao do Flutter resolve pra 33): os plugins geocoding_android e
+    // suas dependencias (androidx.annotation-experimental, exifinterface)
+    // exigem compileSdk >= 34 pra compilar. Isso so afeta contra qual
+    // versao da API o app e COMPILADO - nao muda minSdk (quais aparelhos
+    // instalam) nem targetSdk (quais comportamentos de runtime o app
+    // assume), que continuam vindo do Flutter normalmente.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
