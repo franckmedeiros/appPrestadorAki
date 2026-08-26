@@ -19,29 +19,36 @@ class ClientHomeScreen extends StatefulWidget {
 }
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
-  final _cityController = TextEditingController();
   ServiceCategory? _category;
+  String? _city;
+  List<String> _cities = [];
   late Future<List<ProviderListing>> _future;
 
   @override
   void initState() {
     super.initState();
     _future = _search();
+    _loadCities();
+  }
+
+  // Lista de cidades pra escolher, em vez de campo de texto livre — ver
+  // ProviderDirectoryRepository.listCities(). Carrega em paralelo com a
+  // busca inicial; se falhar, o dropdown só fica com "Todas as cidades"
+  // (não trava a tela por causa disso).
+  Future<void> _loadCities() async {
+    try {
+      final cities = await context.read<ProviderDirectoryRepository>().listCities();
+      if (mounted) setState(() => _cities = cities);
+    } catch (_) {
+      // busca por categoria continua funcionando mesmo sem a lista de
+      // cidades — não é um erro que precise de tela própria.
+    }
   }
 
   Future<List<ProviderListing>> _search() =>
-      context.read<ProviderDirectoryRepository>().search(
-            category: _category,
-            city: _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
-          );
+      context.read<ProviderDirectoryRepository>().search(category: _category, city: _city);
 
   void _runSearch() => setState(() => _future = _search());
-
-  @override
-  void dispose() {
-    _cityController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,13 +75,20 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   },
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _cityController,
+                DropdownButtonFormField<String?>(
+                  initialValue: _city,
                   decoration: const InputDecoration(
                     labelText: 'Cidade',
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
-                  onSubmitted: (_) => _runSearch(),
+                  items: [
+                    const DropdownMenuItem<String?>(value: null, child: Text('Todas as cidades')),
+                    ..._cities.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _city = value);
+                    _runSearch();
+                  },
                 ),
               ],
             ),

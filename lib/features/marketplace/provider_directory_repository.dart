@@ -53,6 +53,34 @@ class ProviderDirectoryRepository {
     }
   }
 
+  /// Lista as cidades que já têm pelo menos um prestador cadastrado, pra
+  /// preencher o dropdown de busca (em vez de um campo de texto livre —
+  /// ver a nota acima sobre o filtro de cidade ser igualdade exata: digitar
+  /// "Sertãozi" nunca bateria com "Sertãozinho" gravado no banco, então
+  /// escolher de uma lista evita esse problema de vez).
+  ///
+  /// Nota honesta: isso lê TODOS os documentos de providerDirectory pra
+  /// tirar os valores únicos de `city`, porque o Firestore não tem uma
+  /// consulta nativa de "valores distintos". Pro tamanho de diretório
+  /// esperado aqui (prestadores de algumas regiões) isso é barato; se um
+  /// dia isso crescer muito, vira uma coleção separada (`cities`) mantida
+  /// por Cloud Function a cada escrita em providerDirectory.
+  Future<List<String>> listCities() async {
+    try {
+      final snapshot = await _collection.get();
+      final cities = snapshot.docs
+          .map((doc) => doc.data()['city'] as String?)
+          .whereType<String>()
+          .where((city) => city.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      return cities;
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível carregar as cidades.');
+    }
+  }
+
   Future<ProviderListing?> get(String id) async {
     final doc = await _collection.doc(id).get();
     if (!doc.exists) return null;
