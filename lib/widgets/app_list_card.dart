@@ -24,6 +24,7 @@ class AppListCard extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.trailing,
+    this.footer,
     this.stats = const [],
     this.onTap,
   });
@@ -32,6 +33,11 @@ class AppListCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget? trailing;
+  // Conteúdo de largura livre abaixo do título/subtítulo (ex.: um selo de
+  // status) — diferente de `stats`, que é a fileira de número+ícone com
+  // divisória (ex.: "5 participantes"). Sem divisória, espaçamento mais
+  // enxuto: pensado pra texto curto, não pra uma segunda seção do card.
+  final Widget? footer;
   final List<AppListCardStat> stats;
   final VoidCallback? onTap;
 
@@ -95,6 +101,10 @@ class AppListCard extends StatelessWidget {
                   if (trailing != null) ...[const SizedBox(width: 8), trailing!],
                 ],
               ),
+              if (footer != null) ...[
+                const SizedBox(height: 8),
+                footer!,
+              ],
               if (stats.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 const Divider(height: 1),
