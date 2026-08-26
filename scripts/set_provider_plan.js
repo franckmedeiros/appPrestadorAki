@@ -13,17 +13,14 @@
  * ProviderListing.isFeatured) — não precisa rodar nada pra "desligar",
  * só rodar de novo com `ativar` quando o prestador renovar o pagamento.
  *
- * Uso:
+ * Uso — busca pelo NOME (ou parte do nome), não pelo id do documento:
  *   cd scripts
- *   node set_provider_plan.js <service-account.json> <providerDirectoryId> ativar [dias]
- *   node set_provider_plan.js <service-account.json> <providerDirectoryId> desativar
+ *   node set_provider_plan.js <service-account.json> "<nome do prestador>" ativar [dias]
+ *   node set_provider_plan.js <service-account.json> "<nome do prestador>" desativar
  *
- * `dias` é opcional, padrão 30 (uma assinatura mensal).
- *
- * Não sabe o id do documento de cabeça? Ele é o mesmo uid do prestador
- * (perfil reivindicado) — dá pra achar no Console do Firebase, coleção
- * providerDirectory, procurando pelo nome, ou pedindo pro próprio
- * prestador o e-mail/uid da conta dele.
+ * `dias` é opcional, padrão 30 (uma assinatura mensal). Se o nome bater
+ * com mais de um prestador, o script lista todos e pede pra você escolher
+ * o número certo — não precisa ir catar id nenhum no Console do Firebase.
  */
 
 const fs = require('fs');
@@ -36,18 +33,59 @@ function confirm(question) {
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
       rl.close();
-      resolve(answer.trim().toLowerCase());
+      resolve(answer.trim());
     });
   });
 }
 
+// Mesma ideia do _normalize do app (ClientHomeScreen): remove acento e
+// caixa pra "jose zeferino" achar "José Zeferino" mesmo sem digitar
+// certinho.
+function normalize(value) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function describe(data) {
+  return `${data.name} — ${data.category} — ${data.city}${data.state ? '/' + data.state : ''}` +
+    (data.claimed ? '' : '  [perfil não reivindicado, sem conta ainda]');
+}
+
+async function findListing(db, query) {
+  // Firestore não tem busca por substring nativa — pro tamanho esperado
+  // do diretório (prestadores de algumas regiões), ler tudo e filtrar
+  // aqui é simples e barato o bastante (mesma lógica já usada em
+  // ProviderDirectoryRepository.listCities no app).
+  const snapshot = await db.collection('providerDirectory').get();
+  const normalizedQuery = normalize(query);
+  const matches = snapshot.docs.filter((doc) =>
+    normalize(doc.data().name || '').includes(normalizedQuery),
+  );
+
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0];
+
+  console.log(`\nMais de um prestador bateu com "${query}":\n`);
+  matches.forEach((doc, i) => {
+    console.log(`  ${i + 1}. ${describe(doc.data())}`);
+  });
+  const answer = await confirm('\nDigite o número do prestador certo (ou deixe em branco pra cancelar): ');
+  const index = Number(answer) - 1;
+  if (!Number.isInteger(index) || index < 0 || index >= matches.length) {
+    return undefined; // cancelado / entrada inválida
+  }
+  return matches[index];
+}
+
 async function main() {
-  const [, , serviceAccountPath, listingId, action, daysArg] = process.argv;
-  if (!serviceAccountPath || !listingId || !['ativar', 'desativar'].includes(action)) {
+  const [, , serviceAccountPath, query, action, daysArg] = process.argv;
+  if (!serviceAccountPath || !query || !['ativar', 'desativar'].includes(action)) {
     console.error(
       'Uso:\n' +
-        '  node set_provider_plan.js <service-account.json> <providerDirectoryId> ativar [dias]\n' +
-        '  node set_provider_plan.js <service-account.json> <providerDirectoryId> desativar',
+        '  node set_provider_plan.js <service-account.json> "<nome do prestador>" ativar [dias]\n' +
+        '  node set_provider_plan.js <service-account.json> "<nome do prestador>" desativar',
     );
     process.exit(1);
   }
@@ -56,14 +94,21 @@ async function main() {
   admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
   const db = admin.firestore();
 
-  const ref = db.collection('providerDirectory').doc(listingId);
-  const snapshot = await ref.get();
-  if (!snapshot.exists) {
-    console.error(`\nNão existe nenhum prestador com id "${listingId}" em providerDirectory.`);
+  const doc = await findListing(db, query);
+  if (doc === null) {
+    console.error(`\nNenhum prestador encontrado com "${query}" no nome. Confere a grafia (o jeito ` +
+      'que está gravado no providerDirectory, sem precisar acento certinho) e tenta de novo.');
     process.exit(1);
   }
-  const data = snapshot.data();
-  console.log(`\nPrestador encontrado: ${data.name} — ${data.category} — ${data.city}${data.state ? '/' + data.state : ''}`);
+  if (doc === undefined) {
+    console.log('Cancelado — nada foi escrito.');
+    process.exit(0);
+  }
+
+  const ref = doc.ref;
+  const data = doc.data();
+  console.log(`\nPrestador: ${describe(data)}`);
+  console.log(`(id do documento: ${doc.id})`);
   if (!data.claimed) {
     console.warn(
       '⚠️  Esse é um perfil NÃO reivindicado (ainda não tem conta no PrestadorAki) — ' +
@@ -74,7 +119,7 @@ async function main() {
 
   if (action === 'desativar') {
     const answer = await confirm(`\nConfirma DESATIVAR o Destaque de "${data.name}"? (digite "sim" pra continuar) `);
-    if (answer !== 'sim') {
+    if (answer.trim().toLowerCase() !== 'sim') {
       console.log('Cancelado — nada foi escrito.');
       process.exit(0);
     }
@@ -87,7 +132,7 @@ async function main() {
   const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   console.log(`\nIsso vai marcar "${data.name}" como Destaque até ${until.toLocaleDateString('pt-BR')} (${days} dia(s)).`);
   const answer = await confirm('Confirma? (digite "sim" pra continuar) ');
-  if (answer !== 'sim') {
+  if (answer.trim().toLowerCase() !== 'sim') {
     console.log('Cancelado — nada foi escrito.');
     process.exit(0);
   }
