@@ -1,0 +1,63 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# scripts/ — chave de admin do Firebase (acesso total ao projeto, nunca
+# pode ir pro git) e o CSV real de carga de prestadores (pode ter nomes de
+# pessoas reais — o .example.csv com dados fictícios continua versionado).
+/scripts/node_modules/
+/scripts/*serviceAccount*.json
+/scripts/*service-account*.json
+/scripts/providers_seed.csv
+/scripts/leads_para_contato*.csv
+
+# Cloud Functions (Node/TypeScript) — dependências e build são regeneráveis
+# via `cd functions && npm install && npm run build`.
+/functions/node_modules/
+/functions/lib/
+
+# Configuração de SDK local do Android — específica da sua máquina; o
+# Codemagic (ou qualquer outra máquina) usa a dele.
+android/local.properties

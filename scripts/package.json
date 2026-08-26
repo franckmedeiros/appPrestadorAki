@@ -1,0 +1,13 @@
+{
+  "name": "prestadoraki-scripts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Scripts administrativos do PrestadorAki (fora do app e das Cloud Functions) — hoje só a carga inicial do diretório de prestadores.",
+  "main": "seed_provider_directory.js",
+  "scripts": {
+    "seed": "node seed_provider_directory.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

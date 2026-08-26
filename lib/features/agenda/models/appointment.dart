@@ -1,0 +1,90 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+/// Tipos e status espelham os mesmos valores usados antes (época da API
+/// REST/Postgres) — só a origem dos dados mudou, o vocabulário do domínio
+/// continua o mesmo (ver firebase/DATA_MODEL.md).
+enum AppointmentType { visitaTecnica, servico, retorno, reuniao, pagamento, outro }
+
+enum AppointmentStatus { agendado, confirmado, concluido, cancelado }
+
+AppointmentType _typeFromWire(String value) => AppointmentType.values.firstWhere(
+      (t) => t.wireValue == value,
+      orElse: () => AppointmentType.outro,
+    );
+
+AppointmentStatus _statusFromWire(String value) => AppointmentStatus.values.firstWhere(
+      (s) => s.wireValue == value,
+      orElse: () => AppointmentStatus.agendado,
+    );
+
+extension AppointmentTypeWire on AppointmentType {
+  String get wireValue => switch (this) {
+        AppointmentType.visitaTecnica => 'visita_tecnica',
+        AppointmentType.servico => 'servico',
+        AppointmentType.retorno => 'retorno',
+        AppointmentType.reuniao => 'reuniao',
+        AppointmentType.pagamento => 'pagamento',
+        AppointmentType.outro => 'outro',
+      };
+
+  String get label => switch (this) {
+        AppointmentType.visitaTecnica => 'Visita técnica',
+        AppointmentType.servico => 'Serviço',
+        AppointmentType.retorno => 'Retorno',
+        AppointmentType.reuniao => 'Reunião',
+        AppointmentType.pagamento => 'Pagamento',
+        AppointmentType.outro => 'Outro',
+      };
+}
+
+extension AppointmentStatusWire on AppointmentStatus {
+  String get wireValue => switch (this) {
+        AppointmentStatus.agendado => 'agendado',
+        AppointmentStatus.confirmado => 'confirmado',
+        AppointmentStatus.concluido => 'concluido',
+        AppointmentStatus.cancelado => 'cancelado',
+      };
+
+  String get label => switch (this) {
+        AppointmentStatus.agendado => 'Agendado',
+        AppointmentStatus.confirmado => 'Confirmado',
+        AppointmentStatus.concluido => 'Concluído',
+        AppointmentStatus.cancelado => 'Cancelado',
+      };
+}
+
+class Appointment {
+  Appointment({
+    required this.id,
+    required this.type,
+    required this.scheduledAt,
+    required this.durationMinutes,
+    required this.status,
+    this.customerName,
+    this.addressText,
+    this.observations,
+  });
+
+  factory Appointment.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? const <String, dynamic>{};
+    return Appointment(
+      id: doc.id,
+      type: _typeFromWire(data['type'] as String? ?? 'outro'),
+      scheduledAt: (data['scheduledAt'] as Timestamp).toDate(),
+      durationMinutes: data['durationMinutes'] as int? ?? 60,
+      status: _statusFromWire(data['status'] as String? ?? 'agendado'),
+      customerName: data['customerName'] as String?,
+      addressText: data['addressText'] as String?,
+      observations: data['observations'] as String?,
+    );
+  }
+
+  final String id;
+  final AppointmentType type;
+  final DateTime scheduledAt;
+  final int durationMinutes;
+  final AppointmentStatus status;
+  final String? customerName;
+  final String? addressText;
+  final String? observations;
+}

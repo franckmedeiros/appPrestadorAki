@@ -1,0 +1,134 @@
+rules_version = '2';
+
+// Modelo de dados: cada prestador é um documento em /providers/{uid}, onde
+// {uid} É o UID do Firebase Auth (1 prestador = 1 conta, mesmo desenho do
+// MVP anterior em Postgres — "staff" multiusuário por prestador fica pra
+// quando essa história entrar no backlog). Todo o resto dos dados de
+// negócio vive em subcoleções de /providers/{uid}, o que torna a regra de
+// isolamento multi-tenant trivial: "só o dono enxerga o que é dele".
+//
+// `budgets`, `jobs` e os tokens públicos de orçamento (coleção separada,
+// não listada aqui) têm escrita mais restrita porque a numeração
+// sequencial, o versionamento e a criação automática de job precisam ficar
+// consistentes — isso é feito pelas Cloud Functions (Admin SDK, que
+// ignora estas regras), não pelo app direto.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(providerId) {
+      return request.auth != null && request.auth.uid == providerId;
+    }
+
+    match /providers/{providerId} {
+      allow read, update: if isOwner(providerId);
+      // Criado uma única vez, logo após o cadastro (ver
+      // AuthRepository.register no app) — o próprio usuário recém-criado
+      // é quem grava o próprio documento de prestador.
+      allow create: if isOwner(providerId);
+      allow delete: if false;
+
+      match /customers/{customerId} {
+        allow read, write: if isOwner(providerId);
+      }
+
+      match /technicalVisits/{visitId} {
+        allow read, write: if isOwner(providerId);
+      }
+
+      match /appointments/{appointmentId} {
+        allow read, write: if isOwner(providerId);
+      }
+
+      match /locationSessions/{sessionId} {
+        allow read, write: if isOwner(providerId);
+      }
+
+      // Orçamentos: criação, atualização (com versionamento), envio e
+      // decisão (aprovar/recusar) só acontecem via Cloud Functions
+      // (callable), porque exigem numeração sequencial atômica e/ou
+      // criação automática de job — regras declarativas do Firestore não
+      // dão conta disso com segurança. O prestador só LÊ diretamente.
+      match /budgets/{budgetId} {
+        allow read: if isOwner(providerId);
+        allow write: if false;
+
+        match /versions/{versionId} {
+          allow read: if isOwner(providerId);
+          allow write: if false;
+        }
+        match /changeRequests/{requestId} {
+          allow read: if isOwner(providerId);
+          allow write: if false;
+        }
+      }
+
+      // Jobs só nascem automaticamente quando uma Cloud Function aprova um
+      // orçamento — o prestador pode ler e atualizar status de execução
+      // (a_caminho/chegou/concluído), mas não cria nem apaga um job à mão.
+      match /jobs/{jobId} {
+        allow read, update: if isOwner(providerId);
+        allow create, delete: if false;
+      }
+    }
+
+    // Perfil do lado cliente do marketplace (pivot: o PrestadorAki passou
+    // a ter dois lados — ver DATA_MODEL.md). Mesmo desenho de isolamento
+    // que /providers/{uid}.
+    match /clients/{clientUid} {
+      allow read, update: if isOwner(clientUid);
+      allow create: if isOwner(clientUid);
+      allow delete: if false;
+
+      match /favorites/{listingId} {
+        allow read, write: if isOwner(clientUid);
+      }
+    }
+
+    // Diretório público de prestadores (marketplace) — leitura é pública
+    // de propósito (mudança de ideia: buscar um prestador nunca deve
+    // exigir conta, só ações como favoritar/solicitar orçamento pedem
+    // login, na hora). Não tem problema nenhum documento aqui vazar pra
+    // alguém sem sessão: só guarda nome/categoria/cidade (nunca contato —
+    // ver a ressalva de LGPD no README/DATA_MODEL.md), o mesmo dado que
+    // apareceria numa lista telefônica ou num catálogo do Google Maps.
+    // Escrita continua restrita: só quando o id do documento é o próprio
+    // uid de quem está escrevendo (perfil "reivindicado": o prestador
+    // mantendo os próprios dados públicos em dia — ver
+    // ProviderDirectoryRepository.upsertOwnListing no app). Entradas "não
+    // reivindicadas" (carga inicial/curadoria manual, sem providerUid) só
+    // são criadas/editadas via Admin SDK — o app nunca cria uma entrada
+    // não reivindicada sozinho.
+    match /providerDirectory/{listingId} {
+      allow read: if true;
+      allow create, update: if isOwner(listingId);
+      allow delete: if false;
+    }
+
+    // Pedidos de orçamento do marketplace (cliente → prestador do
+    // diretório). Leitura e atualização são permitidas pras duas partes
+    // envolvidas no pedido.
+    //
+    // Simplificação honesta: não há validação de transição de status aqui
+    // (ex.: nada impede o cliente de marcar "aceito" um pedido que o
+    // prestador nunca respondeu, ou o prestador de reabrir um pedido já
+    // recusado) — fica a cargo do próprio app por enquanto. Se abuso
+    // aparecer na prática, isso precisa virar regra de verdade (checando
+    // `resource.data.status` antes/depois) ou uma Cloud Function, do
+    // mesmo jeito que os Orçamentos formais já são.
+    match /serviceRequests/{requestId} {
+      allow read, update: if request.auth != null &&
+        (request.auth.uid == resource.data.clientUid ||
+         request.auth.uid == resource.data.providerUid);
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.clientUid;
+      allow delete: if false;
+    }
+
+    // Nenhuma outra coleção é acessível pelo cliente. `publicBudgetTokens`
+    // (usada para resolver o link público de orçamento) só é lida/escrita
+    // pelas Cloud Functions via Admin SDK, que ignora estas regras — por
+    // isso nem precisa aparecer aqui.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
