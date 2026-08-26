@@ -115,12 +115,35 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       leading: AppListCard.iconAvatar(listing.category.icon),
                       title: listing.name,
                       subtitle: '${listing.category.label} · ${listing.locationLabel}',
+                      // Emblema de largura fixa em vez de Chip — o texto
+                      // ("Ainda não usa o PrestadorAki") é longo, e um Chip
+                      // pede sua largura inteira numa linha só, espremendo o
+                      // título/subtítulo do prestador até quase sumir. Com
+                      // largura fixa e 2 linhas, o resto do card sempre tem
+                      // espaço garantido.
                       trailing: listing.claimed
                           ? const Icon(Icons.chevron_right, color: AppColors.muted)
-                          : const Chip(
-                              label: Text('Ainda não usa o PrestadorAki',
-                                  style: TextStyle(fontSize: 10)),
-                              visualDensity: VisualDensity.compact,
+                          : Container(
+                              width: 84,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: AppColors.muted.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: const Text(
+                                'Ainda não\ncadastrado',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.muted,
+                                ),
+                              ),
                             ),
                       onTap: () => context.push('/prestador/${listing.id}'),
                     );
