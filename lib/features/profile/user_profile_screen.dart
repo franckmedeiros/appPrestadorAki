@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/testing_flags.dart';
 import '../marketplace/client_auth_gate.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
@@ -362,6 +363,18 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final state = _stateController.text.trim().toUpperCase();
+    if (kBypassProviderSubscriptionGate) {
+      // TEMPORÁRIO (ver lib/core/testing_flags.dart) — pula o paywall e
+      // vira prestador de graça, só pra testar a busca/listagem antes do
+      // Play Billing estar configurado de verdade.
+      final ok = await context.read<AuthController>().becomeProvider(
+            category: _category.wireValue,
+            city: _cityController.text.trim(),
+            state: state.isEmpty ? null : state,
+          );
+      if (ok && mounted) Navigator.pop(context, true);
+      return;
+    }
     final confirmed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ProviderPaywallScreen(
