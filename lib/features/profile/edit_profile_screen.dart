@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
@@ -42,6 +45,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _addressStateController = TextEditingController();
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
+  final _streetFocusNode = FocusNode();
   ServiceCategory _category = ServiceCategory.eletricista;
 
   final _phoneMask = _MaskTextInputFormatter('(##) #####-####');
@@ -49,6 +53,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   bool _loading = true;
   bool _isSaving = false;
+  bool _lookingUpCep = false;
+  String? _cepLookupError;
   String? _error;
 
   @override
@@ -88,10 +94,58 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _addressStateController.dispose();
     _cityController.dispose();
     _stateController.dispose();
+    _streetFocusNode.dispose();
     super.dispose();
   }
 
   bool get _isProvider => context.read<AuthController>().role == AccountRole.provider;
+
+  /// Busca o endereço automaticamente a partir do CEP digitado — via
+  /// ViaCEP (não existe uma API pública e gratuita dos Correios pra
+  /// isso; o ViaCEP é o serviço padrão usado por apps brasileiros pra
+  /// esse tipo de busca, consultando a mesma base dos Correios). Só
+  /// dispara quando o CEP fica completo (8 dígitos, ver o `onChanged` do
+  /// campo); falha em silêncio numa mensagem pequena embaixo do campo —
+  /// o usuário sempre pode preencher rua/bairro/cidade na mão.
+  Future<void> _lookupCep(String cep) async {
+    setState(() {
+      _lookingUpCep = true;
+      _cepLookupError = null;
+    });
+    try {
+      final response = await http
+          .get(Uri.parse('https://viacep.com.br/ws/$cep/json/'))
+          .timeout(const Duration(seconds: 8));
+      if (!mounted) return;
+      if (response.statusCode != 200) {
+        setState(() => _cepLookupError = 'Não foi possível buscar o CEP agora.');
+        return;
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['erro'] == true) {
+        setState(() => _cepLookupError = 'CEP não encontrado.');
+        return;
+      }
+      final logradouro = data['logradouro'] as String?;
+      setState(() {
+        // Deixa a vírgula e o foco prontos pro usuário só completar com o
+        // número da casa — o ViaCEP não devolve número nenhum.
+        _streetController.text =
+            (logradouro != null && logradouro.isNotEmpty) ? '$logradouro, ' : _streetController.text;
+        _neighborhoodController.text = (data['bairro'] as String?) ?? _neighborhoodController.text;
+        _addressCityController.text = (data['localidade'] as String?) ?? _addressCityController.text;
+        _addressStateController.text = (data['uf'] as String?) ?? _addressStateController.text;
+      });
+      _streetController.selection =
+          TextSelection.fromPosition(TextPosition(offset: _streetController.text.length));
+      _streetFocusNode.requestFocus();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cepLookupError = 'Não foi possível buscar o CEP agora.');
+    } finally {
+      if (mounted) setState(() => _lookingUpCep = false);
+    }
+  }
 
   /// Pede a senha atual antes de trocar o e-mail — o Firebase exige uma
   /// reautenticação recente pra esse tipo de operação sensível (senão
@@ -315,13 +369,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _cepController,
-                  decoration: const InputDecoration(labelText: 'CEP (opcional)', hintText: '00000-000'),
+                  decoration: InputDecoration(
+                    labelText: 'CEP (opcional)',
+                    hintText: '00000-000',
+                    suffixIcon: _lookingUpCep
+                        ? const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : null,
+                  ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [_cepMask],
+                  onChanged: (value) {
+                    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+                    if (digits.length == 8) {
+                      _lookupCep(digits);
+                    } else if (_cepLookupError != null) {
+                      setState(() => _cepLookupError = null);
+                    }
+                  },
                 ),
+                if (_cepLookupError != null) ...[
+                  const SizedBox(height: 4),
+                  Text(_cepLookupError!, style: const TextStyle(fontSize: 12, color: AppColors.danger)),
+                ],
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _streetController,
+                  focusNode: _streetFocusNode,
                   decoration: const InputDecoration(labelText: 'Rua e número (opcional)'),
                 ),
                 const SizedBox(height: 12),
