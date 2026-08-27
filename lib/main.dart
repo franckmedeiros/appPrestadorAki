@@ -13,6 +13,7 @@ import 'core/biometric_service.dart';
 import 'core/token_storage.dart';
 import 'features/agenda/appointments_repository.dart';
 import 'features/customers/customers_repository.dart';
+import 'features/marketplace/favorites_controller.dart';
 import 'features/marketplace/favorites_repository.dart';
 import 'features/marketplace/provider_directory_repository.dart';
 import 'features/marketplace/service_requests_repository.dart';
@@ -100,6 +101,9 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
         Provider(create: (context) => ProviderDirectoryRepository()),
         Provider(create: (context) => ServiceRequestsRepository()),
         Provider(create: (context) => FavoritesRepository()),
+        ChangeNotifierProvider(
+          create: (context) => FavoritesController(context.read<FavoritesRepository>()),
+        ),
       ],
       child: MaterialApp.router(
         title: 'PrestadorAki',

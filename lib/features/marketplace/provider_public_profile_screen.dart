@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import 'client_auth_gate.dart';
-import 'favorites_repository.dart';
+import 'favorites_controller.dart';
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'models/service_category.dart';
@@ -32,7 +32,6 @@ class ProviderPublicProfileScreen extends StatefulWidget {
 
 class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScreen> {
   late Future<ProviderListing?> _future;
-  bool _isFavorite = false;
 
   // Gamificação por estrelas: só um cliente com pelo menos um pedido
   // aceito com ESSE prestador pode avaliar (ver
@@ -49,7 +48,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
   void initState() {
     super.initState();
     _future = context.read<ProviderDirectoryRepository>().get(widget.listingId);
-    _checkFavorite();
+    context.read<FavoritesController>().ensureLoaded();
     _loadRatingContext();
   }
 
@@ -59,19 +58,9 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
     super.dispose();
   }
 
-  Future<void> _checkFavorite() async {
-    final auth = context.read<AuthController>();
-    // Convidado (ou prestador logado) nunca tem um `clients/{uid}` pra
-    // consultar — não adianta nem tentar, e evita um erro de "sem sessão"
-    // ao ler o Firestore.
-    if (auth.status != AuthStatus.authenticated || auth.role != AccountRole.client) return;
-    final isFav = await context.read<FavoritesRepository>().isFavorite(widget.listingId);
-    if (mounted) setState(() => _isFavorite = isFav);
-  }
-
   Future<void> _loadRatingContext() async {
     final auth = context.read<AuthController>();
-    if (auth.status != AuthStatus.authenticated || auth.role != AccountRole.client) return;
+    if (auth.status != AuthStatus.authenticated) return;
     final canRate =
         await context.read<ServiceRequestsRepository>().hasAcceptedRequestWith(widget.listingId);
     final myRating = await context.read<ProviderDirectoryRepository>().getMyRating(widget.listingId);
@@ -87,13 +76,10 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
   Future<void> _toggleFavorite() async {
     if (!await ensureClientAccount(context)) return;
     if (!mounted) return;
-    final favorites = context.read<FavoritesRepository>();
-    if (_isFavorite) {
-      await favorites.remove(widget.listingId);
-    } else {
-      await favorites.add(widget.listingId);
-    }
-    if (mounted) setState(() => _isFavorite = !_isFavorite);
+    // FavoritesController já notifica quem estiver observando (inclusive
+    // esta tela, via `context.watch` no build) — não precisa de setState
+    // próprio aqui.
+    await context.read<FavoritesController>().toggle(widget.listingId);
   }
 
   Future<void> _requestQuote(ProviderListing listing) async {
@@ -130,6 +116,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
 
   @override
   Widget build(BuildContext context) {
+    final isFavorite = context.watch<FavoritesController>().isFavorite(widget.listingId);
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil do profissional')),
       body: FutureBuilder<ProviderListing?>(
@@ -209,10 +196,10 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                         ),
                         child: IconButton(
                           onPressed: _toggleFavorite,
-                          tooltip: _isFavorite ? 'Remover dos favoritos' : 'Favoritar',
+                          tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar',
                           icon: Icon(
-                            _isFavorite ? Icons.favorite : Icons.favorite_border,
-                            color: _isFavorite ? AppColors.primary : AppColors.muted,
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: isFavorite ? AppColors.primary : AppColors.muted,
                           ),
                         ),
                       ),
