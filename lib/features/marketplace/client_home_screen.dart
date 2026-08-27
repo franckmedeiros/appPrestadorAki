@@ -7,6 +7,8 @@ import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../widgets/biometric_offer_card.dart';
+import 'client_auth_gate.dart';
+import 'favorites_repository.dart';
 import 'models/provider_listing.dart';
 import 'models/service_category.dart';
 import 'provider_directory_repository.dart';
@@ -42,10 +44,18 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   bool? _biometricAvailable;
   bool _dismissedBiometricOffer = false;
 
+  // Ids já favoritados pelo cliente logado, pra pintar o coração certo em
+  // cada card da lista sem precisar abrir o perfil de cada um — pedido do
+  // Franck ("só coloca o coração, que no mercado o pessoal já sabe que é
+  // favoritar"). Convidado/prestador nunca tem favoritos pra carregar (ver
+  // _loadFavoriteIds), então fica sempre vazio pra eles.
+  Set<String> _favoriteIds = {};
+
   @override
   void initState() {
     super.initState();
     _checkBiometricAvailability();
+    _loadFavoriteIds();
     _future = _search();
     // Carregado uma vez só, antes do campo de cidade existir de verdade
     // (ver FutureBuilder abaixo) — assim o Autocomplete já nasce com a
@@ -65,6 +75,56 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   Future<void> _enableBiometrics() async {
     await context.read<AuthController>().setBiometricEnabled(true);
+  }
+
+  Future<void> _loadFavoriteIds() async {
+    final auth = context.read<AuthController>();
+    if (auth.status != AuthStatus.authenticated || auth.role != AccountRole.client) return;
+    final ids = await context.read<FavoritesRepository>().listFavoriteIds();
+    if (mounted) setState(() => _favoriteIds = ids);
+  }
+
+  /// Alterna favorito direto na lista de busca — pede conta na hora (via
+  /// `ensureClientAccount`) se quem tocou ainda for um convidado, igual já
+  /// acontecia no perfil público. Atualiza `_favoriteIds` otimisticamente
+  /// (sem esperar recarregar a lista inteira).
+  Future<void> _toggleFavorite(ProviderListing listing) async {
+    final wasGuest = context.read<AuthController>().status != AuthStatus.authenticated;
+    if (!await ensureClientAccount(context)) return;
+    if (!mounted) return;
+    if (wasGuest) {
+      // Quem tocou era convidado até agora — `_favoriteIds` ficou vazio
+      // esse tempo todo. Se a pessoa escolheu "Já tenho conta" (em vez de
+      // criar uma nova), essa conta pode já ter favoritos de antes;
+      // recarrega antes de decidir favoritar/desfavoritar, senão um
+      // prestador já favoritado nessa conta acabaria sendo desfavoritado
+      // por engano no primeiro toque.
+      await _loadFavoriteIds();
+      if (!mounted) return;
+    }
+    final favorites = context.read<FavoritesRepository>();
+    final isFavorite = _favoriteIds.contains(listing.id);
+    try {
+      if (isFavorite) {
+        await favorites.remove(listing.id);
+      } else {
+        await favorites.add(listing.id);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível atualizar seus favoritos.')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      if (isFavorite) {
+        _favoriteIds.remove(listing.id);
+      } else {
+        _favoriteIds.add(listing.id);
+      }
+    });
   }
 
   Future<List<ProviderListing>> _search() =>
@@ -306,6 +366,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     return providerListingCard(
                       listing: listing,
                       onTap: () => context.push('/prestador/${listing.id}'),
+                      isFavorite: _favoriteIds.contains(listing.id),
+                      onToggleFavorite: () => _toggleFavorite(listing),
                     );
                   },
                 );

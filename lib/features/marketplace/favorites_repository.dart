@@ -39,6 +39,15 @@ class FavoritesRepository {
     return doc.exists;
   }
 
+  /// Ids dos favoritos do cliente — mais leve que `listResolved()` (não
+  /// resolve o `ProviderListing` de cada um, só os ids), usado pra saber
+  /// de uma vez quais resultados de uma busca já estão favoritados (ver
+  /// ClientHomeScreen), em vez de checar um por um.
+  Future<Set<String>> listFavoriteIds() async {
+    final snapshot = await _favorites.get();
+    return snapshot.docs.map((doc) => doc.id).toSet();
+  }
+
   Future<void> add(String listingId) async {
     try {
       await _favorites.doc(listingId).set({'addedAt': FieldValue.serverTimestamp()});

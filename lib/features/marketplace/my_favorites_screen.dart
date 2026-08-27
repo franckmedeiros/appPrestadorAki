@@ -34,6 +34,26 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
     if (await ensureClientAccount(context) && mounted) setState(_load);
   }
 
+  /// Desfavorita direto da lista (coração preenchido — pedido do Franck
+  /// pra não precisar abrir o perfil só pra isso). Como aqui TODO item já
+  /// é, por definição, um favorito, só existe o sentido de remover — tira
+  /// da lista na hora em vez de esperar um recarregamento inteiro.
+  Future<void> _removeFavorite(ProviderListing listing) async {
+    try {
+      await context.read<FavoritesRepository>().remove(listing.id);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível remover dos favoritos.')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _future = _future?.then((list) => list.where((l) => l.id != listing.id).toList());
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
@@ -78,6 +98,8 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
                       return providerListingCard(
                         listing: listing,
                         onTap: () => context.push('/prestador/${listing.id}'),
+                        isFavorite: true,
+                        onToggleFavorite: () => _removeFavorite(listing),
                       );
                     },
                   );

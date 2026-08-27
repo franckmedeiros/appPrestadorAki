@@ -199,11 +199,21 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
+                      // Só o ícone, sem texto — pedido do Franck: "no
+                      // mercado o pessoal já sabe que é favoritar", igual
+                      // já ficou nos cards da busca/favoritos.
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.muted.withValues(alpha: 0.4)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
                           onPressed: _toggleFavorite,
-                          icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border),
-                          label: Text(_isFavorite ? 'Favoritado' : 'Favoritar'),
+                          tooltip: _isFavorite ? 'Remover dos favoritos' : 'Favoritar',
+                          icon: Icon(
+                            _isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: _isFavorite ? AppColors.primary : AppColors.muted,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
