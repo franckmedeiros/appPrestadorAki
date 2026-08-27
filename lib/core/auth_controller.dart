@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'biometric_service.dart';
+import 'testing_flags.dart';
 import 'token_storage.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated, locked }
@@ -231,7 +232,11 @@ class AuthController extends ChangeNotifier {
       if (category != null && category.isNotEmpty) 'category': category,
       if (city != null && city.isNotEmpty) 'city': city,
       if (state != null && state.isNotEmpty) 'state': state,
-      'listingStatus': 'pending',
+      // kBypassProviderSubscriptionGate é TEMPORÁRIO — ver
+      // lib/core/testing_flags.dart. Com ele ligado, isso já nasce
+      // 'active' (sem paywall) só pra testar a busca/listagem antes do
+      // Play Billing estar configurado de verdade.
+      'listingStatus': kBypassProviderSubscriptionGate ? 'active' : 'pending',
       'nextBudgetNumber': 1,
       'createdAt': now,
       'updatedAt': now,
@@ -385,6 +390,11 @@ class AuthController extends ChangeNotifier {
             'category': category,
             'city': city,
             'state': (state != null && state.isNotEmpty) ? state : FieldValue.delete(),
+            // TEMPORÁRIO (ver lib/core/testing_flags.dart) — com a flag
+            // ligada, salvar aqui também já reativa uma conta que ficou
+            // 'pending' (ex.: criada antes desse bypass existir), sem
+            // precisar editar o Firestore na mão de novo.
+            if (kBypassProviderSubscriptionGate) 'listingStatus': 'active',
             'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
