@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../marketplace/models/provider_listing.dart';
+import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
 import 'edit_profile_screen.dart';
 
