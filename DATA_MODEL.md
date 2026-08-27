@@ -33,6 +33,8 @@ addressCity         string?
 addressState        string?
 logoUrl             string?
 description         string?
+birthDate           Timestamp? — opcional, editável em "Meu perfil"
+pixKey              string?  — opcional, editável em "Meu perfil"
 nextBudgetNumber    number   — incrementado pela Cloud Function createBudget
 createdAt           Timestamp
 updatedAt           Timestamp
@@ -195,8 +197,16 @@ preocupação com LGPD sobre a carga inicial).
 ```
 name        string
 email       string
+whatsapp    string?  — opcional, editável em "Meu perfil"
+birthDate   Timestamp? — opcional, editável em "Meu perfil"
+pixKey      string?  — opcional, editável em "Meu perfil"
 createdAt, updatedAt   Timestamp
 ```
+
+`whatsapp`/`birthDate`/`pixKey` do lado do cliente existem só pra dar
+paridade com "Meu perfil" do prestador (mesma tela, UserProfileScreen/
+EditProfileScreen) — nenhum dos três aparece em nenhuma busca ou perfil
+público, ficam só no documento raiz do próprio dono.
 
 Criado direto pelo app, uma única vez, logo após o cadastro (quando a
 pessoa escolhe "Sou cliente" na tela de criar conta).

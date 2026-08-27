@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
@@ -23,12 +25,14 @@ class UserProfileScreen extends StatefulWidget {
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<ProviderListing?>? _listingFuture;
+  late Future<Map<String, dynamic>> _ownDataFuture;
   bool? _biometricAvailable;
 
   @override
   void initState() {
     super.initState();
     _loadListingIfProvider();
+    _ownDataFuture = context.read<AuthController>().fetchOwnProfileData();
     _checkBiometricAvailability();
   }
 
@@ -37,6 +41,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (auth.role == AccountRole.provider) {
       _listingFuture = context.read<ProviderDirectoryRepository>().get(auth.providerId);
     }
+  }
+
+  void _reloadOwnData() {
+    _loadListingIfProvider();
+    _ownDataFuture = context.read<AuthController>().fetchOwnProfileData();
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -53,7 +62,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       MaterialPageRoute(builder: (_) => EditProfileScreen(currentListing: listing)),
     );
     if (!mounted) return;
-    setState(_loadListingIfProvider);
+    setState(_reloadOwnData);
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -134,6 +143,36 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 );
               },
             ),
+          FutureBuilder<Map<String, dynamic>>(
+            future: _ownDataFuture,
+            builder: (context, snapshot) {
+              final data = snapshot.data ?? const <String, dynamic>{};
+              final birthTimestamp = data['birthDate'] as Timestamp?;
+              final birthLabel =
+                  birthTimestamp != null ? DateFormat('dd/MM/yyyy').format(birthTimestamp.toDate()) : null;
+              final pixKey = data['pixKey'] as String?;
+              final whatsapp = data['whatsapp'] as String?;
+              return Column(
+                children: [
+                  _InfoTile(
+                    icon: Icons.cake_outlined,
+                    label: 'Data de nascimento',
+                    value: birthLabel ?? 'Não informado',
+                  ),
+                  _InfoTile(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: 'Chave Pix',
+                    value: (pixKey != null && pixKey.isNotEmpty) ? pixKey : 'Não informado',
+                  ),
+                  _InfoTile(
+                    icon: Icons.phone_outlined,
+                    label: 'Telefone/WhatsApp',
+                    value: (whatsapp != null && whatsapp.isNotEmpty) ? whatsapp : 'Não informado',
+                  ),
+                ],
+              );
+            },
+          ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _editProfile,

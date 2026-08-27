@@ -70,6 +70,16 @@ class AuthController extends ChangeNotifier {
   /// próprio porque o Firebase Auth já é a fonte da verdade.
   String? get currentUserEmail => _auth.currentUser?.email;
 
+  /// Se existe uma sessão do Firebase Auth salva localmente — usada pelo
+  /// botão de biometria da LoginScreen pra saber se dá pra tentar
+  /// destravar por biometria a partir dali (igual ao app Resenha). Na
+  /// prática, no fluxo normal do PrestadorAki, quem tem sessão salva E
+  /// biometria ativada nunca chega a ver a LoginScreen — o bootstrap já
+  /// manda direto pra `/unlock` (ver app_router.dart) — mas o botão fica
+  /// certo mesmo assim, sem depender de nenhuma suposição sobre qual tela
+  /// o usuário está vendo.
+  bool get hasCachedSession => _auth.currentUser != null;
+
   /// Chamado uma vez na inicialização do app para restaurar a sessão. O
   /// Firebase Auth já persiste a sessão sozinho no dispositivo — só
   /// checamos se existe um usuário logado e, se existir, qual o papel dele
@@ -206,26 +216,54 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Atualiza o nome do usuário logado — usado pela tela "Editar perfil"
+  /// Nome da coleção do documento raiz do usuário logado
+  /// (`providers/{uid}` ou `clients/{uid}`, dependendo do papel).
+  String get _ownCollection => role == AccountRole.provider ? 'providers' : 'clients';
+
+  /// Lê os campos "pessoais" do próprio documento raiz — nascimento,
+  /// chave Pix e WhatsApp não fazem parte do perfil público do diretório
+  /// (ver `providerDirectory` no DATA_MODEL.md), só do documento
+  /// `providers/{uid}`/`clients/{uid}` do próprio dono. Usado pela tela
+  /// "Editar perfil" pra pré-preencher o formulário.
+  Future<Map<String, dynamic>> fetchOwnProfileData() async {
+    final user = _auth.currentUser!;
+    final doc = await _firestore.collection(_ownCollection).doc(user.uid).get();
+    return doc.data() ?? const <String, dynamic>{};
+  }
+
+  /// Atualiza os dados da conta logada — usado pela tela "Editar perfil"
   /// (EditProfileScreen). Grava em dois lugares: o `displayName` do
   /// Firebase Auth (usado por `displayName` acima, ex.: pra pré-preencher
-  /// o nome do cliente num pedido de orçamento) e o campo `name` do
-  /// documento raiz (`providers/{uid}` ou `clients/{uid}`, dependendo do
-  /// papel). Pro lado do prestador, a tela também chama
+  /// o nome do cliente num pedido de orçamento) e os campos do documento
+  /// raiz (`providers/{uid}` ou `clients/{uid}`, dependendo do papel).
+  /// Pro lado do prestador, a tela também chama
   /// `ProviderDirectoryRepository.upsertOwnListing` à parte — esse método
   /// aqui não mexe no perfil público do diretório, só nos dados da conta.
-  Future<bool> updateOwnName(String name) => _submit(() async {
+  /// `birthDate`/`pixKey`/`whatsapp` são opcionais: passar `null` (ou uma
+  /// string vazia) apaga o campo em vez de gravar vazio — `FieldValue
+  /// .delete()` funciona normalmente dentro de um `.set(merge: true)`.
+  Future<bool> updateOwnProfile({
+    required String name,
+    DateTime? birthDate,
+    String? pixKey,
+    String? whatsapp,
+  }) =>
+      _submit(() async {
         final user = _auth.currentUser!;
         await user.updateDisplayName(name);
-        final collection = role == AccountRole.provider ? 'providers' : 'clients';
         // `.set(..., merge: true)` em vez de `.update(...)`: `update` exige
         // que o documento já exista, e lança `[cloud_firestore/not-found]`
         // se não existir (ex.: alguma conta antiga sem o documento raiz
         // completo) — merge grava o campo de qualquer jeito, sem apagar o
         // resto, igual ProviderDirectoryRepository.upsertOwnListing já faz.
-        await _firestore.collection(collection).doc(user.uid).set(
+        await _firestore.collection(_ownCollection).doc(user.uid).set(
           {
             'name': name,
+            'birthDate': birthDate != null ? Timestamp.fromDate(birthDate) : FieldValue.delete(),
+            'pixKey':
+                (pixKey != null && pixKey.isNotEmpty) ? pixKey : FieldValue.delete(),
+            'whatsapp':
+                (whatsapp != null && whatsapp.isNotEmpty) ? whatsapp : FieldValue.delete(),
             'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
