@@ -177,36 +177,42 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          if (isProvider)
-            FutureBuilder<ProviderListing?>(
-              future: _listingFuture,
-              builder: (context, snapshot) {
-                final listing = snapshot.data;
-                return Column(
-                  children: [
-                    _InfoTile(
-                      icon: Icons.handyman_outlined,
-                      label: 'Categoria',
-                      value: listing?.category.label ?? 'Não informado',
-                    ),
-                    _InfoTile(
-                      icon: Icons.location_city_outlined,
-                      label: 'Cidade',
-                      value: listing != null && listing.city.isNotEmpty
-                          ? listing.locationLabel
-                          : 'Não informado',
-                    ),
-                  ],
-                );
-              },
-            ),
+          // Categoria/cidade (quando prestador) vêm de `_ownDataFuture`
+          // (providers/{uid}, o documento PRÓPRIO do dono da conta) — não
+          // de `_listingFuture` (providerDirectory, o diretório PÚBLICO).
+          // Enquanto a assinatura não estiver ativa, providerDirectory
+          // nem chega a existir (ver DATA_MODEL.md, "Gate de pagamento"),
+          // então usar o diretório público aqui faria a própria pessoa ver
+          // "Não informado" pros dados que ela mesma já preencheu — mesmo
+          // que "Editar perfil" mostre tudo certinho, porque lê a mesma
+          // fonte (`_ownDataFuture`) que este bloco agora também usa.
           FutureBuilder<Map<String, dynamic>>(
             future: _ownDataFuture,
             builder: (context, snapshot) {
               final data = snapshot.data ?? const <String, dynamic>{};
               final whatsapp = data['whatsapp'] as String?;
+              final category = data['category'] as String?;
+              final city = data['city'] as String?;
+              final state = data['state'] as String?;
+              final cityLabel = (city != null && city.isNotEmpty)
+                  ? ((state != null && state.isNotEmpty) ? '$city/$state' : city)
+                  : null;
               return Column(
                 children: [
+                  if (isProvider) ...[
+                    _InfoTile(
+                      icon: Icons.handyman_outlined,
+                      label: 'Categoria',
+                      value: (category != null && category.isNotEmpty)
+                          ? serviceCategoryFromWire(category).label
+                          : 'Não informado',
+                    ),
+                    _InfoTile(
+                      icon: Icons.location_city_outlined,
+                      label: 'Cidade',
+                      value: cityLabel ?? 'Não informado',
+                    ),
+                  ],
                   _InfoTile(
                     icon: Icons.phone_outlined,
                     label: 'Telefone/WhatsApp',
