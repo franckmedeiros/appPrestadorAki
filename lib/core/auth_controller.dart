@@ -218,10 +218,18 @@ class AuthController extends ChangeNotifier {
         final user = _auth.currentUser!;
         await user.updateDisplayName(name);
         final collection = role == AccountRole.provider ? 'providers' : 'clients';
-        await _firestore.collection(collection).doc(user.uid).update({
-          'name': name,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        // `.set(..., merge: true)` em vez de `.update(...)`: `update` exige
+        // que o documento já exista, e lança `[cloud_firestore/not-found]`
+        // se não existir (ex.: alguma conta antiga sem o documento raiz
+        // completo) — merge grava o campo de qualquer jeito, sem apagar o
+        // resto, igual ProviderDirectoryRepository.upsertOwnListing já faz.
+        await _firestore.collection(collection).doc(user.uid).set(
+          {
+            'name': name,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
       });
 
   Future<void> logout() async {
@@ -255,6 +263,17 @@ class AuthController extends ChangeNotifier {
       return true;
     } on FirebaseAuthException catch (e) {
       errorMessage = _messageFor(e.code);
+      return false;
+    } on FirebaseException catch (e) {
+      // Erro do Firestore (ex.: updateOwnName gravando em providers/clients)
+      // — classe diferente de FirebaseAuthException, então cairia no
+      // catch genérico abaixo e mostraria sempre "Não foi possível
+      // conectar ao servidor.", escondendo o motivo real (ex.: regra do
+      // firestore.rules bloqueando, documento não encontrado). Mostrar a
+      // mensagem de verdade ajuda a diagnosticar sem precisar olhar o
+      // console do Firebase toda vez.
+      debugPrint('AuthController: FirebaseException (${e.plugin}/${e.code}): ${e.message}');
+      errorMessage = e.message ?? 'Não foi possível completar a operação.';
       return false;
     } catch (e) {
       debugPrint('AuthController: erro inesperado: $e');
