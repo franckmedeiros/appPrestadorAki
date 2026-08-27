@@ -174,12 +174,21 @@ class ProviderDirectoryRepository {
         final newSum = hadRatingBefore ? (oldSum - oldStarsForThisClient + stars) : (oldSum + stars);
         final newAverage = newCount == 0 ? 0.0 : newSum / newCount;
 
+        // Extraído numa variável à parte (em vez de embutido direto no
+        // valor do map literal abaixo) por causa de um caso real de
+        // ambiguidade de parsing do Dart: um `?:` cujo ramo "then" é uma
+        // expressão `??` terminando em chamada de função, seguido do `:`
+        // numa linha nova, confundiu o compilador (erro "Expected ':'
+        // before this" que só apareceu na build do Codemagic — não tinha
+        // como pegar isso sem rodar `flutter build` de verdade).
+        final Object createdAt = hadRatingBefore
+            ? (existingRatingSnap.data()?['createdAt'] ?? FieldValue.serverTimestamp())
+            : FieldValue.serverTimestamp();
+
         tx.set(ratingRef, {
           'stars': stars,
           if (comment != null && comment.trim().isNotEmpty) 'comment': comment.trim(),
-          'createdAt': hadRatingBefore
-              ? existingRatingSnap.data()?['createdAt'] ?? FieldValue.serverTimestamp()
-              : FieldValue.serverTimestamp(),
+          'createdAt': createdAt,
           'updatedAt': FieldValue.serverTimestamp(),
         });
         tx.update(listingRef, {
