@@ -100,19 +100,8 @@ service cloud.firestore {
     match /providerDirectory/{listingId} {
       allow read: if true;
 
-      // O próprio prestador (perfil reivindicado) nunca pode gravar
-      // `featured`/`featuredUntil` nele mesmo — o selo "Destaque" (plano
-      // mensal, cobrado por fora do app por enquanto — ver
-      // scripts/set_provider_plan.js) só é ligado/desligado via Admin SDK,
-      // que ignora esta regra. `hasOnly`/`affectedKeys` do lado de quem
-      // avalia (abaixo) garante que uma escrita normal do app (que nunca
-      // inclui esses dois campos — ver upsertOwnListing) sempre passa.
-      allow create: if isOwner(listingId) &&
-        !('featured' in request.resource.data) &&
-        !('featuredUntil' in request.resource.data);
-      allow update: if (isOwner(listingId) &&
-          request.resource.data.get('featured', false) == resource.data.get('featured', false) &&
-          request.resource.data.get('featuredUntil', null) == resource.data.get('featuredUntil', null)) ||
+      allow create: if isOwner(listingId);
+      allow update: if isOwner(listingId) ||
         // Agregado de avaliações (ratingAverage/ratingCount — ver
         // ProviderDirectoryRepository.rate): precisa ser gravável por
         // QUALQUER cliente autenticado, não só o dono do perfil, porque é

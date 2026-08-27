@@ -35,10 +35,9 @@ class ProviderDirectoryRepository {
   /// (prestadores de uma região), ordenar no app depois de buscar é mais
   /// simples e não depende de deploy de índice nenhum.
   ///
-  /// Ordem: primeiro os "Destaque" com assinatura em dia (`isFeatured`),
-  /// depois todo mundo por nome — dentro de cada grupo. Isso é o único
-  /// efeito que o plano pago tem na busca por enquanto (ver
-  /// ProviderListing.isFeatured e scripts/set_provider_plan.js).
+  /// Ordem: por nome. A classificação por estrelas (ratingAverage) é
+  /// mostrada em cada card, mas não decide a ordem da lista — só o nome
+  /// (ver ProviderListingCard/StarRatingBar).
   Future<List<ProviderListing>> search({ServiceCategory? category, String? city}) async {
     try {
       Query<Map<String, dynamic>> query = _collection;
@@ -50,10 +49,7 @@ class ProviderDirectoryRepository {
       }
       final snapshot = await query.get();
       final listings = snapshot.docs.map(ProviderListing.fromFirestore).toList()
-        ..sort((a, b) {
-          if (a.isFeatured != b.isFeatured) return a.isFeatured ? -1 : 1;
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        });
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       return listings;
     } on FirebaseException catch (e) {
       throw ApiException(0, e.message ?? 'Não foi possível buscar prestadores.');
@@ -95,10 +91,7 @@ class ProviderDirectoryRepository {
   /// Cria ou atualiza o próprio perfil público do prestador logado — o id
   /// do documento é sempre o próprio uid (ver classe acima), então isso
   /// nunca cria uma segunda entrada por engano, mesmo chamado mais de uma
-  /// vez. Deliberadamente nunca escreve `featured`/`featuredUntil` — quem
-  /// controla o selo de Destaque é só o script administrativo (ver
-  /// firestore.rules, que bloqueia o próprio prestador de mudar esses dois
-  /// campos no seu perfil).
+  /// vez. Usado no cadastro e na tela "Editar perfil" (EditProfileScreen).
   Future<void> upsertOwnListing({
     required String name,
     required ServiceCategory category,

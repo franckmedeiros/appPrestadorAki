@@ -65,6 +65,11 @@ class AuthController extends ChangeNotifier {
     return user?.email ?? 'Usuário';
   }
 
+  /// E-mail da conta logada — usado pela tela "Meu perfil"
+  /// (UserProfileScreen). `AuthController` não duplica isso num campo
+  /// próprio porque o Firebase Auth já é a fonte da verdade.
+  String? get currentUserEmail => _auth.currentUser?.email;
+
   /// Chamado uma vez na inicialização do app para restaurar a sessão. O
   /// Firebase Auth já persiste a sessão sozinho no dispositivo — só
   /// checamos se existe um usuário logado e, se existir, qual o papel dele
@@ -200,6 +205,24 @@ class AuthController extends ChangeNotifier {
     await _storage.setBiometricEnabled(enabled);
     notifyListeners();
   }
+
+  /// Atualiza o nome do usuário logado — usado pela tela "Editar perfil"
+  /// (EditProfileScreen). Grava em dois lugares: o `displayName` do
+  /// Firebase Auth (usado por `displayName` acima, ex.: pra pré-preencher
+  /// o nome do cliente num pedido de orçamento) e o campo `name` do
+  /// documento raiz (`providers/{uid}` ou `clients/{uid}`, dependendo do
+  /// papel). Pro lado do prestador, a tela também chama
+  /// `ProviderDirectoryRepository.upsertOwnListing` à parte — esse método
+  /// aqui não mexe no perfil público do diretório, só nos dados da conta.
+  Future<bool> updateOwnName(String name) => _submit(() async {
+        final user = _auth.currentUser!;
+        await user.updateDisplayName(name);
+        final collection = role == AccountRole.provider ? 'providers' : 'clients';
+        await _firestore.collection(collection).doc(user.uid).update({
+          'name': name,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
 
   Future<void> logout() async {
     await _auth.signOut();

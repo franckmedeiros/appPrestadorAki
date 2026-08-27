@@ -224,8 +224,6 @@ claimed       bool     — true se tem conta de verdade no PrestadorAki
 providerUid   string?  — só quando claimed == true
 ratingAverage number?  — média 0-5, agregada a partir da subcoleção ratings
 ratingCount   number?  — quantidade de avaliações
-featured      bool?    — selo "Destaque" (plano pago mensal, ver abaixo)
-featuredUntil Timestamp? — validade do Destaque; expirado = não conta mais
 createdAt, updatedAt   Timestamp
 ```
 
@@ -233,8 +231,9 @@ createdAt, updatedAt   Timestamp
 igual ao `providerUid` — criado automaticamente quando um prestador se
 cadastra escolhendo categoria/cidade (`AuthController.register`), e pode
 ser atualizado depois via `ProviderDirectoryRepository.upsertOwnListing`
-(hoje só chamado no cadastro; ainda não existe uma tela de "editar perfil
-público" separada — é o próximo passo natural).
+— chamado tanto no cadastro quanto na tela "Editar perfil"
+(EditProfileScreen), que deixa o prestador mudar nome/categoria/cidade/UF
+depois de criar a conta.
 
 **Leitura pública, de propósito**: buscar e ver um perfil nunca exige
 conta (ver `README.md`, "Quem precisa de conta — mudança de ideia") —
@@ -275,19 +274,6 @@ consciente**: não é validado no firestore.rules, ver a ressalva lá).
 transação a cada avaliação nova ou editada (ver
 `ProviderDirectoryRepository.rate`).
 
-#### Selo "Destaque" (`featured`/`featuredUntil`)
-
-Plano pago do prestador — por decisão do Franck, a cobrança é uma
-assinatura MENSAL feita por fora do app (sem checkout integrado ainda);
-quem liga/desliga o selo é só o script administrativo
-`scripts/set_provider_plan.js` (Admin SDK, ignora firestore.rules). O
-`firestore.rules` bloqueia explicitamente o próprio prestador de gravar
-esses dois campos no perfil dele mesmo. Efeito no app: prestadores com
-Destaque em dia (`featured: true` e `featuredUntil` no futuro) aparecem
-com um selo e sempre no topo dos resultados de busca, antes dos demais
-(ver `ProviderListing.isFeatured`, `ProviderDirectoryRepository.search`).
-Se a assinatura vencer, o selo some sozinho no próximo app aberto — não
-depende de nenhum job/Cloud Function rodando pra "desligar" nada.
 
 ### `serviceRequests/{requestId}` (coleção no topo, fora de `/providers`)
 

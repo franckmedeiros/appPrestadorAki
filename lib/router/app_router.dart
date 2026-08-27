@@ -16,6 +16,7 @@ import '../features/marketplace/my_favorites_screen.dart';
 import '../features/marketplace/my_requests_screen.dart';
 import '../features/marketplace/provider_public_profile_screen.dart';
 import '../features/marketplace/request_quote_form_screen.dart';
+import '../features/profile/user_profile_screen.dart';
 import '../features/splash_screen.dart';
 import '../features/welcome/welcome_screen.dart';
 import '../widgets/app_shell.dart';
@@ -39,6 +40,7 @@ const _providerOnlyRoutes = {
   '/agenda/novo',
   '/orcamentos',
   '/pedidos',
+  '/meu-perfil',
 };
 
 // Rotas do shell do lado do cliente. Depois da mudança de ideia, NENHUMA
@@ -48,7 +50,7 @@ const _providerOnlyRoutes = {
 // ClientAuthGate/MyFavoritesScreen/MyRequestsScreen). Esse conjunto só
 // serve aqui pra mandar de volta um PRESTADOR logado que tentar entrar
 // nelas (ver `redirect` abaixo).
-const _clientShellRoutes = {'/buscar', '/favoritos', '/minhas-solicitacoes'};
+const _clientShellRoutes = {'/buscar', '/favoritos', '/minhas-solicitacoes', '/perfil'};
 
 GoRouter buildAppRouter(AuthController authController) {
   return GoRouter(
@@ -130,6 +132,9 @@ GoRouter buildAppRouter(AuthController authController) {
           StatefulShellBranch(routes: [
             GoRoute(path: '/pedidos', builder: (context, state) => const IncomingRequestsScreen()),
           ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/meu-perfil', builder: (context, state) => const UserProfileScreen()),
+          ]),
         ],
       ),
       StatefulShellRoute.indexedStack(
@@ -144,6 +149,9 @@ GoRouter buildAppRouter(AuthController authController) {
           StatefulShellBranch(routes: [
             GoRoute(
                 path: '/minhas-solicitacoes', builder: (context, state) => const MyRequestsScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/perfil', builder: (context, state) => const UserProfileScreen()),
           ]),
         ],
       ),

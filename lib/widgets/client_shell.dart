@@ -15,6 +15,7 @@ class ClientShell extends StatelessWidget {
     AppNavItem(icon: Icons.favorite_border, selectedIcon: Icons.favorite, label: 'Favoritos'),
     AppNavItem(
         icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt, label: 'Solicitações'),
+    AppNavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Perfil'),
   ];
 
   @override

@@ -20,6 +20,7 @@ class AppShell extends StatelessWidget {
     AppNavItem(
         icon: Icons.description_outlined, selectedIcon: Icons.description, label: 'Orçamentos'),
     AppNavItem(icon: Icons.inbox_outlined, selectedIcon: Icons.inbox, label: 'Pedidos'),
+    AppNavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Perfil'),
   ];
 
   @override

@@ -5,16 +5,19 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
+import '../../core/auth_controller.dart';
+import '../../widgets/biometric_offer_card.dart';
 import 'models/provider_listing.dart';
 import 'models/service_category.dart';
 import 'provider_directory_repository.dart';
 import 'widgets/provider_listing_card.dart';
 
 /// Home do lado do cliente — busca no diretório público de prestadores
-/// por categoria e cidade, com prestadores "Destaque" sempre no topo (ver
-/// ProviderDirectoryRepository.search). A busca por localização atual
-/// (abaixo) só preenche o campo cidade a partir do GPS — não é busca por
-/// proximidade/raio de verdade, isso ainda não existe.
+/// por categoria e cidade, ordenados por nome (ver
+/// ProviderDirectoryRepository.search) — a classificação por estrelas
+/// aparece em cada card, mas não decide a ordem da lista. A busca por
+/// localização atual (abaixo) só preenche o campo cidade a partir do GPS
+/// — não é busca por proximidade/raio de verdade, isso ainda não existe.
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({super.key});
 
@@ -30,9 +33,19 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   bool _locating = false;
   late Future<List<ProviderListing>> _future;
 
+  // Mesma ideia do DashboardScreen (lado do prestador): oferece ativar a
+  // biometria com um cartão fixo, não um dialog — aqui do lado do
+  // cliente, que antes não tinha NENHUM jeito de ativar isso fora do
+  // checkbox do cadastro (ver BiometricOfferCard/RegisterScreen). Só faz
+  // sentido pra quem já está logado de fato (um convidado navegando livre
+  // por aqui não tem sessão nenhuma pra "destravar" depois).
+  bool? _biometricAvailable;
+  bool _dismissedBiometricOffer = false;
+
   @override
   void initState() {
     super.initState();
+    _checkBiometricAvailability();
     _future = _search();
     // Carregado uma vez só, antes do campo de cidade existir de verdade
     // (ver FutureBuilder abaixo) — assim o Autocomplete já nasce com a
@@ -42,6 +55,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     // opções quando o TEXTO muda, não quando `_cities` muda sozinho) —
     // por isso a lista "não vinha carregada" ao digitar.
     _citiesFuture = context.read<ProviderDirectoryRepository>().listCities();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    final available = await context.read<AuthController>().biometricAvailable;
+    if (!mounted) return;
+    setState(() => _biometricAvailable = available);
+  }
+
+  Future<void> _enableBiometrics() async {
+    await context.read<AuthController>().setBiometricEnabled(true);
   }
 
   Future<List<ProviderListing>> _search() =>
@@ -145,10 +168,24 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    final showBiometricOffer = auth.status == AuthStatus.authenticated &&
+        _biometricAvailable == true &&
+        !auth.biometricEnabled &&
+        !_dismissedBiometricOffer;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Encontre um profissional')),
       body: Column(
         children: [
+          if (showBiometricOffer)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: BiometricOfferCard(
+                onEnable: _enableBiometrics,
+                onDismiss: () => setState(() => _dismissedBiometricOffer = true),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(

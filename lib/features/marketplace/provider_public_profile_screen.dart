@@ -9,6 +9,7 @@ import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'models/service_category.dart';
 import 'provider_directory_repository.dart';
+import 'widgets/star_rating_bar.dart';
 import 'service_requests_repository.dart';
 
 /// Perfil público de um prestador do marketplace — visto pelo cliente,
@@ -149,36 +150,18 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              listing.name,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          if (listing.isFeatured) ...[
-                            const SizedBox(width: 8),
-                            const Chip(
-                              avatar: Icon(Icons.star, size: 14, color: Colors.white),
-                              label: Text('Destaque',
-                                  style: TextStyle(
-                                      fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)),
-                              backgroundColor: Color(0xFFB8860B),
-                              visualDensity: VisualDensity.compact,
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ],
-                        ],
+                      Text(
+                        listing.name,
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 4),
                       Text('${listing.category.label} · ${listing.locationLabel}',
                           style: const TextStyle(color: AppColors.muted)),
-                      const SizedBox(height: 8),
-                      _RatingSummary(listing: listing),
+                      const SizedBox(height: 10),
+                      StarRatingBar(rating: listing.ratingAverage, count: listing.ratingCount, starSize: 26),
                       if (!listing.claimed) ...[
                         const SizedBox(height: 12),
                         const Card(
@@ -238,38 +221,6 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
           );
         },
       ),
-    );
-  }
-}
-
-/// Resumo da nota média — distingue "ainda sem avaliações" de uma nota
-/// baixa de verdade (mostrar "0.0" pra quem nunca foi avaliado passaria
-/// a impressão errada de que o prestador é mal avaliado).
-class _RatingSummary extends StatelessWidget {
-  const _RatingSummary({required this.listing});
-
-  final ProviderListing listing;
-
-  @override
-  Widget build(BuildContext context) {
-    if (listing.ratingCount == 0) {
-      return const Text('Ainda sem avaliações', style: TextStyle(color: AppColors.muted, fontSize: 13));
-    }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.star_rounded, size: 18, color: Color(0xFFB8860B)),
-        const SizedBox(width: 4),
-        Text(
-          listing.ratingAverage.toStringAsFixed(1),
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '(${listing.ratingCount} avaliaç${listing.ratingCount == 1 ? 'ão' : 'ões'})',
-          style: const TextStyle(color: AppColors.muted, fontSize: 13),
-        ),
-      ],
     );
   }
 }

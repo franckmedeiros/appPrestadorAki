@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../widgets/app_list_card.dart';
+import '../../widgets/biometric_offer_card.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
 
@@ -84,7 +85,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const Text('Aqui está o resumo do seu dia.', style: TextStyle(color: AppColors.muted)),
           if (showBiometricOffer) ...[
             const SizedBox(height: 16),
-            _BiometricOfferCard(
+            BiometricOfferCard(
               onEnable: _enableBiometrics,
               onDismiss: () => setState(() => _dismissedThisSession = true),
             ),
@@ -183,59 +184,6 @@ class _TodayAppointmentTile extends StatelessWidget {
       ),
       title: appointment.customerName ?? appointment.type.label,
       subtitle: appointment.type.label,
-    );
-  }
-}
-
-/// Cartão fixo (não um dialog que passa rápido) oferecendo ativar a
-/// biometria — fica visível no topo do dashboard sempre que o aparelho
-/// suporta e o prestador ainda não ativou, até ele ativar ou fechar o
-/// cartão. Mesma ideia do botão de biometria sempre visível na tela de
-/// login do app Resenha: melhor um elemento fixo na tela do que um modal
-/// que pode passar despercebido.
-class _BiometricOfferCard extends StatelessWidget {
-  const _BiometricOfferCard({required this.onEnable, required this.onDismiss});
-
-  final VoidCallback onEnable;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: AppColors.primary.withValues(alpha: 0.06),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.fingerprint, color: AppColors.primary, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Entrar com biometria',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Use digital ou reconhecimento facial pra abrir o app mais rápido da próxima vez.',
-                    style: TextStyle(color: AppColors.muted, fontSize: 13),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      FilledButton(onPressed: onEnable, child: const Text('Ativar')),
-                      TextButton(onPressed: onDismiss, child: const Text('Agora não')),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

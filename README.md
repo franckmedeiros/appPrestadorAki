@@ -231,8 +231,10 @@ segunda conta), mas é uma aresta que ainda não foi resolvida.
 
 **O que ainda falta** (próximos passos naturais, não escondidos):
 
-- Tela de "editar perfil público" pro prestador (hoje só é criado uma vez
-  no cadastro).
+- ~~Tela de "editar perfil público" pro prestador (hoje só é criado uma
+  vez no cadastro)~~ — já existe (`UserProfileScreen`/`EditProfileScreen`,
+  aba "Perfil" nos dois lados do app), incluindo editar nome/categoria/
+  cidade/UF, ativar biometria e sair da conta.
 - Aceitar um orçamento do marketplace não fecha o laço sozinho ainda (não
   cria job nem cadastra o cliente automaticamente pro prestador) — isso
   fica pra quando o fluxo básico estiver validado em uso real.
