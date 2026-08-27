@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -104,6 +105,19 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
         title: 'PrestadorAki',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
+        // Sem isso, alguns teclados Android (relatado com Gboard em
+        // pt-BR) atropelam a composição de acento/cedilha (ã, ç, é) —
+        // o app nunca declarava suportar pt-BR pro sistema. `locale`
+        // fixo em vez de deixar o sistema decidir: o app inteiro só
+        // existe em português mesmo, não tem tradução pra outro idioma
+        // pra alternar.
+        locale: const Locale('pt', 'BR'),
+        supportedLocales: const [Locale('pt', 'BR')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         routerConfig: _router,
       ),
     );

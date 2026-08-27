@@ -9,6 +9,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # SDK do próprio Flutter (não vem do pub.dev, por isso não tem versão) —
+  # sem isso o MaterialApp não tem os delegates de localização, e alguns
+  # teclados Android (Gboard em pt-BR incluso) atropelam a composição de
+  # acento/cedilha (ã, ç, é) sem o app declarar que suporta pt-BR. Ver
+  # main.dart (localizationsDelegates/supportedLocales).
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.8
   go_router: ^14.2.0
   provider: ^6.1.2
