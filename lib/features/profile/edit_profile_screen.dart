@@ -57,11 +57,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _cepLookupError;
   String? _error;
 
-  // Só existe pra prestador — 'pending' até uma ativação manual (decisão
-  // combinada com o Franck: "só preparar o terreno", sem pagamento de
-  // verdade integrado ainda). Enquanto pendente, salvar aqui NÃO cria/
-  // atualiza a entrada pública no diretório (ver _save abaixo) — a área de
-  // atuação fica salva só em providers/{uid}, pronta pra quando ativar.
+  // Só existe pra prestador — reflete se a assinatura mensal (Google Play
+  // Billing) está ativa agora (ver functions/src/subscription.ts):
+  // 'active' com assinatura em dia, 'pending' quando ela não está ativa
+  // (nunca chegou a assinar, cancelou, ou atrasou o pagamento além da
+  // carência). Enquanto pendente, salvar aqui NÃO cria/atualiza a entrada
+  // pública no diretório (ver _save abaixo) — a área de atuação fica salva
+  // só em providers/{uid}, pronta pra quando a assinatura voltar a ativar
+  // (a própria notificação da Play Store faz isso sozinha).
   String? _listingStatus;
 
   @override
@@ -88,7 +91,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _whatsappController.text = data['whatsapp'] as String? ?? '';
     _listingStatus = data['listingStatus'] as String?;
     // A área de atuação vem de providers/{uid} (sempre existe, mesmo
-    // 'pending' — ver AuthController._createProviderDocument), não só do
+    // 'pending' — ver functions/src/subscription.ts), não só do
     // `widget.currentListing` (que só reflete o diretório PÚBLICO, vazio
     // pra quem ainda não foi ativado). Só sobrescreve o que já veio do
     // `currentListing` no initState se providers/{uid} de fato tiver o
@@ -265,11 +268,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           return;
         }
         // Só publica/atualiza a entrada pública do diretório (o que faz o
-        // prestador aparecer na busca do cliente) se já não estiver
-        // pendente de ativação — ver a nota em
-        // AuthController._createProviderDocument ("só preparar o
-        // terreno"). Prestadores antigos (sem esse campo ainda) continuam
-        // publicando normalmente.
+        // prestador aparecer na busca do cliente) se a assinatura estiver
+        // ativa agora — ver functions/src/subscription.ts. Prestadores
+        // antigos (sem esse campo ainda) continuam publicando normalmente.
         if (_listingStatus != 'pending') {
           await context.read<ProviderDirectoryRepository>().upsertOwnListing(
                 name: name,
@@ -370,8 +371,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: Padding(
                         padding: EdgeInsets.all(12),
                         child: Text(
-                          '⏳ Seu cadastro de prestador ainda está em análise — assim que for '
-                          'ativado, você passa a aparecer nas buscas dos clientes.',
+                          '⏳ Sua assinatura mensal não está ativa no momento — assim que ela '
+                          'for confirmada, você volta a aparecer nas buscas dos clientes.',
                           style: TextStyle(fontSize: 12.5),
                         ),
                       ),

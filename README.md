@@ -206,9 +206,9 @@ mesma tela de sempre, só que agora é exclusiva desse fluxo (tem um link
   convite pra não reivindicados) e ver o histórico
   (`MyFavoritesScreen`/`MyRequestsScreen`) pedem conta na hora, via
   `client_auth_gate.dart` — nunca antes disso.
-- Cadastro de prestador (`RegisterScreen`, chegando por `/welcome`) pede
-  categoria e cidade, que já criam a entrada pública no diretório
-  (`providerDirectory`).
+- Cadastro (`RegisterScreen`) é sempre de cliente — virar prestador
+  acontece depois, em "Meu perfil", passando pela assinatura mensal (ver
+  seção "Assinatura mensal do prestador" mais abaixo).
 - Lado prestador: aba "Pedidos" (`IncomingRequestsScreen`) — recebe os
   pedidos do marketplace e responde com um valor + mensagem simples (bem
   mais simples que o módulo formal de Orçamentos, que continua existindo
@@ -222,12 +222,14 @@ mesma tela de sempre, só que agora é exclusiva desse fluxo (tem um link
   firebase deploy --only firestore:rules,firestore:indexes
   ```
 
-**Lacuna consciente**: uma conta hoje só é OU cliente OU prestador, nunca
-as duas ao mesmo tempo (`AuthController._resolveRole`). Se alguém já
-logado como cliente tocar em "Sou prestador", a tela de boas-vindas
-manda de volta pra busca em vez de oferecer um jeito de virar prestador
-com a mesma conta — não é o fim do mundo (a pessoa pode sair e criar uma
-segunda conta), mas é uma aresta que ainda não foi resolvida.
+**Atualização (conta unificada)**: a lacuna que existia aqui (conta só
+podia ser OU cliente OU prestador) foi resolvida — toda conta autenticada
+tem uma identidade base de cliente e PODE, além disso, ter a capacidade
+de prestador (`AuthController.isProvider`, ver `DATA_MODEL.md`). Quem já
+tem conta e quer virar prestador faz isso em "Meu perfil" → "Também
+quero oferecer serviços" — sem precisar de uma segunda conta. Ver a
+seção "Assinatura mensal do prestador" mais abaixo pra como isso
+funciona hoje (gate por assinatura, não mais de graça).
 
 **O que ainda falta** (próximos passos naturais, não escondidos):
 
@@ -253,3 +255,106 @@ segunda conta), mas é uma aresta que ainda não foi resolvida.
 - O link de convite pro profissional "não reivindicado" ainda é um
   placeholder (`[link do app aqui]`) — só vira um link de verdade quando
   o app for publicado numa loja ou tiver uma página própria pra apontar.
+
+## Assinatura mensal do prestador (Google Play Billing + RTDN)
+
+Decisão combinada com o Franck: nada de cobrar Pix/cartão na mão nem
+tirar prestador da busca manualmente todo mês ("pra mim ficar cuidando
+disso não fica bom"). "Virar prestador" agora é sempre uma assinatura
+mensal comprada dentro do próprio app, pela Google Play — o mesmo desenho
+já usado no app Resenha pra "criar uma resenha" (`in_app_purchase`), só
+que aqui com um reforço a mais: a Play Store avisa a própria Cloud
+Function automaticamente quando alguém para de pagar (RTDN), então o
+prestador some da busca sozinho, sem ninguém precisar olhar nada.
+
+**O que já está implementado** (código escrito e verificado nesta
+sessão — `npm run build` das Functions limpo, zero erros de TypeScript;
+o lado Flutter não pôde ser compilado aqui pela mesma restrição de rede
+que já impede instalar o Flutter SDK neste sandbox, ver nota mais acima):
+
+- `functions/src/subscription.ts` — `confirmarAssinaturaPrestador`
+  (callable, chamada pelo app assim que uma compra/restauração é
+  concluída) e `processarNotificacaoPlay` (Pub/Sub, disparada sozinha
+  pela Play Store a cada mudança de estado da assinatura). As duas SEMPRE
+  reconsultam o estado real na Google Play Developer API antes de agir —
+  nunca confiam só no que o app ou a notificação dizem.
+- `lib/core/subscription_service.dart` — ponte com o `in_app_purchase`.
+- `lib/features/profile/provider_paywall_screen.dart` — tela de venda da
+  assinatura, aberta a partir de "Meu perfil" → "Também quero oferecer
+  serviços" (`UserProfileScreen`/`_BecomeProviderSheet`), depois de
+  escolher categoria/cidade/UF.
+- `lib/features/marketplace/provider_directory_repository.dart` — busca e
+  lista de cidades agora ignoram entradas com `visible == false`
+  (assinatura inativa) — ver `DATA_MODEL.md`.
+- `lib/features/auth/register_screen.dart` — voltou a ser só cadastro de
+  cliente (a compra do Play Billing não dá pra encaixar no meio da
+  criação da conta).
+
+**O que só você consegue fazer** (acesso ao Play Console/GCP, que eu não
+tenho aqui):
+
+1. **Cadastrar o produto da assinatura** — Play Console → seu app →
+   Monetizar → Assinaturas → criar uma assinatura com o ID EXATO
+   `prestadoraki_assinatura_mensal` (esse valor já está fixado no código,
+   em `SubscriptionService.assinaturaMensalId` e
+   `subscription.ts:SUBSCRIPTION_PRODUCT_ID` — se usar outro ID lá, tem
+   que trocar aqui também), período mensal, e o preço que você quiser
+   cobrar.
+2. **Criar a service account que a Cloud Function vai usar pra falar com
+   a Play Developer API**:
+   - Google Cloud Console → seu projeto Firebase (mesmo projeto do
+     PrestadorAki) → IAM e administrador → Contas de serviço → Criar
+     conta de serviço (ex.: `prestadoraki-play-billing`). Não precisa dar
+     nenhum papel do IAM na hora de criar — a permissão de verdade vem do
+     passo seguinte, dentro do Play Console.
+   - Nessa conta de serviço recém-criada → aba "Chaves" → Adicionar
+     chave → Criar nova chave → JSON. Isso baixa um arquivo `.json` —
+     guarde ele, é a chave que vai pro Secret Manager no passo 4.
+   - Play Console → Configurações da conta → Usuários e permissões →
+     Convidar novos usuários → cole o e-mail da service account (o mesmo
+     formato de sempre, tipo
+     `prestadoraki-play-billing@SEU-PROJETO.iam.gserviceaccount.com`).
+   - Nas permissões dessa convite, marque pelo menos: **"Ver dados
+     financeiros, pedidos e histórico de cancelamento"** e **"Gerenciar
+     pedidos e assinaturas"**. Sem essas duas, a Cloud Function recebe erro
+     de permissão da Play Developer API.
+3. **Ativar as Real-time Developer Notifications (RTDN)** — é o que faz o
+   corte/reativação automáticos funcionarem, sem isso a assinatura só
+   seria checada quando o app abrisse de novo:
+   - Google Cloud Console (mesmo projeto) → Pub/Sub → Tópicos → Criar
+     tópico → nome EXATO `play-subscriptions` (já fixado em
+     `subscription.ts:RTDN_TOPIC` — trocar os dois juntos se usar outro
+     nome).
+   - Nesse tópico → Permissões → Adicionar principal → cole
+     `google-play-developer-notifications@system.gserviceaccount.com`
+     com o papel **Pub/Sub Publisher** (é a conta de serviço da própria
+     Google que publica as notificações — não é a sua service account do
+     passo 2).
+   - Play Console → seu app → Monetizar → Configuração de monetização →
+     "Notificações em tempo real do desenvolvedor" → cole o nome completo
+     do tópico (algo como
+     `projects/SEU-PROJETO/topics/play-subscriptions`) → Salvar.
+4. **Guardar a chave da service account no Secret Manager do Firebase**
+   (na sua máquina, dentro da pasta do projeto):
+   ```
+   firebase functions:secrets:set PLAY_SERVICE_ACCOUNT_KEY < caminho\para\a\chave.json
+   ```
+   Isso pede confirmação e já deixa disponível pro próximo deploy — não
+   precisa (nem deve) colar o conteúdo da chave em nenhum arquivo do
+   repositório.
+5. **Instalar a dependência nova e implantar** (na raiz do projeto):
+   ```
+   cd functions && npm install && cd ..
+   firebase deploy --only functions:confirmarAssinaturaPrestador,functions:processarNotificacaoPlay
+   ```
+6. **No app Flutter**: `flutter pub get` (pra baixar `in_app_purchase` e
+   `cloud_functions`, adicionados no `pubspec.yaml`), depois gerar um
+   build assinado e subir num "faixa de teste interno" da Play Store —
+   compra de assinatura só funciona em app publicado numa faixa de teste
+   ou produção, nunca rodando direto do `flutter run` num aparelho sem
+   passar pela loja.
+
+Qualquer erro de permissão nesses passos (o mais comum costuma ser
+esquecer de convidar a service account com as duas permissões certas no
+passo 2, ou errar o nome do tópico no passo 3), me manda a mensagem exata
+que eu ajudo a diagnosticar.

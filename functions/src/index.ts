@@ -8,3 +8,6 @@ export {
   getPublicBudget,
   publicApproveBudget,
 } from './budgets';
+
+export { confirmarAssinaturaPrestador, processarNotificacaoPlay } from './subscription';
+

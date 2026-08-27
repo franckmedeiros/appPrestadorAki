@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
-import '../marketplace/models/service_category.dart';
 
-/// Cadastro unificado (decisão combinada com o Franck): toda conta nasce
-/// como cliente; "também quero oferecer serviços" é um opt-in ADICIONAL,
-/// não uma escolha exclusiva — quem marca vira cliente E prestador ao
-/// mesmo tempo (ver AuthController.register/isProvider).
+/// Cadastro (decisão combinada com o Franck): toda conta nasce como
+/// cliente — a capacidade de prestador não entra mais por aqui, porque
+/// depende de confirmar uma assinatura mensal (Google Play Billing), o
+/// que não cabe bem no meio do cadastro (o `in_app_purchase` só consegue
+/// atrelar a compra a um uid do Firebase depois que a conta já existe).
+/// Quem quiser virar prestador faz isso depois, em "Meu perfil" → "Também
+/// quero oferecer serviços" (ver UserProfileScreen/ProviderPaywallScreen).
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -20,11 +22,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _stateController = TextEditingController();
-
-  bool _alsoProvider = false;
-  ServiceCategory _category = ServiceCategory.eletricista;
 
   // Mesma ideia da LoginScreen/DashboardScreen: oferece biometria já no
   // cadastro, em vez de só depois do primeiro login — assim quem já sabe
@@ -50,8 +47,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _cityController.dispose();
-    _stateController.dispose();
     super.dispose();
   }
 
@@ -61,10 +56,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _nameController.text.trim(),
       _emailController.text.trim(),
       _passwordController.text,
-      asProvider: _alsoProvider,
-      category: _alsoProvider ? _category.wireValue : null,
-      city: _alsoProvider ? _cityController.text.trim() : null,
-      state: _alsoProvider ? _stateController.text.trim().toUpperCase() : null,
     );
     if (ok && _useBiometrics) {
       await auth.setBiometricEnabled(true);
@@ -107,60 +98,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (value) =>
                       (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
                 ),
-                const SizedBox(height: 12),
-                CheckboxListTile(
-                  value: _alsoProvider,
-                  onChanged: (value) => setState(() => _alsoProvider = value ?? false),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  title: const Text('Também quero oferecer serviços'),
-                  subtitle: const Text(
-                    'Sua conta continua a mesma pra buscar e favoritar prestadores — isso '
-                    'só adiciona a área de prestador (orçamentos, agenda, clientes).',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-                if (_alsoProvider) ...[
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<ServiceCategory>(
-                    initialValue: _category,
-                    decoration:
-                        const InputDecoration(labelText: 'Sua principal categoria de serviço'),
-                    items: ServiceCategory.values
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
-                        .toList(),
-                    onChanged: (value) => setState(() => _category = value ?? _category),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: TextFormField(
-                          controller: _cityController,
-                          decoration: const InputDecoration(labelText: 'Cidade'),
-                          validator: (value) => (_alsoProvider && (value == null || value.trim().isEmpty))
-                              ? 'Informe a cidade'
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _stateController,
-                          maxLength: 2,
-                          decoration: const InputDecoration(labelText: 'UF', counterText: ''),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Cidade e categoria são o que faz você aparecer nas buscas dos clientes '
-                    'no PrestadorAki — depois de uma ativação (avisamos por fora).',
-                    style: TextStyle(fontSize: 12, color: AppColors.muted),
-                  ),
-                ],
                 if (_biometricAvailable == true) ...[
                   const SizedBox(height: 8),
                   CheckboxListTile(

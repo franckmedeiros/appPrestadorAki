@@ -17,6 +17,13 @@ import 'models/service_category.dart';
 /// verdade — "prestadores próximos" do documento de produto original
 /// precisaria de geohash + Cloud Function ou um serviço de busca externo,
 /// isso ainda não existe.
+///
+/// `visible` (bool, opcional): controlado só pelas Cloud Functions da
+/// assinatura (ver functions/src/subscription.ts) — `false` enquanto a
+/// assinatura mensal do prestador não estiver ativa. Um documento SEM
+/// esse campo é tratado como visível (protege as entradas "não
+/// reivindicadas" da curadoria inicial, que nunca têm esse campo, e
+/// qualquer entrada reivindicada de antes dessa mudança).
 class ProviderDirectoryRepository {
   ProviderDirectoryRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
       : _firestore = firestore ?? FirebaseFirestore.instance,
@@ -48,7 +55,15 @@ class ProviderDirectoryRepository {
         query = query.where('city', isEqualTo: city);
       }
       final snapshot = await query.get();
-      final listings = snapshot.docs.map(ProviderListing.fromFirestore).toList()
+      // Filtro de `visible` feito aqui no app, não no Firestore, pela
+      // mesma razão da ordenação abaixo: um `where('visible', ...)`
+      // combinado com os filtros de igualdade acima pediria mais um
+      // índice composto, e documentos sem o campo (a maioria, hoje) não
+      // combinam com `isEqualTo: true` de qualquer jeito.
+      final listings = snapshot.docs
+          .where((doc) => doc.data()['visible'] != false)
+          .map(ProviderListing.fromFirestore)
+          .toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       return listings;
     } on FirebaseException catch (e) {
@@ -70,6 +85,7 @@ class ProviderDirectoryRepository {
     try {
       final snapshot = await _collection.get();
       final cities = snapshot.docs
+          .where((doc) => doc.data()['visible'] != false)
           .map((doc) => doc.data()['city'] as String?)
           .whereType<String>()
           .where((city) => city.isNotEmpty)

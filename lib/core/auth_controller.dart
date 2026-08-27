@@ -181,12 +181,14 @@ class AuthController extends ChangeNotifier {
         status = AuthStatus.authenticated;
       });
 
-  /// Adiciona a capacidade de prestador a uma conta já existente (ex.:
-  /// cliente que decide "também quero oferecer serviços" pela tela de
-  /// perfil). Mesmo desenho do cadastro: cria `providers/{uid}` com
-  /// `listingStatus: 'pending'` — não aparece na busca do cliente até
-  /// alguém (hoje, o Franck via Firebase Console) ativar manualmente. Ver
-  /// a nota em `_createProviderDocument`.
+  /// SUPERADO pelo gate de assinatura (ver ProviderPaywallScreen +
+  /// `confirmarAssinaturaPrestador` em functions/src/subscription.ts): a
+  /// UI não chama mais este método diretamente — "virar prestador" agora
+  /// sempre passa por uma assinatura mensal confirmada no servidor, que é
+  /// quem de fato cria `providers/{uid}`. Mantido só por compatibilidade
+  /// (ex.: testes/uso interno) — não remover `_createProviderDocument`
+  /// nem este método quebraria nada em produção, mas nenhuma tela chama
+  /// isso mais.
   Future<bool> becomeProvider({
     required String category,
     required String city,
@@ -421,6 +423,18 @@ class AuthController extends ChangeNotifier {
   Future<bool> _checkIsProvider(String uid) async {
     final providerDoc = await _firestore.collection('providers').doc(uid).get();
     return providerDoc.exists;
+  }
+
+  /// Chamado depois que a Cloud Function `confirmarAssinaturaPrestador`
+  /// confirma a compra e cria/atualiza `providers/{uid}` no servidor —
+  /// atualiza o `isProvider` em cache aqui no app (que só é lido no
+  /// login/bootstrap) sem precisar deslogar e logar de novo. Ver
+  /// ProviderPaywallScreen.
+  Future<void> refreshProviderStatus() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    isProvider = await _checkIsProvider(user.uid);
+    notifyListeners();
   }
 
   Future<bool> _submit(Future<void> Function() action) async {

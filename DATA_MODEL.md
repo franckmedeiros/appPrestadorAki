@@ -38,6 +38,9 @@ category            string?  — área de atuação (ServiceCategory.wireValue) 
 city                string?  — cidade de atuação (diferente de addressCity: endereço pessoal)
 state               string?  — UF de atuação
 listingStatus       string?  — 'pending' | 'active' (ver nota abaixo); ausente = ativo (contas antigas)
+subscriptionState      string?  — último estado bruto devolvido pela Play Developer API
+                                   (ex.: SUBSCRIPTION_STATE_ACTIVE) — só informativo/debug
+subscriptionExpiresAt  Timestamp? — quando a assinatura atual vence, segundo a Play Store
 logoUrl             string?
 description         string?
 nextBudgetNumber    number   — incrementado pela Cloud Function createBudget
@@ -45,30 +48,56 @@ createdAt           Timestamp
 updatedAt           Timestamp
 ```
 
-Criado direto pelo app, logo após `createUserWithEmailAndPassword` ter
-sucesso, OU depois — quando uma conta que já era só cliente decide
-"também quero oferecer serviços" pela tela de perfil (ver
-`AuthController.becomeProvider`) — o próprio usuário grava seu próprio
-documento nos dois casos (permitido pela regra `isOwner`).
+Criado pela Cloud Function `confirmarAssinaturaPrestador` (ver
+`functions/src/subscription.ts` e a seção "Gate de pagamento" abaixo) na
+primeira vez que a assinatura mensal do prestador é confirmada — nunca
+mais é o próprio app/cliente quem grava este documento diretamente (só o
+Admin SDK, que ignora o `firestore.rules`). `AuthController.becomeProvider`
+ainda existe no código, mas não é mais chamado por nenhuma tela — a UI
+sempre passa pela `ProviderPaywallScreen` primeiro.
 
 **Conta unificada** (decisão combinada com o Franck): ter um documento
 aqui NUNCA significa que a conta deixou de ser cliente — toda conta
 autenticada também tem (ou ganha, na primeira ação de cliente) um
 `clients/{uid}` (ver abaixo). As duas coisas coexistem sempre.
 
-**Gate de pagamento — "só preparar o terreno"** (decisão combinada com o
-Franck, sem pagamento de verdade integrado ainda): um prestador recém-
-criado (seja no cadastro ou virando prestador depois) nasce com
-`listingStatus: 'pending'` e o app NÃO cria a entrada correspondente em
-`providerDirectory` automaticamente — ou seja, ele não aparece de graça
-na busca do cliente. A ativação hoje é manual, direto no Firebase
-Console: (1) mudar `listingStatus` pra `'active'` no documento de
-`providers/{uid}`, e (2) o próprio prestador precisa salvar o perfil uma
-vez (`EditProfileScreen` -> "Salvar alterações") depois disso pra
-`providerDirectory/{uid}` ser criado/atualizado — ou, mais direto, criar
-esse documento manualmente também. Contas de prestador criadas ANTES
-dessa mudança não têm o campo `listingStatus` — a ausência do campo é
-tratada como "ativo" (nunca tira alguém que já estava aparecendo do ar).
+**Gate de pagamento — assinatura mensal via Google Play Billing**
+(decisão combinada com o Franck, substituindo um plano anterior de
+ativação manual): "virar prestador" só acontece de verdade depois de uma
+assinatura mensal confirmada — nunca há cobrança avulsa via Pix/cartão
+nem corte manual por falta de pagamento. O app usa `in_app_purchase`
+(Google Play Billing) pra comprar/restaurar a assinatura
+(`lib/core/subscription_service.dart`,
+`lib/features/profile/provider_paywall_screen.dart`), e quem confirma de
+verdade (batendo o token de compra contra a Google Play Developer API,
+nunca confiando no que o app diz sozinho) é a Cloud Function
+`confirmarAssinaturaPrestador` (`functions/src/subscription.ts`) — é ela
+quem cria `providers/{uid}` na primeira vez e liga `listingStatus` pra
+`'active'`, além de criar/atualizar `providerDirectory/{uid}` com
+`visible: true` (ver seção `providerDirectory` abaixo).
+
+**Revogação automática, sem intervenção manual** (decisão combinada com o
+Franck: "pra mim ficar cuidando disso não fica bom" → RTDN): a Play Store
+avisa a própria Cloud Function (`processarNotificacaoPlay`, via Pub/Sub —
+Real-time Developer Notifications) toda vez que o estado de uma
+assinatura muda — renovou, atrasou o pagamento, cancelou, expirou. Cada
+notificação faz a função reconsultar o estado real na Developer API (a
+notificação em si só avisa "algo mudou", nunca diz qual é o estado atual)
+e aplicar o resultado: assinatura fora dos estados ativos
+(`SUBSCRIPTION_STATE_ACTIVE`/`SUBSCRIPTION_STATE_IN_GRACE_PERIOD`) →
+`listingStatus` volta pra `'pending'` e `providerDirectory/{uid}.visible`
+vira `false` — o prestador some da busca sozinho, sem o Franck precisar
+olhar nada. Se a pessoa assinar de novo depois, tudo volta ao normal
+automaticamente, com a mesma reputação (`ratingAverage`/`ratingCount`) de
+antes — ver a nota sobre isso na seção `providerDirectory`.
+
+Contas de prestador criadas ANTES dessa mudança (ativação manual, direto
+no Firebase Console) não têm os campos `subscriptionState`/
+`subscriptionExpiresAt` — `listingStatus` continua valendo do jeito que
+foi deixado manualmente até a primeira vez que essa conta passar por
+`confirmarAssinaturaPrestador`/`processarNotificacaoPlay`. A ausência
+completa do campo `listingStatus` continua tratada como "ativo" (contas
+bem antigas, de antes de qualquer gate de pagamento existir).
 
 ## `providers/{uid}/customers/{customerId}`
 
@@ -275,20 +304,34 @@ city          string
 state         string?
 claimed       bool     — true se tem conta de verdade no PrestadorAki
 providerUid   string?  — só quando claimed == true
+visible       bool?    — false enquanto a assinatura mensal não está ativa (ver
+                          `providers/{uid}`); ausente = visível (padrão de sempre,
+                          inclusive nas entradas não reivindicadas abaixo)
 ratingAverage number?  — média 0-5, agregada a partir da subcoleção ratings
 ratingCount   number?  — quantidade de avaliações
 createdAt, updatedAt   Timestamp
 ```
 
 **Perfil reivindicado** (`claimed: true`): o id do documento é sempre
-igual ao `providerUid`. Desde o gate de pagamento ("só preparar o
-terreno" — ver `providers/{uid}`), este documento NÃO nasce mais junto
-com o cadastro/`becomeProvider` — só é criado (ou atualizado) via
-`ProviderDirectoryRepository.upsertOwnListing`, chamado pela tela
-"Editar perfil" (EditProfileScreen), e só quando
-`providers/{uid}.listingStatus != 'pending'`. Ou seja, um prestador
-recém-cadastrado só ganha entrada aqui depois de ser ativado manualmente
-E salvar o perfil de novo uma vez.
+igual ao `providerUid`. Desde o gate de pagamento por assinatura (ver
+`providers/{uid}`), este documento é criado/atualizado principalmente
+pela Cloud Function `confirmarAssinaturaPrestador`/`processarNotificacaoPlay`
+(`functions/src/subscription.ts`), com `visible: true` só enquanto a
+assinatura estiver ativa. `ProviderDirectoryRepository.upsertOwnListing`
+(chamado pela tela "Editar perfil") continua existindo pra atualizar
+nome/categoria/cidade depois — mas nunca mexe em `visible`, então nunca
+reativa por engano uma entrada que a Cloud Function marcou como
+invisível por falta de pagamento.
+
+**Por que soft-hide (`visible: false`) em vez de apagar o documento**: se
+o prestador reativar a assinatura depois de um período sem pagar, ele
+recupera exatamente a mesma reputação (`ratingAverage`/`ratingCount`) de
+antes — apagar o documento perderia isso (a subcoleção `ratings` em si
+não seria apagada em cascata pelo Firestore, ficaria órfã sem o pai).
+`ProviderDirectoryRepository.search`/`listCities` filtram
+`visible == false` no próprio app (mesma filosofia de ordenar/filtrar no
+Dart em vez de criar mais um índice composto, já usada aqui — ver a nota
+logo acima sobre a ordenação por nome).
 
 **Leitura pública, de propósito**: buscar e ver um perfil nunca exige
 conta (ver `README.md`, "Quem precisa de conta — mudança de ideia") —
@@ -329,6 +372,28 @@ consciente**: não é validado no firestore.rules, ver a ressalva lá).
 transação a cada avaliação nova ou editada (ver
 `ProviderDirectoryRepository.rate`).
 
+
+### `assinaturasVerificadas/{purchaseToken}` (coleção no topo, fora de `/providers`)
+
+```
+uid                string   — dono dessa compra
+productId          string   — sempre 'prestadoraki_assinatura_mensal' hoje
+subscriptionState  string?  — último estado bruto da Play Developer API
+atualizadoEm       Timestamp
+```
+
+Só escrito pelas Cloud Functions (`functions/src/subscription.ts`), via
+Admin SDK — não existe regra em `firestore.rules` pra isso porque o
+cliente nunca lê nem escreve aqui diretamente. Duas finalidades: (1)
+antifraude — impede que o mesmo `purchaseToken` seja reaproveitado por
+outra conta Firebase (`confirmarAssinaturaPrestador` recusa com
+`permission-denied` se o uid não bater); (2) é como
+`processarNotificacaoPlay` (a notificação RTDN da Play Store, que só traz
+o `purchaseToken`) descobre a qual `uid` aplicar a mudança de estado —
+por isso uma notificação que chega ANTES da primeira confirmação de
+compra pra aquele token é ignorada (ainda não tem o que fazer com ela; a
+própria confirmação, quando chegar, já busca o estado atual na API na
+hora). Mesmo padrão do `comprasVerificadas` do app Resenha.
 
 ### `serviceRequests/{requestId}` (coleção no topo, fora de `/providers`)
 

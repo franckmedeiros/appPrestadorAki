@@ -68,10 +68,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<Map<String, dynamic>?> _loadListingStatus() async {
-    // Leitura leve só pro aviso de ativação pendente abaixo — não vale a
-    // pena um método próprio no AuthController só pra isso (ver
-    // EditProfileScreen, que também lê listingStatus a partir do mesmo
-    // fetchOwnProfileData).
+    // Leitura leve só pro aviso de assinatura inativa abaixo (ver
+    // functions/src/subscription.ts) — não vale a pena um método próprio
+    // no AuthController só pra isso (ver EditProfileScreen, que também lê
+    // listingStatus a partir do mesmo fetchOwnProfileData).
     final data = await context.read<AuthController>().fetchOwnProfileData();
     return data;
   }
@@ -104,8 +104,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text(
-                      '⏳ Seu cadastro de prestador ainda está em análise — assim que for '
-                      'ativado, você passa a aparecer nas buscas dos clientes.',
+                      '⏳ Sua assinatura mensal não está ativa no momento — assim que ela '
+                      'for confirmada, você volta a aparecer nas buscas dos clientes.',
                       style: const TextStyle(fontSize: 12.5),
                     ),
                   ),

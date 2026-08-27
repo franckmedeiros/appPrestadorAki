@@ -29,6 +29,14 @@ dependencies:
   geolocator: ^13.0.0
   geocoding: ^4.0.0
 
+  # Chama Cloud Functions do app (confirmar assinatura do prestador).
+  cloud_functions: ^6.3.6
+
+  # Assinatura mensal (Google Play Billing) — só quem assina consegue
+  # virar prestador (aparecer na busca). Ver lib/core/subscription_service.dart
+  # e functions/src/subscription.ts.
+  in_app_purchase: ^3.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

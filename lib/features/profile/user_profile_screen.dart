@@ -7,6 +7,7 @@ import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
 import 'edit_profile_screen.dart';
+import 'provider_paywall_screen.dart';
 
 /// Aba "Meu perfil" — igual ao pedido do Franck ("colocar a opção de
 /// usuário igual do Resenha, hoje eu não consigo mudar os dados do
@@ -328,9 +329,10 @@ class _InfoTile extends StatelessWidget {
 /// Formulário curto (categoria/cidade/UF) pra uma conta que já é cliente
 /// virar também prestador — mesmo tipo de dado pedido no cadastro
 /// (RegisterScreen), só que chamado a partir do "Meu perfil" em vez do
-/// cadastro inicial. Depois de criar, o cadastro fica com
-/// `listingStatus: 'pending'` até uma ativação manual (ver
-/// AuthController._createProviderDocument) — o formulário já avisa disso.
+/// cadastro inicial. Só coleta os dados aqui; quem de fato cria
+/// `providers/{uid}` é a Cloud Function `confirmarAssinaturaPrestador`,
+/// depois que a assinatura mensal (Google Play Billing) for confirmada
+/// na ProviderPaywallScreen — ver `_submit` abaixo.
 class _BecomeProviderSheet extends StatefulWidget {
   const _BecomeProviderSheet();
 
@@ -351,20 +353,23 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
     super.dispose();
   }
 
-  Future<void> _submit(AuthController auth) async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final ok = await auth.becomeProvider(
-      category: _category.wireValue,
-      city: _cityController.text.trim(),
-      state: _stateController.text.trim().toUpperCase(),
+    final state = _stateController.text.trim().toUpperCase();
+    final confirmed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ProviderPaywallScreen(
+          category: _category.wireValue,
+          city: _cityController.text.trim(),
+          state: state.isEmpty ? null : state,
+        ),
+      ),
     );
-    if (ok && mounted) Navigator.pop(context, true);
+    if (confirmed == true && mounted) Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthController>();
-
     return Padding(
       padding: EdgeInsets.only(
         left: 24,
@@ -435,24 +440,14 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
               ),
               const SizedBox(height: 4),
               const Text(
-                '⏳ Seu cadastro entra em análise — assim que for ativado, você passa a '
-                'aparecer nas buscas dos clientes.',
+                'Na próxima tela você confirma a assinatura mensal — assim que ela for '
+                'aprovada, você já passa a aparecer nas buscas dos clientes.',
                 style: TextStyle(fontSize: 12, color: AppColors.muted),
               ),
-              if (auth.errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
-              ],
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: auth.isBusy ? null : () => _submit(auth),
-                child: auth.isBusy
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Virar prestador'),
+                onPressed: _submit,
+                child: const Text('Continuar para assinatura'),
               ),
             ],
           ),
