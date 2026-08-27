@@ -29,12 +29,19 @@ class ClientHomeScreen extends StatefulWidget {
   State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
+/// Resultado de uma tentativa de descobrir a cidade atual via GPS —
+/// [city] vem preenchido (já casado com a lista de cidades conhecidas, ou
+/// o nome bruto detectado se não bater com nenhuma) quando dá certo;
+/// [errorMessage] vem preenchido quando falha, pronto pra mostrar na UI.
+/// Nunca os dois ao mesmo tempo.
+typedef _LocationLookup = ({String? city, String? errorMessage});
+
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   ServiceCategory? _category;
   String? _city;
   late Future<List<String>> _citiesFuture;
-  TextEditingController? _cityFieldController;
   bool _locating = false;
+  bool _autoLocationAttempted = false;
   late Future<List<ProviderListing>> _future;
 
   // Mesma ideia do DashboardScreen (lado do prestador): oferece ativar a
@@ -56,14 +63,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     // nasce certo, sem precisar de nenhum estado próprio desta tela.
     context.read<FavoritesController>().ensureLoaded();
     _future = _search();
-    // Carregado uma vez só, antes do campo de cidade existir de verdade
-    // (ver FutureBuilder abaixo) — assim o Autocomplete já nasce com a
-    // lista pronta. Antes disso era um campo separado (_cities) atualizado
-    // por setState depois que a tela já tinha montado, e o Autocomplete
-    // não percebia a lista chegar no meio da digitação (só reavalia
-    // opções quando o TEXTO muda, não quando `_cities` muda sozinho) —
-    // por isso a lista "não vinha carregada" ao digitar.
     _citiesFuture = context.read<ProviderDirectoryRepository>().listCities();
+    // Igual o iFood: tenta preencher a cidade sozinho assim que a tela
+    // abre, sem esperar a pessoa tocar em nada — só uma vez (ver
+    // `_autoLocationAttempted`), e só se ainda não tem cidade nenhuma
+    // escolhida. Essa StatefulShellRoute mantém esta tela viva o tempo
+    // todo (ver UnifiedShell), então "só uma vez" aqui já cobre a sessão
+    // inteira do app, sem ficar reaparecendo o pedido de permissão toda
+    // vez que a pessoa volta pra essa aba.
+    _citiesFuture.then((_) => _maybeAutoDetectLocation());
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -131,20 +139,39 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     return [...list, ServiceCategory.outro];
   }
 
-  // Usa o GPS do aparelho pra descobrir a cidade atual e já preencher o
-  // filtro — não é busca por proximidade de verdade (isso pediria
-  // geohash + índice), só um jeito rápido de não precisar digitar/rolar
-  // pra achar a própria cidade.
-  Future<void> _useCurrentLocation() async {
-    final messenger = ScaffoldMessenger.of(context);
+  /// Tenta preencher a cidade sozinho, sem pedir nenhum toque — chamado
+  /// uma vez, na abertura da tela (ver `initState`). Silencioso de
+  /// propósito: se a pessoa negar a permissão, o serviço de localização
+  /// estiver desligado, ou o GPS falhar por qualquer motivo, isso não
+  /// mostra nenhum erro — a busca continua em "Todas as cidades" e a
+  /// pessoa escolhe manualmente pelo seletor (que também tem "usar minha
+  /// localização atual" pra tentar de novo). Um erro logo na abertura do
+  /// app, antes de qualquer ação da pessoa, seria mais confuso que útil.
+  Future<void> _maybeAutoDetectLocation() async {
+    if (_autoLocationAttempted || _city != null || !mounted) return;
+    _autoLocationAttempted = true;
     setState(() => _locating = true);
+    final result = await _detectCityViaGps();
+    if (!mounted) return;
+    setState(() {
+      _locating = false;
+      if (result.city != null) _city = result.city;
+    });
+    if (result.city != null) _runSearch();
+  }
+
+  // Usa o GPS do aparelho pra descobrir a cidade atual — não é busca por
+  // proximidade de verdade (isso pediria geohash + índice), só um jeito
+  // rápido de não precisar procurar a própria cidade na lista. Devolve o
+  // resultado em vez de já aplicar/mostrar snackbar, porque isso é usado
+  // tanto pela detecção automática silenciosa (`_maybeAutoDetectLocation`)
+  // quanto pelo botão manual dentro do seletor de cidade
+  // (`_CityPickerSheet`), que reagem cada um do seu jeito ao resultado.
+  Future<_LocationLookup> _detectCityViaGps() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Ative a localização do aparelho pra usar isso.')),
-        );
-        return;
+        return (city: null, errorMessage: 'Ative a localização do aparelho pra usar isso.');
       }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -152,12 +179,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Sem permissão de localização — pode escolher a cidade na lista.'),
-          ),
+        return (
+          city: null,
+          errorMessage: 'Sem permissão de localização — pode escolher a cidade na lista.',
         );
-        return;
       }
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -170,20 +195,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         position.longitude,
       );
       if (placemarks.isEmpty) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Não conseguimos identificar sua cidade.')),
-        );
-        return;
+        return (city: null, errorMessage: 'Não conseguimos identificar sua cidade.');
       }
       final detected = placemarks.first.locality ??
           placemarks.first.subAdministrativeArea ??
           placemarks.first.subLocality ??
           '';
       if (detected.isEmpty) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Não conseguimos identificar sua cidade.')),
-        );
-        return;
+        return (city: null, errorMessage: 'Não conseguimos identificar sua cidade.');
       }
       // Se a cidade detectada já existe no diretório (ignorando
       // acento/maiúscula), usa o nome exatamente como está gravado —
@@ -193,28 +212,50 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         (c) => _normalize(c) == _normalize(detected),
         orElse: () => detected,
       );
-      _cityFieldController?.text = match;
-      setState(() => _city = match);
-      _runSearch();
-      if (!cities.contains(match)) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Ainda não temos prestadores em $match.')),
-        );
-      }
+      return (city: match, errorMessage: null);
     } on TimeoutException {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('A localização demorou demais pra responder. Tente de novo.'),
-        ),
+      return (
+        city: null,
+        errorMessage: 'A localização demorou demais pra responder. Tente de novo.',
       );
     } catch (e) {
-      debugPrint('ClientHomeScreen._useCurrentLocation falhou: $e');
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Não foi possível obter sua localização.')),
-      );
-    } finally {
-      if (mounted) setState(() => _locating = false);
+      debugPrint('ClientHomeScreen._detectCityViaGps falhou: $e');
+      return (city: null, errorMessage: 'Não foi possível obter sua localização.');
     }
+  }
+
+  /// Abre o seletor de cidade (busca por texto + "usar minha localização
+  /// atual" + lista completa) — ver `_CityPickerSheet`. Substituiu um
+  /// campo `Autocomplete` embutido direto no formulário que, na prática
+  /// (relatado em teste real, mais de uma vez), não trocava de cidade de
+  /// forma confiável — a combinação de teclado + overlay de sugestões +
+  /// estado interno do `Autocomplete` sobrevivendo a rebuilds da tela
+  /// (StatefulShellRoute mantém tudo vivo, ver UnifiedShell) tinha
+  /// espaço de sobra pra dessincronizar. Um bottom sheet com uma lista
+  /// simples de toque é muito mais difícil de deixar preso num estado
+  /// inconsistente.
+  Future<void> _openCityPicker() async {
+    // `_citiesFuture` já terminou a essa altura — `loadingCities` no
+    // FutureBuilder abaixo desabilita o toque enquanto ela não resolve —
+    // então este `await` é só uma formalidade pra pegar o valor.
+    final cities = await _citiesFuture;
+    if (!mounted) return;
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _CityPickerSheet(
+        cities: cities,
+        currentCity: _city,
+        normalize: _normalize,
+        onUseLocation: _detectCityViaGps,
+      ),
+    );
+    // `null` = fechou o sheet sem escolher nada (voltar, tocar fora) —
+    // mantém a cidade que já estava. String vazia é o sentinela usado
+    // pra "Todas as cidades" (nomes de cidade nunca são vazios).
+    if (result == null || !mounted) return;
+    setState(() => _city = result.isEmpty ? null : result);
+    _runSearch();
   }
 
   @override
@@ -256,92 +297,37 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   },
                 ),
                 const SizedBox(height: 8),
-                // Autocomplete em vez de dropdown — igual o campo de
-                // cidade do iFood: vai filtrando a lista conforme digita,
-                // em vez de abrir tudo pra rolar. Continua escolhendo de
-                // uma lista (nunca digita livre), então a busca exata do
-                // Firestore continua batendo certinho. Fica dentro de um
-                // FutureBuilder pra só existir depois que a lista de
-                // cidades já chegou (ver nota em _citiesFuture).
+                // Campo "de mentira": não digita nada aqui, só abre o
+                // seletor de verdade (`_openCityPicker`/`_CityPickerSheet`)
+                // ao tocar — ver o comentário em `_openCityPicker` sobre
+                // por que isso substituiu um Autocomplete embutido.
                 FutureBuilder<List<String>>(
                   future: _citiesFuture,
                   builder: (context, snapshot) {
-                    final cities = snapshot.data ?? const <String>[];
-                    final loadingCities =
-                        snapshot.connectionState == ConnectionState.waiting;
-                    return Autocomplete<String>(
-                      initialValue: TextEditingValue(text: _city ?? ''),
-                      optionsBuilder: (value) {
-                        final query = _normalize(value.text);
-                        if (query.isEmpty) return cities;
-                        return cities.where((c) => _normalize(c).contains(query));
-                      },
-                      onSelected: (city) {
-                        setState(() => _city = city);
-                        _runSearch();
-                      },
-                      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                        _cityFieldController = controller;
-                        // Além de tocar numa sugestão da lista (onSelected
-                        // acima), o usuário pode digitar o nome da cidade
-                        // inteiro e apertar "concluído"/buscar no teclado —
-                        // isso não aciona onSelected (só funciona tocando na
-                        // sugestão), então antes desse fix a cidade nunca
-                        // mudava nesse caso. Casa o texto digitado (ignorando
-                        // acento/maiúscula) com a lista de cidades conhecidas.
-                        void trySelectTypedCity() {
-                          final query = _normalize(controller.text);
-                          if (query.isEmpty) return;
-                          final match = cities.firstWhere(
-                            (c) => _normalize(c) == query,
-                            orElse: () => '',
-                          );
-                          if (match.isNotEmpty && match != _city) {
-                            setState(() => _city = match);
-                            _runSearch();
-                          }
-                        }
-
-                        return TextField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          enabled: !loadingCities,
-                          decoration: InputDecoration(
-                            labelText: 'Cidade',
-                            hintText: loadingCities ? 'Carregando...' : 'Todas as cidades',
-                            prefixIcon: const Icon(Icons.location_on_outlined),
-                            suffixIcon: _locating
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                  )
-                                : IconButton(
-                                    tooltip: 'Usar minha localização atual',
-                                    icon: const Icon(Icons.my_location),
-                                    onPressed: loadingCities ? null : _useCurrentLocation,
+                    final loadingCities = snapshot.connectionState == ConnectionState.waiting;
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: loadingCities ? null : _openCityPicker,
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Cidade',
+                          prefixIcon: const Icon(Icons.location_on_outlined),
+                          suffixIcon: _locating
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   ),
-                          ),
-                          onSubmitted: (_) {
-                            trySelectTypedCity();
-                            onFieldSubmitted();
-                          },
-                          onChanged: (text) {
-                            // Limpou o campo à mão (sem escolher uma opção
-                            // da lista) — volta a buscar em todas as
-                            // cidades.
-                            if (text.isEmpty && _city != null) {
-                              setState(() => _city = null);
-                              _runSearch();
-                            } else {
-                              trySelectTypedCity();
-                            }
-                          },
-                        );
-                      },
+                                )
+                              : const Icon(Icons.arrow_drop_down),
+                        ),
+                        child: Text(
+                          loadingCities ? 'Carregando...' : (_city ?? 'Todas as cidades'),
+                          style: TextStyle(color: _city == null ? AppColors.muted : null),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -408,6 +394,148 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Bottom sheet do seletor de cidade — busca por texto (sem precisar
+/// acertar acento/maiúscula, ver `normalize`), "usar minha localização
+/// atual" como primeira opção, e a lista completa abaixo. Fecha
+/// devolvendo o nome da cidade escolhida, string vazia pra "Todas as
+/// cidades", ou `null` se a pessoa voltou/tocou fora sem escolher nada.
+class _CityPickerSheet extends StatefulWidget {
+  const _CityPickerSheet({
+    required this.cities,
+    required this.currentCity,
+    required this.normalize,
+    required this.onUseLocation,
+  });
+
+  final List<String> cities;
+  final String? currentCity;
+  final String Function(String) normalize;
+  final Future<_LocationLookup> Function() onUseLocation;
+
+  @override
+  State<_CityPickerSheet> createState() => _CityPickerSheetState();
+}
+
+class _CityPickerSheetState extends State<_CityPickerSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+  bool _locating = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<String> get _filtered {
+    if (_query.isEmpty) return widget.cities;
+    final query = widget.normalize(_query);
+    return widget.cities.where((c) => widget.normalize(c).contains(query)).toList();
+  }
+
+  Future<void> _useLocation() async {
+    setState(() => _locating = true);
+    final result = await widget.onUseLocation();
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (result.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.errorMessage!)));
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(result.city);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (context, scrollController) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.muted.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Escolha a cidade',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchController,
+                decoration: const InputDecoration(labelText: 'Buscar cidade', prefixIcon: Icon(Icons.search)),
+                onChanged: (value) => setState(() => _query = value),
+              ),
+              const SizedBox(height: 4),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                onTap: _locating ? null : _useLocation,
+                leading: _locating
+                    ? const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : const Icon(Icons.my_location, color: AppColors.primary),
+                title: const Text('Usar minha localização atual'),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: filtered.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Todas as cidades'),
+                        trailing:
+                            widget.currentCity == null ? const Icon(Icons.check, color: AppColors.primary) : null,
+                        onTap: () => Navigator.of(context).pop(''),
+                      );
+                    }
+                    final city = filtered[index - 1];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(city),
+                      trailing:
+                          city == widget.currentCity ? const Icon(Icons.check, color: AppColors.primary) : null,
+                      onTap: () => Navigator.of(context).pop(city),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
