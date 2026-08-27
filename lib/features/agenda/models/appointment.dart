@@ -60,6 +60,7 @@ class Appointment {
     required this.scheduledAt,
     required this.durationMinutes,
     required this.status,
+    this.customerId,
     this.customerName,
     this.addressText,
     this.observations,
@@ -73,6 +74,7 @@ class Appointment {
       scheduledAt: (data['scheduledAt'] as Timestamp).toDate(),
       durationMinutes: data['durationMinutes'] as int? ?? 60,
       status: _statusFromWire(data['status'] as String? ?? 'agendado'),
+      customerId: data['customerId'] as String?,
       customerName: data['customerName'] as String?,
       addressText: data['addressText'] as String?,
       observations: data['observations'] as String?,
@@ -84,6 +86,12 @@ class Appointment {
   final DateTime scheduledAt;
   final int durationMinutes;
   final AppointmentStatus status;
+  // Adicionado pra dar pra pré-selecionar o cliente vinculado ao EDITAR
+  // um compromisso (ver AppointmentFormScreen) — o campo já existia no
+  // Firestore desde sempre (gravado por
+  // AppointmentsRepository.create/update), só não vinha pro modelo porque
+  // nada precisava dele de volta até a tela de edição existir.
+  final String? customerId;
   final String? customerName;
   final String? addressText;
   final String? observations;

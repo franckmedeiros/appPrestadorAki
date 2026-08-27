@@ -1,66 +1,101 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
+import '../../core/date_text_utils.dart';
+import '../../widgets/mask_text_input_formatter.dart';
 import '../customers/customers_repository.dart';
 import '../customers/models/customer.dart';
 import 'appointments_repository.dart';
 import 'models/appointment.dart';
 
+/// Formulário de compromisso — cria um novo (`appointment == null`) ou
+/// edita um já existente (`appointment` preenchido, ver `AgendaScreen`,
+/// que agora abre isso ao tocar num compromisso da lista).
 class AppointmentFormScreen extends StatefulWidget {
-  const AppointmentFormScreen({super.key});
+  const AppointmentFormScreen({super.key, this.appointment});
+
+  final Appointment? appointment;
 
   @override
   State<AppointmentFormScreen> createState() => _AppointmentFormScreenState();
 }
 
 class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
-  final _addressController = TextEditingController();
-  final _observationsController = TextEditingController();
+  late final _addressController =
+      TextEditingController(text: widget.appointment?.addressText ?? '');
+  late final _observationsController =
+      TextEditingController(text: widget.appointment?.observations ?? '');
+
+  // Digitável em vez de só abrir um seletor (decisão combinada com o
+  // Franck: mais rápido pra quem já sabe a data/hora de cor) — ver
+  // core/date_text_utils.dart pra formatação/leitura e
+  // MaskTextInputFormatter('##/##/####'/'##:##') pra guiar a digitação.
+  // O seletor (ícone de calendário/relógio no fim do campo) continua
+  // existindo como atalho, não como único jeito de preencher.
+  late final DateTime _initialDateTime = widget.appointment?.scheduledAt ?? DateTime.now();
+  late final _dateController =
+      TextEditingController(text: formatDateDdMmYyyy(_initialDateTime));
+  late final _timeController = TextEditingController(
+    text: formatTimeHhMm(TimeOfDay(hour: _initialDateTime.hour, minute: _initialDateTime.minute)),
+  );
+  final _dateMask = MaskTextInputFormatter('##/##/####');
+  final _timeMask = MaskTextInputFormatter('##:##');
 
   late Future<List<Customer>> _customersFuture;
   String? _selectedCustomerId;
-  AppointmentType _type = AppointmentType.visitaTecnica;
-  DateTime _date = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _time = const TimeOfDay(hour: 9, minute: 0);
+  late AppointmentType _type = widget.appointment?.type ?? AppointmentType.visitaTecnica;
 
   bool _saving = false;
   String? _error;
+
+  bool get _isEditing => widget.appointment != null;
 
   @override
   void initState() {
     super.initState();
     _customersFuture = context.read<CustomersRepository>().list();
+    _selectedCustomerId = widget.appointment?.customerId;
   }
 
   @override
   void dispose() {
     _addressController.dispose();
     _observationsController.dispose();
+    _dateController.dispose();
+    _timeController.dispose();
     super.dispose();
   }
 
   Future<void> _pickDate() async {
+    final current = tryParseDateDdMmYyyy(_dateController.text) ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _date,
+      initialDate: current,
       firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked != null) setState(() => _dateController.text = formatDateDdMmYyyy(picked));
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _time);
-    if (picked != null) setState(() => _time = picked);
+    final current = tryParseTimeHhMm(_timeController.text) ?? TimeOfDay.now();
+    final picked = await showTimePicker(context: context, initialTime: current);
+    if (picked != null) setState(() => _timeController.text = formatTimeHhMm(picked));
   }
 
   Future<void> _save() async {
+    final date = tryParseDateDdMmYyyy(_dateController.text);
+    final time = tryParseTimeHhMm(_timeController.text);
+    if (date == null || time == null) {
+      setState(() => _error = 'Informe uma data e hora válidas (ex.: 15/03/2027 e 09:00).');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final scheduledAt = DateTime(_date.year, _date.month, _date.day, _time.hour, _time.minute);
+      final scheduledAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
       // O Firestore não faz join — o nome do cliente é denormalizado no
       // próprio compromisso (ver firebase/DATA_MODEL.md) pra não precisar
       // de uma leitura extra só pra mostrar o nome na lista da Agenda.
@@ -74,14 +109,28 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
           }
         }
       }
-      await context.read<AppointmentsRepository>().create(
-            customerId: _selectedCustomerId,
-            customerName: customerName,
-            type: _type,
-            scheduledAt: scheduledAt,
-            addressText: _addressController.text.trim(),
-            observations: _observationsController.text.trim(),
-          );
+      final repository = context.read<AppointmentsRepository>();
+      if (_isEditing) {
+        await repository.update(
+          widget.appointment!.id,
+          customerId: _selectedCustomerId,
+          customerName: customerName,
+          type: _type,
+          scheduledAt: scheduledAt,
+          durationMinutes: widget.appointment!.durationMinutes,
+          addressText: _addressController.text.trim(),
+          observations: _observationsController.text.trim(),
+        );
+      } else {
+        await repository.create(
+          customerId: _selectedCustomerId,
+          customerName: customerName,
+          type: _type,
+          scheduledAt: scheduledAt,
+          addressText: _addressController.text.trim(),
+          observations: _observationsController.text.trim(),
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -95,7 +144,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Novo compromisso')),
+      appBar: AppBar(title: Text(_isEditing ? 'Editar compromisso' : 'Novo compromisso')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -105,8 +154,13 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
               future: _customersFuture,
               builder: (context, snapshot) {
                 final customers = snapshot.data ?? [];
+                // Garante que o cliente já vinculado (modo de edição)
+                // sempre exista como opção, mesmo que a lista de clientes
+                // ainda não tenha carregado ou ele tenha sido removido.
+                final hasSelected =
+                    _selectedCustomerId == null || customers.any((c) => c.id == _selectedCustomerId);
                 return DropdownButtonFormField<String>(
-                  initialValue: _selectedCustomerId,
+                  initialValue: hasSelected ? _selectedCustomerId : null,
                   decoration: const InputDecoration(labelText: 'Cliente (opcional)'),
                   items: [
                     const DropdownMenuItem<String>(value: null, child: Text('Sem cliente vinculado')),
@@ -129,22 +183,41 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             ),
             const SizedBox(height: 12),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickDate,
-                    icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                    label: Text(
-                      '${_date.day.toString().padLeft(2, '0')}/${_date.month.toString().padLeft(2, '0')}/${_date.year}',
+                  flex: 3,
+                  child: TextFormField(
+                    controller: _dateController,
+                    keyboardType: TextInputType.datetime,
+                    inputFormatters: [_dateMask],
+                    decoration: InputDecoration(
+                      labelText: 'Data',
+                      hintText: 'DD/MM/AAAA',
+                      suffixIcon: IconButton(
+                        tooltip: 'Escolher no calendário',
+                        icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                        onPressed: _pickDate,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickTime,
-                    icon: const Icon(Icons.schedule_outlined, size: 18),
-                    label: Text(_time.format(context)),
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _timeController,
+                    keyboardType: TextInputType.datetime,
+                    inputFormatters: [_timeMask],
+                    decoration: InputDecoration(
+                      labelText: 'Hora',
+                      hintText: 'HH:MM',
+                      suffixIcon: IconButton(
+                        tooltip: 'Escolher no relógio',
+                        icon: const Icon(Icons.schedule_outlined, size: 18),
+                        onPressed: _pickTime,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -173,7 +246,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Salvar compromisso'),
+                  : Text(_isEditing ? 'Salvar alterações' : 'Salvar compromisso'),
             ),
           ],
         ),

@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
 import 'appointments_repository.dart';
 import 'models/appointment.dart';
 
-/// Tela de agenda — lista os compromissos dos próximos 30 dias (endpoint
-/// GET /appointments?from=&to=), com um botão pra criar um novo. Consulta
-/// diária (dia a dia) ficará mais rica quando a UI de calendário de verdade
-/// for desenhada; por ora é uma lista cronológica simples.
+/// Tela de agenda — lista os compromissos dos próximos 30 dias, com um
+/// botão pra criar um novo e toque num card pra editar (ver
+/// `_openAppointment`). Consulta diária (dia a dia) ficará mais rica
+/// quando a UI de calendário de verdade for desenhada; por ora é uma
+/// lista cronológica simples.
 class AgendaScreen extends StatefulWidget {
   const AgendaScreen({super.key});
 
@@ -18,25 +18,27 @@ class AgendaScreen extends StatefulWidget {
 }
 
 class _AgendaScreenState extends State<AgendaScreen> {
-  late Future<List<Appointment>> _future;
+  // Stream ao vivo (ver AppointmentsRepository.watchRange) — mesma razão
+  // de CustomersRepository.watchAll: resolve "salvei e não apareceu,
+  // precisei sair e entrar de novo".
+  late Stream<List<Appointment>> _stream = _watch();
 
-  @override
-  void initState() {
-    super.initState();
-    _future = _load();
-  }
-
-  Future<List<Appointment>> _load() {
+  Stream<List<Appointment>> _watch() {
     final now = DateTime.now();
-    return context.read<AppointmentsRepository>().list(
+    return context.read<AppointmentsRepository>().watchRange(
           from: DateTime(now.year, now.month, now.day),
           to: now.add(const Duration(days: 30)),
         );
   }
 
-  Future<void> _reload() async {
-    setState(() => _future = _load());
-    await _future;
+  Future<void> _retry() async {
+    setState(() => _stream = _watch());
+  }
+
+  Future<void> _openAppointment(Appointment? appointment) async {
+    await context.push<bool>('/agenda/editar', extra: appointment);
+    // A stream já reflete a escrita sozinha — não precisa recarregar nada
+    // manualmente aqui.
   }
 
   @override
@@ -44,58 +46,56 @@ class _AgendaScreenState extends State<AgendaScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Agenda')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final created = await context.push<bool>('/agenda/novo');
-          if (created == true) _reload();
-        },
+        onPressed: () => _openAppointment(null),
         child: const Icon(Icons.add),
       ),
-      body: RefreshIndicator(
-        onRefresh: _reload,
-        child: FutureBuilder<List<Appointment>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              final message = snapshot.error is ApiException
-                  ? (snapshot.error as ApiException).message
-                  : 'Não foi possível carregar a agenda.';
-              return _ErrorState(message: message, onRetry: _reload);
-            }
-            final appointments = snapshot.data ?? [];
-            if (appointments.isEmpty) {
-              return ListView(
-                children: const [
-                  SizedBox(height: 80),
-                  Icon(Icons.calendar_month_outlined, size: 48, color: AppColors.muted),
-                  SizedBox(height: 12),
-                  Text(
-                    'Nada agendado nos próximos 30 dias.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.muted),
-                  ),
-                ],
-              );
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: appointments.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemBuilder: (context, index) => _AppointmentCard(appointment: appointments[index]),
+      body: StreamBuilder<List<Appointment>>(
+        stream: _stream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: 'Não foi possível carregar a agenda.',
+              onRetry: _retry,
             );
-          },
-        ),
+          }
+          final appointments = snapshot.data ?? [];
+          if (appointments.isEmpty) {
+            return ListView(
+              children: const [
+                SizedBox(height: 80),
+                Icon(Icons.calendar_month_outlined, size: 48, color: AppColors.muted),
+                SizedBox(height: 12),
+                Text(
+                  'Nada agendado nos próximos 30 dias.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.muted),
+                ),
+              ],
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: appointments.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            itemBuilder: (context, index) => _AppointmentCard(
+              appointment: appointments[index],
+              onTap: () => _openAppointment(appointments[index]),
+            ),
+          );
+        },
       ),
     );
   }
 }
 
 class _AppointmentCard extends StatelessWidget {
-  const _AppointmentCard({required this.appointment});
+  const _AppointmentCard({required this.appointment, required this.onTap});
 
   final Appointment appointment;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -104,34 +104,38 @@ class _AppointmentCard extends StatelessWidget {
     final timeLabel = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(
-              children: [
-                Text(dateLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
-                Text(timeLabel, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-              ],
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
                 children: [
-                  Text(
-                    appointment.customerName ?? appointment.type.label,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  Text(appointment.type.label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                  if (appointment.addressText != null && appointment.addressText!.isNotEmpty)
-                    Text(appointment.addressText!, style: const TextStyle(fontSize: 12)),
+                  Text(dateLabel, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Text(timeLabel, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
                 ],
               ),
-            ),
-            _StatusChip(status: appointment.status),
-          ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      appointment.customerName ?? appointment.type.label,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text(appointment.type.label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                    if (appointment.addressText != null && appointment.addressText!.isNotEmpty)
+                      Text(appointment.addressText!, style: const TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+              _StatusChip(status: appointment.status),
+            ],
+          ),
         ),
       ),
     );
