@@ -7,6 +7,8 @@ import '../features/customers/customer_form_screen.dart';
 import '../features/customers/customers_list_screen.dart';
 import '../features/agenda/agenda_screen.dart';
 import '../features/agenda/appointment_form_screen.dart';
+import '../features/customers/models/customer.dart';
+import '../features/agenda/models/appointment.dart';
 import '../features/budgets/budgets_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/marketplace/client_home_screen.dart';
@@ -35,8 +37,10 @@ const _providerOnlyRoutes = {
   '/dashboard',
   '/clientes',
   '/clientes/novo',
+  '/clientes/editar',
   '/agenda',
   '/agenda/novo',
+  '/agenda/editar',
   '/orcamentos',
   '/pedidos',
 };
@@ -91,10 +95,21 @@ GoRouter buildAppRouter(AuthController authController) {
         path: '/clientes/novo',
         builder: (context, state) => const CustomerFormScreen(),
       ),
+      // `extra` carrega o Customer sendo editado (ver
+      // CustomersListScreen._openCustomer) — sem id na URL de propósito,
+      // mesmo padrão de '/clientes/novo', só que com dado inicial.
+      GoRoute(
+        path: '/clientes/editar',
+        builder: (context, state) => CustomerFormScreen(customer: state.extra as Customer?),
+      ),
       GoRoute(path: '/agenda', builder: (context, state) => const AgendaScreen()),
       GoRoute(
         path: '/agenda/novo',
         builder: (context, state) => const AppointmentFormScreen(),
+      ),
+      GoRoute(
+        path: '/agenda/editar',
+        builder: (context, state) => AppointmentFormScreen(appointment: state.extra as Appointment?),
       ),
       GoRoute(path: '/orcamentos', builder: (context, state) => const BudgetsScreen()),
       GoRoute(path: '/pedidos', builder: (context, state) => const IncomingRequestsScreen()),

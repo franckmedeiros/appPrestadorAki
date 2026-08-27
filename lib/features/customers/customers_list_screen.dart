@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
 import '../../widgets/app_list_card.dart';
 import 'customers_repository.dart';
@@ -16,21 +15,16 @@ class CustomersListScreen extends StatefulWidget {
 
 class _CustomersListScreenState extends State<CustomersListScreen> {
   final _searchController = TextEditingController();
-  late Future<List<Customer>> _future;
+  // Stream ao vivo (ver CustomersRepository.watchAll) em vez de um
+  // Future recarregado manualmente depois de criar/editar um cliente —
+  // resolve "salvei e não apareceu, precisei sair e entrar de novo". A
+  // busca por texto continua sendo feita no app, agora filtrando a lista
+  // que a stream já entregou, em vez de refazer a consulta no Firestore.
+  late Stream<List<Customer>> _stream = context.read<CustomersRepository>().watchAll();
+  String _query = '';
 
-  @override
-  void initState() {
-    super.initState();
-    _future = _load();
-  }
-
-  Future<List<Customer>> _load({String? search}) {
-    return context.read<CustomersRepository>().list(search: search);
-  }
-
-  Future<void> _reload() async {
-    setState(() => _future = _load(search: _searchController.text.trim()));
-    await _future;
+  Future<void> _retry() async {
+    setState(() => _stream = context.read<CustomersRepository>().watchAll());
   }
 
   @override
@@ -39,15 +33,29 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     super.dispose();
   }
 
+  List<Customer> _filter(List<Customer> customers) {
+    if (_query.isEmpty) return customers;
+    final query = _query.toLowerCase();
+    return customers
+        .where((c) =>
+            c.name.toLowerCase().contains(query) || (c.phone?.contains(query) ?? false))
+        .toList();
+  }
+
+  Future<void> _openCustomer(Customer? customer) async {
+    final saved = await context.push<bool>('/clientes/editar', extra: customer);
+    // Não precisa recarregar nada manualmente — a stream já reflete a
+    // escrita sozinha (ver `_stream` acima). O retorno só importa se um
+    // dia isso precisar de outro efeito colateral aqui.
+    if (saved != true) return;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Clientes')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final created = await context.push<bool>('/clientes/novo');
-          if (created == true) _reload();
-        },
+        onPressed: () => _openCustomer(null),
         child: const Icon(Icons.add),
       ),
       body: Column(
@@ -60,25 +68,23 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                 hintText: 'Buscar por nome ou telefone',
                 prefixIcon: Icon(Icons.search),
               ),
-              onSubmitted: (_) => _reload(),
+              onChanged: (value) => setState(() => _query = value.trim()),
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: _reload,
-              child: FutureBuilder<List<Customer>>(
-                future: _future,
-                builder: (context, snapshot) {
+            child: StreamBuilder<List<Customer>>(
+              stream: _stream,
+              builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    final message = snapshot.error is ApiException
-                        ? (snapshot.error as ApiException).message
-                        : 'Não foi possível carregar os clientes.';
-                    return _ErrorState(message: message, onRetry: _reload);
+                    return _ErrorState(
+                      message: 'Não foi possível carregar os clientes.',
+                      onRetry: _retry,
+                    );
                   }
-                  final customers = snapshot.data ?? [];
+                  final customers = _filter(snapshot.data ?? []);
                   if (customers.isEmpty) {
                     return ListView(
                       children: const [
@@ -100,6 +106,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                     itemBuilder: (context, index) {
                       final customer = customers[index];
                       return AppListCard(
+                        onTap: () => _openCustomer(customer),
                         leading: Container(
                           width: 52,
                           height: 52,
@@ -127,7 +134,6 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                     },
                   );
                 },
-              ),
             ),
           ),
         ],

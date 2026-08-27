@@ -49,6 +49,20 @@ class CustomersRepository {
     }
   }
 
+  /// Versão "ao vivo" de `list()` — usada por `CustomersListScreen` no
+  /// lugar de um `Future` recarregado manualmente depois de criar/editar
+  /// um cliente. Com `.snapshots()`, o Firestore atualiza a lista sozinho
+  /// assim que a escrita é confirmada (inclusive de forma otimista, antes
+  /// mesmo da confirmação do servidor) — resolve de vez a reclamação de
+  /// "salvei e não apareceu, precisei sair e entrar de novo" sem depender
+  /// de acertar o momento exato de recarregar manualmente.
+  Stream<List<Customer>> watchAll() {
+    return _collection
+        .orderBy('name')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(Customer.fromFirestore).toList());
+  }
+
   Future<Customer> create({
     required String name,
     String? phone,
@@ -73,6 +87,37 @@ class CustomersRepository {
       return Customer.fromFirestore(snapshot);
     } on FirebaseException catch (e) {
       throw ApiException(0, e.message ?? 'Não foi possível salvar o cliente.');
+    }
+  }
+
+  /// Atualiza um cliente já existente — usado por `CustomerFormScreen` em
+  /// modo de edição (tocar num cliente na lista). `.set(merge: true)` em
+  /// vez de `.update(...)` pela mesma razão já documentada em
+  /// `AuthController.updateOwnProfile`: nunca lança erro de "documento não
+  /// encontrado" e nunca apaga campos que não foram passados aqui.
+  Future<void> update(
+    String id, {
+    required String name,
+    String? phone,
+    String? whatsapp,
+    String? email,
+    String? addressCity,
+    String? addressState,
+  }) async {
+    try {
+      await _collection.doc(id).set({
+        'name': name,
+        'phone': (phone != null && phone.isNotEmpty) ? phone : FieldValue.delete(),
+        'whatsapp': (whatsapp != null && whatsapp.isNotEmpty) ? whatsapp : FieldValue.delete(),
+        'email': (email != null && email.isNotEmpty) ? email : FieldValue.delete(),
+        'addressCity':
+            (addressCity != null && addressCity.isNotEmpty) ? addressCity : FieldValue.delete(),
+        'addressState':
+            (addressState != null && addressState.isNotEmpty) ? addressState : FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível atualizar o cliente.');
     }
   }
 }

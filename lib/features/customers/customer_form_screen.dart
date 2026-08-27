@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
+import '../../widgets/mask_text_input_formatter.dart';
 import 'customers_repository.dart';
+import 'models/customer.dart';
 
+/// Formulário de cliente — cria um novo (`customer == null`) ou edita um
+/// já existente (`customer` preenchido, ver `CustomersListScreen`, que
+/// agora abre isso ao tocar num card da lista).
 class CustomerFormScreen extends StatefulWidget {
-  const CustomerFormScreen({super.key});
+  const CustomerFormScreen({super.key, this.customer});
+
+  final Customer? customer;
 
   @override
   State<CustomerFormScreen> createState() => _CustomerFormScreenState();
@@ -12,13 +19,18 @@ class CustomerFormScreen extends StatefulWidget {
 
 class _CustomerFormScreenState extends State<CustomerFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _stateController = TextEditingController();
+  late final _nameController = TextEditingController(text: widget.customer?.name ?? '');
+  late final _phoneController =
+      TextEditingController(text: widget.customer?.phone ?? widget.customer?.whatsapp ?? '');
+  late final _cityController = TextEditingController(text: widget.customer?.addressCity ?? '');
+  late final _stateController = TextEditingController(text: widget.customer?.addressState ?? '');
+
+  final _phoneMask = MaskTextInputFormatter('(##) #####-####');
 
   bool _saving = false;
   String? _error;
+
+  bool get _isEditing => widget.customer != null;
 
   @override
   void dispose() {
@@ -36,12 +48,23 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       _error = null;
     });
     try {
-      await context.read<CustomersRepository>().create(
-            name: _nameController.text.trim(),
-            phone: _phoneController.text.trim(),
-            addressCity: _cityController.text.trim(),
-            addressState: _stateController.text.trim().toUpperCase(),
-          );
+      final repository = context.read<CustomersRepository>();
+      if (_isEditing) {
+        await repository.update(
+          widget.customer!.id,
+          name: _nameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          addressCity: _cityController.text.trim(),
+          addressState: _stateController.text.trim().toUpperCase(),
+        );
+      } else {
+        await repository.create(
+          name: _nameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          addressCity: _cityController.text.trim(),
+          addressState: _stateController.text.trim().toUpperCase(),
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -55,7 +78,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Novo cliente')),
+      appBar: AppBar(title: Text(_isEditing ? 'Editar cliente' : 'Novo cliente')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
@@ -73,6 +96,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
               TextFormField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
+                inputFormatters: [_phoneMask],
                 decoration: const InputDecoration(labelText: 'Telefone / WhatsApp'),
               ),
               const SizedBox(height: 12),
@@ -108,7 +132,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text('Salvar cliente'),
+                    : Text(_isEditing ? 'Salvar alterações' : 'Salvar cliente'),
               ),
             ],
           ),
