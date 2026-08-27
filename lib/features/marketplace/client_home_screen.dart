@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:geolocator/geolocator.dart';
@@ -182,7 +184,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         return;
       }
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 12),
+        ),
       );
       final placemarks = await geocoding.placemarkFromCoordinates(
         position.latitude,
@@ -194,7 +199,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         );
         return;
       }
-      final detected = placemarks.first.locality ?? placemarks.first.subAdministrativeArea ?? '';
+      final detected = placemarks.first.locality ??
+          placemarks.first.subAdministrativeArea ??
+          placemarks.first.subLocality ??
+          '';
       if (detected.isEmpty) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Não conseguimos identificar sua cidade.')),
@@ -217,7 +225,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           SnackBar(content: Text('Ainda não temos prestadores em $match.')),
         );
       }
-    } catch (_) {
+    } on TimeoutException {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('A localização demorou demais pra responder. Tente de novo.'),
+        ),
+      );
+    } catch (e) {
+      debugPrint('ClientHomeScreen._useCurrentLocation falhou: $e');
       messenger.showSnackBar(
         const SnackBar(content: Text('Não foi possível obter sua localização.')),
       );
@@ -290,6 +305,26 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       },
                       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
                         _cityFieldController = controller;
+                        // Além de tocar numa sugestão da lista (onSelected
+                        // acima), o usuário pode digitar o nome da cidade
+                        // inteiro e apertar "concluído"/buscar no teclado —
+                        // isso não aciona onSelected (só funciona tocando na
+                        // sugestão), então antes desse fix a cidade nunca
+                        // mudava nesse caso. Casa o texto digitado (ignorando
+                        // acento/maiúscula) com a lista de cidades conhecidas.
+                        void trySelectTypedCity() {
+                          final query = _normalize(controller.text);
+                          if (query.isEmpty) return;
+                          final match = cities.firstWhere(
+                            (c) => _normalize(c) == query,
+                            orElse: () => '',
+                          );
+                          if (match.isNotEmpty && match != _city) {
+                            setState(() => _city = match);
+                            _runSearch();
+                          }
+                        }
+
                         return TextField(
                           controller: controller,
                           focusNode: focusNode,
@@ -313,7 +348,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                     onPressed: loadingCities ? null : _useCurrentLocation,
                                   ),
                           ),
-                          onSubmitted: (_) => onFieldSubmitted(),
+                          onSubmitted: (_) {
+                            trySelectTypedCity();
+                            onFieldSubmitted();
+                          },
                           onChanged: (text) {
                             // Limpou o campo à mão (sem escolher uma opção
                             // da lista) — volta a buscar em todas as
@@ -321,6 +359,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                             if (text.isEmpty && _city != null) {
                               setState(() => _city = null);
                               _runSearch();
+                            } else {
+                              trySelectTypedCity();
                             }
                           },
                         );
