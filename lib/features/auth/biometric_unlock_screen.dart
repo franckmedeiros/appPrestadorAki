@@ -36,12 +36,13 @@ class _BiometricUnlockScreenState extends State<BiometricUnlockScreen> {
     final auth = context.read<AuthController>();
     final result = await auth.unlockWithBiometrics();
     if (!mounted) return;
-    if (result == BiometricResult.success && auth.role == AccountRole.client) {
+    if (result == BiometricResult.success) {
       // "quando abrir o sistema, se tiver biometria, já carregar os
       // favoritos" — dispara em segundo plano, sem esperar: a aba
       // Favoritos (ver FavoritesRepository.warmUp) já encontra o
-      // resultado pronto quando o cliente abrir ela, em vez de mostrar um
-      // spinner na hora.
+      // resultado pronto quando o usuário abrir ela, em vez de mostrar um
+      // spinner na hora. Vale pra qualquer conta agora (não é mais
+      // exclusivo de "cliente" — um prestador também pode ter favoritos).
       context.read<FavoritesRepository>().warmUp();
     }
     setState(() {

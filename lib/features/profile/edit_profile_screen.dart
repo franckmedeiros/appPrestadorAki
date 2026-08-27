@@ -57,6 +57,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _cepLookupError;
   String? _error;
 
+  // Só existe pra prestador — 'pending' até uma ativação manual (decisão
+  // combinada com o Franck: "só preparar o terreno", sem pagamento de
+  // verdade integrado ainda). Enquanto pendente, salvar aqui NÃO cria/
+  // atualiza a entrada pública no diretório (ver _save abaixo) — a área de
+  // atuação fica salva só em providers/{uid}, pronta pra quando ativar.
+  String? _listingStatus;
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +86,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _addressCityController.text = data['addressCity'] as String? ?? '';
     _addressStateController.text = data['addressState'] as String? ?? '';
     _whatsappController.text = data['whatsapp'] as String? ?? '';
+    _listingStatus = data['listingStatus'] as String?;
+    // A área de atuação vem de providers/{uid} (sempre existe, mesmo
+    // 'pending' — ver AuthController._createProviderDocument), não só do
+    // `widget.currentListing` (que só reflete o diretório PÚBLICO, vazio
+    // pra quem ainda não foi ativado). Só sobrescreve o que já veio do
+    // `currentListing` no initState se providers/{uid} de fato tiver o
+    // campo — evita apagar um valor bom com um branco à toa.
+    final category = data['category'] as String?;
+    final city = data['city'] as String?;
+    final state = data['state'] as String?;
+    if (category != null) _category = serviceCategoryFromWire(category);
+    if (city != null && city.isNotEmpty) _cityController.text = city;
+    if (state != null && state.isNotEmpty) _stateController.text = state;
     setState(() => _loading = false);
   }
 
@@ -98,7 +118,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  bool get _isProvider => context.read<AuthController>().role == AccountRole.provider;
+  bool get _isProvider => context.read<AuthController>().isProvider;
 
   /// Busca o endereço automaticamente a partir do CEP digitado — via
   /// ViaCEP (não existe uma API pública e gratuita dos Correios pra
@@ -228,12 +248,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     if (ok && _isProvider) {
       try {
-        await context.read<ProviderDirectoryRepository>().upsertOwnListing(
-              name: name,
-              category: _category,
-              city: _cityController.text.trim(),
-              state: _stateController.text.trim().toUpperCase(),
-            );
+        // Guarda a área de atuação em providers/{uid} independente do
+        // status de ativação — não se perde enquanto listingStatus segue
+        // 'pending'.
+        final businessInfoOk = await auth.updateProviderBusinessInfo(
+          category: _category.wireValue,
+          city: _cityController.text.trim(),
+          state: _stateController.text.trim().toUpperCase(),
+        );
+        if (!businessInfoOk) {
+          if (!mounted) return;
+          setState(() {
+            _isSaving = false;
+            _error = auth.errorMessage ?? 'Dados salvos, mas não foi possível atualizar categoria/cidade.';
+          });
+          return;
+        }
+        // Só publica/atualiza a entrada pública do diretório (o que faz o
+        // prestador aparecer na busca do cliente) se já não estiver
+        // pendente de ativação — ver a nota em
+        // AuthController._createProviderDocument ("só preparar o
+        // terreno"). Prestadores antigos (sem esse campo ainda) continuam
+        // publicando normalmente.
+        if (_listingStatus != 'pending') {
+          await context.read<ProviderDirectoryRepository>().upsertOwnListing(
+                name: name,
+                category: _category,
+                city: _cityController.text.trim(),
+                state: _stateController.text.trim().toUpperCase(),
+              );
+        }
       } catch (e) {
         if (!mounted) return;
         setState(() {
@@ -319,6 +363,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 if (isProvider) ...[
                   const SizedBox(height: 20),
                   const Text('Área de atuação', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  if (_listingStatus == 'pending') ...[
+                    const SizedBox(height: 8),
+                    const Card(
+                      color: Color(0xFFFFF4E5),
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text(
+                          '⏳ Seu cadastro de prestador ainda está em análise — assim que for '
+                          'ativado, você passa a aparecer nas buscas dos clientes.',
+                          style: TextStyle(fontSize: 12.5),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   DropdownButtonFormField<ServiceCategory>(
                     initialValue: _category,

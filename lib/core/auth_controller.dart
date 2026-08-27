@@ -6,21 +6,21 @@ import 'token_storage.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated, locked }
 
-/// Os dois lados do marketplace (ver a mudança de escopo combinada com o
-/// Franck): `client` procura e contrata prestadores; `provider` é o
-/// prestador de serviço (o público original do app, antes do pivot).
-/// Guardado só na memória, resolvido a partir de qual documento existe no
-/// Firestore pra esse uid (`providers/{uid}` ou `clients/{uid}`) — não é
-/// um campo próprio, pra não correr o risco de ficar dessincronizado.
-enum AccountRole { client, provider }
-
 /// Estado de autenticação do app, compartilhado via Provider a partir da
 /// raiz (main.dart). Depois da migração para Firebase, quem sabe fazer
 /// login/cadastro/logout de verdade é o próprio `FirebaseAuth` — esta
-/// classe só traduz isso para o `AuthStatus`/`AccountRole` que o resto do
-/// app entende, e continua guardando localmente a preferência de
-/// biometria (que nunca foi uma credencial de API, sempre foi um cadeado
-/// só do app).
+/// classe só traduz isso para o `AuthStatus` que o resto do app entende, e
+/// continua guardando localmente a preferência de biometria (que nunca foi
+/// uma credencial de API, sempre foi um cadeado só do app).
+///
+/// Conta unificada (decisão combinada com o Franck): não existe mais "OU
+/// prestador OU cliente" — toda conta autenticada tem uma identidade base
+/// de cliente (`clients/{uid}`, criada no cadastro ou preenchida na
+/// primeira ação de cliente — ver `ensureClientDocument`), e pode
+/// ADICIONALMENTE ter a capacidade de prestador (`providers/{uid}`, com
+/// `isProvider == true`) — as duas nunca são mutuamente exclusivas. Ex.:
+/// o João eletricista é prestador, mas pode favoritar o Marco jardineiro
+/// como cliente, sem precisar de uma segunda conta.
 ///
 /// `AuthStatus.locked` é um estado que só existe no app — nunca chega a
 /// virar uma chamada ao Firebase. Significa "já existe uma sessão válida
@@ -43,7 +43,11 @@ class AuthController extends ChangeNotifier {
   final FirebaseFirestore _firestore;
 
   AuthStatus status = AuthStatus.unknown;
-  AccountRole? role;
+
+  /// Se a conta logada também é prestador (tem `providers/{uid}`) — não é
+  /// mais exclusivo com "ser cliente" (ver comentário da classe). `false`
+  /// pra quem nunca ativou a capacidade de prestador.
+  bool isProvider = false;
   String? errorMessage;
   bool isBusy = false;
   bool biometricEnabled = false;
@@ -82,8 +86,8 @@ class AuthController extends ChangeNotifier {
 
   /// Chamado uma vez na inicialização do app para restaurar a sessão. O
   /// Firebase Auth já persiste a sessão sozinho no dispositivo — só
-  /// checamos se existe um usuário logado e, se existir, qual o papel dele
-  /// (cliente ou prestador) e se o cadeado biométrico está ativado.
+  /// checamos se existe um usuário logado e, se existir, se ele também é
+  /// prestador e se o cadeado biométrico está ativado.
   Future<void> bootstrap() async {
     // Duração mínima da splash — sem isso, num aparelho rápido (ou contra o
     // emulador local, sem latência de rede nenhuma) o bootstrap pode
@@ -91,7 +95,7 @@ class AuthController extends ChangeNotifier {
     // transição parece um "pulo" direto pra busca/dashboard. `Future.wait`
     // garante que o que for mais lento dos dois manda — o trabalho real ou
     // esse mínimo — sem atrasar quem realmente precisa esperar mais (ex.:
-    // resolver o papel da conta pela rede).
+    // resolver se a conta também é prestador pela rede).
     final minDuration = Future.delayed(const Duration(milliseconds: 900));
     try {
       final user = _auth.currentUser;
@@ -104,15 +108,16 @@ class AuthController extends ChangeNotifier {
       if (user == null) {
         status = AuthStatus.unauthenticated;
       } else {
-        role = await _resolveRole(user.uid);
+        isProvider = await _checkIsProvider(user.uid);
         status = biometricEnabled ? AuthStatus.locked : AuthStatus.authenticated;
       }
     } catch (e) {
       // Se algo falhar (plugin de secure storage não registrado, sem
-      // internet pra resolver o papel etc.), não deixe o app preso na
-      // splash pra sempre. Se já existe uma sessão do Firebase, entra
-      // direto sem cadeado — mais seguro assumir "sem cadeado" do que
-      // travar o usuário pra fora da própria conta por um erro local.
+      // internet pra checar a capacidade de prestador etc.), não deixe o
+      // app preso na splash pra sempre. Se já existe uma sessão do
+      // Firebase, entra direto sem cadeado — mais seguro assumir "sem
+      // cadeado" do que travar o usuário pra fora da própria conta por um
+      // erro local.
       debugPrint('AuthController.bootstrap falhou: $e');
       status = _auth.currentUser == null ? AuthStatus.unauthenticated : AuthStatus.authenticated;
     }
@@ -123,15 +128,20 @@ class AuthController extends ChangeNotifier {
   Future<bool> login(String email, String password) => _submit(() async {
         final credential =
             await _auth.signInWithEmailAndPassword(email: email, password: password);
-        role = await _resolveRole(credential.user!.uid);
+        isProvider = await _checkIsProvider(credential.user!.uid);
         status = AuthStatus.authenticated;
       });
 
+  /// Cadastro unificado — toda conta criada aqui sempre ganha uma
+  /// identidade base de cliente (`clients/{uid}`); `asProvider: true`
+  /// ADICIONA a capacidade de prestador por cima disso (`providers/{uid}`),
+  /// nunca substitui. Ver `becomeProvider` pra uma conta já existente que
+  /// decide virar prestador depois.
   Future<bool> register(
     String name,
     String email,
     String password, {
-    required AccountRole role,
+    bool asProvider = false,
     String? category,
     String? city,
     String? state,
@@ -145,49 +155,106 @@ class AuthController extends ChangeNotifier {
         await credential.user?.updateDisplayName(name);
         final now = FieldValue.serverTimestamp();
 
-        if (role == AccountRole.provider) {
-          // Documento raiz do prestador (providers/{uid}) — ver
-          // firebase/DATA_MODEL.md. A própria regra `isOwner` do
-          // firestore.rules permite que o usuário recém-criado grave este
-          // documento.
-          await _firestore.collection('providers').doc(uid).set({
-            'name': name,
-            'email': email,
-            'nextBudgetNumber': 1,
-            'createdAt': now,
-            'updatedAt': now,
-          });
-          // Também cria a entrada pública no diretório do marketplace
-          // (mesmo id do uid — ver ProviderDirectoryRepository), pra
-          // aparecer na busca do cliente desde já. Só cria se categoria e
-          // cidade foram informadas (RegisterScreen exige isso pra quem
-          // escolhe "Sou prestador").
-          if (category != null && city != null && city.isNotEmpty) {
-            await _firestore.collection('providerDirectory').doc(uid).set({
-              'name': name,
-              'category': category,
-              'city': city,
-              if (state != null && state.isNotEmpty) 'state': state,
-              'claimed': true,
-              'providerUid': uid,
-              'createdAt': now,
-              'updatedAt': now,
-            });
-          }
-        } else {
-          // Documento raiz do cliente (clients/{uid}) — o lado novo do
-          // marketplace.
-          await _firestore.collection('clients').doc(uid).set({
-            'name': name,
-            'email': email,
-            'createdAt': now,
-            'updatedAt': now,
-          });
+        // Documento raiz do cliente (clients/{uid}) — identidade base de
+        // TODA conta, prestador ou não (ver comentário da classe). A
+        // própria regra `isOwner` do firestore.rules permite que o usuário
+        // recém-criado grave este documento.
+        await _firestore.collection('clients').doc(uid).set({
+          'name': name,
+          'email': email,
+          'createdAt': now,
+          'updatedAt': now,
+        });
+
+        if (asProvider) {
+          await _createProviderDocument(
+            uid: uid,
+            name: name,
+            email: email,
+            category: category,
+            city: city,
+            state: state,
+          );
+          isProvider = true;
         }
 
-        this.role = role;
         status = AuthStatus.authenticated;
       });
+
+  /// Adiciona a capacidade de prestador a uma conta já existente (ex.:
+  /// cliente que decide "também quero oferecer serviços" pela tela de
+  /// perfil). Mesmo desenho do cadastro: cria `providers/{uid}` com
+  /// `listingStatus: 'pending'` — não aparece na busca do cliente até
+  /// alguém (hoje, o Franck via Firebase Console) ativar manualmente. Ver
+  /// a nota em `_createProviderDocument`.
+  Future<bool> becomeProvider({
+    required String category,
+    required String city,
+    String? state,
+  }) =>
+      _submit(() async {
+        final user = _auth.currentUser!;
+        await _createProviderDocument(
+          uid: user.uid,
+          name: displayName,
+          email: user.email ?? '',
+          category: category,
+          city: city,
+          state: state,
+        );
+        isProvider = true;
+      });
+
+  /// Decisão de produto (combinada com o Franck — "só preparar o
+  /// terreno"): um prestador recém-cadastrado NÃO aparece de graça na
+  /// busca do cliente. `listingStatus` começa `'pending'` e só vira
+  /// `'active'` por ativação manual (Firebase Console) por enquanto — sem
+  /// pagamento de verdade integrado ainda. Por isso, diferente do
+  /// comportamento antigo, isso NUNCA cria `providerDirectory/{uid}`
+  /// diretamente; isso só acontece depois, quando o próprio prestador
+  /// salvar o perfil com `listingStatus != 'pending'` (ver EditProfileScreen
+  /// e `ProviderDirectoryRepository.upsertOwnListing`).
+  Future<void> _createProviderDocument({
+    required String uid,
+    required String name,
+    required String email,
+    String? category,
+    String? city,
+    String? state,
+  }) async {
+    final now = FieldValue.serverTimestamp();
+    await _firestore.collection('providers').doc(uid).set({
+      'name': name,
+      'email': email,
+      if (category != null && category.isNotEmpty) 'category': category,
+      if (city != null && city.isNotEmpty) 'city': city,
+      if (state != null && state.isNotEmpty) 'state': state,
+      'listingStatus': 'pending',
+      'nextBudgetNumber': 1,
+      'createdAt': now,
+      'updatedAt': now,
+    }, SetOptions(merge: true));
+  }
+
+  /// Garante que a conta logada tem um `clients/{uid}` — chamado antes de
+  /// qualquer ação de cliente (favoritar, solicitar orçamento) pra cobrir
+  /// contas de prestador criadas antes desse documento existir sempre (ver
+  /// `ClientAuthGate.ensureClientAccount`). Não faz nada se o documento já
+  /// existir (nunca sobrescreve dados).
+  Future<void> ensureClientDocument() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final ref = _firestore.collection('clients').doc(user.uid);
+    final doc = await ref.get();
+    if (doc.exists) return;
+    final now = FieldValue.serverTimestamp();
+    await ref.set({
+      'name': displayName,
+      'email': user.email,
+      'createdAt': now,
+      'updatedAt': now,
+    });
+  }
 
   /// Chamado a partir da tela de bloqueio biométrico. Só existe quando
   /// `status == AuthStatus.locked` (ou seja, já há uma sessão do Firebase
@@ -216,15 +283,18 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Nome da coleção do documento raiz do usuário logado
-  /// (`providers/{uid}` ou `clients/{uid}`, dependendo do papel).
-  String get _ownCollection => role == AccountRole.provider ? 'providers' : 'clients';
+  /// Nome da coleção do documento raiz "pessoal" do usuário logado —
+  /// prestador continua guardando nome/e-mail/WhatsApp/endereço em
+  /// `providers/{uid}` (como sempre foi); quem nunca ativou a capacidade
+  /// de prestador usa `clients/{uid}`.
+  String get _ownCollection => isProvider ? 'providers' : 'clients';
 
-  /// Lê os campos "pessoais" do próprio documento raiz — nascimento,
-  /// chave Pix e WhatsApp não fazem parte do perfil público do diretório
-  /// (ver `providerDirectory` no DATA_MODEL.md), só do documento
+  /// Lê os campos "pessoais" do próprio documento raiz — WhatsApp e
+  /// endereço não fazem parte do perfil público do diretório (ver
+  /// `providerDirectory` no DATA_MODEL.md), só do documento
   /// `providers/{uid}`/`clients/{uid}` do próprio dono. Usado pela tela
-  /// "Editar perfil" pra pré-preencher o formulário.
+  /// "Editar perfil" pra pré-preencher o formulário (inclusive
+  /// `listingStatus`, pro prestador).
   Future<Map<String, dynamic>> fetchOwnProfileData() async {
     final user = _auth.currentUser!;
     final doc = await _firestore.collection(_ownCollection).doc(user.uid).get();
@@ -235,19 +305,17 @@ class AuthController extends ChangeNotifier {
   /// (EditProfileScreen). Grava em dois lugares: o `displayName` do
   /// Firebase Auth (usado por `displayName` acima, ex.: pra pré-preencher
   /// o nome do cliente num pedido de orçamento) e os campos do documento
-  /// raiz (`providers/{uid}` ou `clients/{uid}`, dependendo do papel).
-  /// Pro lado do prestador, a tela também chama
-  /// `ProviderDirectoryRepository.upsertOwnListing` à parte — esse método
-  /// aqui não mexe no perfil público do diretório, só nos dados da conta.
+  /// raiz (`providers/{uid}` ou `clients/{uid}`, dependendo da capacidade
+  /// de prestador). Área de atuação (categoria/cidade/UF) do prestador é
+  /// tratada à parte, em `updateProviderBusinessInfo` — este método aqui
+  /// só cuida dos dados pessoais, os mesmos pros dois lados da conta.
   /// `whatsapp` e os campos de endereço são opcionais: passar `null` (ou
   /// uma string vazia) apaga o campo em vez de gravar vazio — `FieldValue
   /// .delete()` funciona normalmente dentro de um `.set(merge: true)`.
   /// Os campos de endereço são campos "planos" (`addressStreet`,
   /// `addressCity`...), não um mapa aninhado — mesma convenção que
   /// `Customer` já usa em `providers/{uid}/customers/{id}` (ver
-  /// customers_repository.dart), e reaproveita os campos `addressCity`/
-  /// `addressState` que já estavam documentados (mas nunca preenchidos)
-  /// em `providers/{uid}`.
+  /// customers_repository.dart).
   Future<bool> updateOwnProfile({
     required String name,
     String? whatsapp,
@@ -296,6 +364,31 @@ class AuthController extends ChangeNotifier {
         );
       });
 
+  /// Atualiza a área de atuação do prestador (categoria/cidade/UF) direto
+  /// em `providers/{uid}` — separado de `updateOwnProfile` porque só faz
+  /// sentido pra quem já é (ou está virando) prestador. Guarda esses dados
+  /// mesmo que `listingStatus` ainda seja `'pending'`, pra não se perderem
+  /// enquanto a ativação não acontece (ver `_createProviderDocument`); o
+  /// `EditProfileScreen` decide separadamente se chama
+  /// `ProviderDirectoryRepository.upsertOwnListing` a partir disso.
+  Future<bool> updateProviderBusinessInfo({
+    required String category,
+    required String city,
+    String? state,
+  }) =>
+      _submit(() async {
+        final user = _auth.currentUser!;
+        await _firestore.collection('providers').doc(user.uid).set(
+          {
+            'category': category,
+            'city': city,
+            'state': (state != null && state.isNotEmpty) ? state : FieldValue.delete(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      });
+
   /// Troca o e-mail de login da conta — chamado pela tela "Editar perfil"
   /// quando o campo E-mail é alterado. Por segurança, o Firebase exige
   /// reautenticação recente antes de mexer no e-mail (senão lança
@@ -317,22 +410,17 @@ class AuthController extends ChangeNotifier {
     await _auth.signOut();
     await _storage.clear();
     biometricEnabled = false;
-    role = null;
+    isProvider = false;
     status = AuthStatus.unauthenticated;
     notifyListeners();
   }
 
-  /// Descobre se o uid é de um prestador ou de um cliente, olhando qual
-  /// dos dois documentos raiz existe no Firestore. Contas criadas pelo
-  /// próprio app sempre têm um dos dois (ver `register` acima); se nenhum
-  /// existir (não deveria acontecer), assume prestador como padrão seguro
-  /// — era o único tipo de conta antes desse pivot.
-  Future<AccountRole> _resolveRole(String uid) async {
+  /// Descobre se a conta também é prestador, olhando se `providers/{uid}`
+  /// existe. Diferente de antes, isso NÃO é mais exclusivo com ser
+  /// cliente — só responde "essa conta tem a capacidade de prestador?".
+  Future<bool> _checkIsProvider(String uid) async {
     final providerDoc = await _firestore.collection('providers').doc(uid).get();
-    if (providerDoc.exists) return AccountRole.provider;
-    final clientDoc = await _firestore.collection('clients').doc(uid).get();
-    if (clientDoc.exists) return AccountRole.client;
-    return AccountRole.provider;
+    return providerDoc.exists;
   }
 
   Future<bool> _submit(Future<void> Function() action) async {

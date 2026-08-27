@@ -13,8 +13,7 @@ import 'edit_profile_screen.dart';
 /// usuário"): mostra os dados da conta logada (nome, e-mail, e pro lado
 /// do prestador também categoria/cidade do perfil público), com botão
 /// pra editar, atalho pra ativar/desativar a biometria, e sair da conta.
-/// Existe nos dois lados do app (AppShell e ClientShell) — ver
-/// app_router.dart.
+/// Uma das 5 abas do shell único do app (ver UnifiedShell/app_router.dart).
 ///
 /// No lado do prestador essa rota é "só de conta" (ver
 /// `_providerOnlyRoutes` no router) — nunca é vista por um convidado. Já
@@ -45,7 +44,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   void _loadListingIfProvider() {
     final auth = context.read<AuthController>();
-    if (auth.role == AccountRole.provider) {
+    if (auth.isProvider) {
       _listingFuture = context.read<ProviderDirectoryRepository>().get(auth.providerId);
     }
   }
@@ -76,9 +75,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (await ensureClientAccount(context) && mounted) setState(_reloadOwnData);
   }
 
+  /// "Também quero oferecer serviços" — abre o mesmo tipo de formulário do
+  /// cadastro (categoria/cidade/UF) pra uma conta que já é só cliente virar
+  /// prestador também (ver AuthController.becomeProvider). A tela toda
+  /// reage sozinha depois (auth.isProvider vira true e o Provider notifica
+  /// quem estiver observando) — só precisa recarregar os dados próprios.
+  Future<void> _becomeProvider() async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const _BecomeProviderSheet(),
+    );
+    if (result == true && mounted) setState(_reloadOwnData);
+  }
+
   Future<void> _editProfile() async {
     final auth = context.read<AuthController>();
-    final listing = auth.role == AccountRole.provider ? await _listingFuture : null;
+    final listing = auth.isProvider ? await _listingFuture : null;
     if (!mounted) return;
     final emailChanged = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EditProfileScreen(currentListing: listing)),
@@ -119,7 +132,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final isAuthenticated = auth.status == AuthStatus.authenticated;
-    final isProvider = auth.role == AccountRole.provider;
+    final isProvider = auth.isProvider;
 
     if (!isAuthenticated) {
       return Scaffold(
@@ -214,6 +227,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             label: const Text('Editar perfil'),
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
           ),
+          if (!isProvider) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _becomeProvider,
+              icon: const Icon(Icons.handyman_outlined),
+              label: const Text('Também quero oferecer serviços'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            ),
+          ],
           if (_biometricAvailable == true) ...[
             const SizedBox(height: 24),
             const Text('Segurança', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
@@ -298,6 +320,143 @@ class _InfoTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Formulário curto (categoria/cidade/UF) pra uma conta que já é cliente
+/// virar também prestador — mesmo tipo de dado pedido no cadastro
+/// (RegisterScreen), só que chamado a partir do "Meu perfil" em vez do
+/// cadastro inicial. Depois de criar, o cadastro fica com
+/// `listingStatus: 'pending'` até uma ativação manual (ver
+/// AuthController._createProviderDocument) — o formulário já avisa disso.
+class _BecomeProviderSheet extends StatefulWidget {
+  const _BecomeProviderSheet();
+
+  @override
+  State<_BecomeProviderSheet> createState() => _BecomeProviderSheetState();
+}
+
+class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  ServiceCategory _category = ServiceCategory.eletricista;
+
+  @override
+  void dispose() {
+    _cityController.dispose();
+    _stateController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit(AuthController auth) async {
+    if (!_formKey.currentState!.validate()) return;
+    final ok = await auth.becomeProvider(
+      category: _category.wireValue,
+      city: _cityController.text.trim(),
+      state: _stateController.text.trim().toUpperCase(),
+    );
+    if (ok && mounted) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.muted.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Também quero oferecer serviços',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Sua conta continua a mesma — isso só adiciona a área de prestador.',
+                style: TextStyle(color: AppColors.muted, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              DropdownButtonFormField<ServiceCategory>(
+                initialValue: _category,
+                decoration: const InputDecoration(labelText: 'Sua principal categoria de serviço'),
+                items: ServiceCategory.values
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
+                    .toList(),
+                onChanged: (value) => setState(() => _category = value ?? _category),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextFormField(
+                      controller: _cityController,
+                      decoration: const InputDecoration(labelText: 'Cidade'),
+                      validator: (value) =>
+                          (value == null || value.trim().isEmpty) ? 'Informe a cidade' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _stateController,
+                      maxLength: 2,
+                      decoration: const InputDecoration(labelText: 'UF', counterText: ''),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '⏳ Seu cadastro entra em análise — assim que for ativado, você passa a '
+                'aparecer nas buscas dos clientes.',
+                style: TextStyle(fontSize: 12, color: AppColors.muted),
+              ),
+              if (auth.errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
+              ],
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: auth.isBusy ? null : () => _submit(auth),
+                child: auth.isBusy
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Virar prestador'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

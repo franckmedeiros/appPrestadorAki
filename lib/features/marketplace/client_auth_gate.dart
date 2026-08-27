@@ -10,39 +10,22 @@ import '../../core/auth_controller.dart';
 /// pedem login/cadastro, e pedem na hora, sem tirar o cliente da tela onde
 /// ele estava.
 ///
+/// Conta unificada: quem já está autenticado (prestador ou não) já pode
+/// usar ações de cliente direto — a versão antiga forçava logout de quem
+/// estava "logado como prestador" (uma conta era OU prestador OU cliente);
+/// isso não existe mais (ver AuthController). Só garante que existe um
+/// `clients/{uid}` de base, criando na hora se for a primeira ação de
+/// cliente dessa conta (ex.: um prestador favoritando outro profissional
+/// pela primeira vez).
+///
 /// Uso: `if (!await ensureClientAccount(context)) return;` antes de
 /// qualquer ação que precise de `clients/{uid}`.
 Future<bool> ensureClientAccount(BuildContext context) async {
   final auth = context.read<AuthController>();
 
-  if (auth.status == AuthStatus.authenticated && auth.role == AccountRole.client) {
+  if (auth.status == AuthStatus.authenticated) {
+    await auth.ensureClientDocument();
     return true;
-  }
-
-  if (auth.status == AuthStatus.authenticated && auth.role == AccountRole.provider) {
-    // Simplificação consciente: uma conta é OU prestador OU cliente, nunca
-    // as duas (ver AuthController._resolveRole). Se a pessoa está logada
-    // como prestador e tenta usar uma ação de cliente, precisa sair da
-    // conta de prestador primeiro — não dá pra ter as duas sessões ao
-    // mesmo tempo com o desenho atual.
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Você está logado como prestador'),
-        content: const Text(
-          'Pra usar ações de cliente (favoritar, solicitar orçamento), você '
-          'precisa sair da conta de prestador e entrar (ou criar) com uma '
-          'conta de cliente.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sair')),
-        ],
-      ),
-    );
-    if (shouldLogout != true) return false;
-    await auth.logout();
-    if (!context.mounted) return false;
   }
 
   if (!context.mounted) return false;
@@ -117,7 +100,6 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
             _nameController.text.trim(),
             _emailController.text.trim(),
             _passwordController.text,
-            role: AccountRole.client,
           );
     if (ok && mounted) Navigator.pop(context, true);
   }

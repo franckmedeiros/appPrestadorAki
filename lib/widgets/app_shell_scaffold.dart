@@ -10,8 +10,9 @@ class AppNavItem {
   final String label;
 }
 
-/// Scaffold compartilhado pelos dois lados do app (AppShell/ClientShell) —
-/// mesma barra de navegação nos dois, só muda a lista de destinos.
+/// Scaffold usado pelo shell único do app (ver UnifiedShell) — a lista de
+/// destinos varia dinamicamente conforme a conta logada tem ou não a
+/// capacidade de prestador.
 ///
 /// Igual à referência do Resenha que o Franck mostrou: não existe um ícone
 /// fixo de marca. O círculo flutuante representa a aba atualmente

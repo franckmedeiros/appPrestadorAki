@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
@@ -8,10 +9,17 @@ import '../../widgets/biometric_offer_card.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
 
-/// Dashboard do prestador. O card de "Orçamentos abertos" ainda é estático
-/// — o endpoint /providers/dashboard (contrato de API, seção 5) não existe
-/// (só entra junto com o módulo de Orçamentos). Já "Compromissos hoje" usa
-/// o endpoint /appointments de verdade, reaproveitando o mesmo repositório
+/// Aba "Dashboard" — só existe pra quem tem a capacidade de prestador
+/// (ver UnifiedShell/AuthController.isProvider). Primeiro rascunho
+/// combinado com o Franck: um resumo do dia + atalhos pras telas que
+/// antes eram abas próprias (Clientes/Agenda/Orçamentos/Pedidos), que
+/// agora só existem a partir daqui — o layout definitivo ainda precisa de
+/// uma revisão em conjunto (ver combinado no chat).
+///
+/// O card de "Orçamentos abertos" ainda é estático — o endpoint
+/// /providers/dashboard (contrato de API, seção 5) não existe (só entra
+/// junto com o módulo de Orçamentos). Já "Compromissos hoje" usa o
+/// endpoint /appointments de verdade, reaproveitando o mesmo repositório
 /// da aba Agenda.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -30,12 +38,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool? _biometricAvailable;
   bool _dismissedThisSession = false;
   late Future<List<Appointment>> _todayFuture;
+  late Future<Map<String, dynamic>?> _listingStatusFuture;
 
   @override
   void initState() {
     super.initState();
     _checkBiometricAvailability();
     _todayFuture = _loadToday();
+    _listingStatusFuture = _loadListingStatus();
   }
 
   Future<List<Appointment>> _loadToday() {
@@ -57,6 +67,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await context.read<AuthController>().setBiometricEnabled(true);
   }
 
+  Future<Map<String, dynamic>?> _loadListingStatus() async {
+    // Leitura leve só pro aviso de ativação pendente abaixo — não vale a
+    // pena um método próprio no AuthController só pra isso (ver
+    // EditProfileScreen, que também lê listingStatus a partir do mesmo
+    // fetchOwnProfileData).
+    final data = await context.read<AuthController>().fetchOwnProfileData();
+    return data;
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
@@ -64,16 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _biometricAvailable == true && !auth.biometricEnabled && !_dismissedThisSession;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('PrestadorAki'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sair',
-            onPressed: () => context.read<AuthController>().logout(),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Dashboard')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -83,6 +93,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 4),
           const Text('Aqui está o resumo do seu dia.', style: TextStyle(color: AppColors.muted)),
+          FutureBuilder<Map<String, dynamic>?>(
+            future: _listingStatusFuture,
+            builder: (context, snapshot) {
+              if (snapshot.data?['listingStatus'] != 'pending') return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Card(
+                  color: const Color(0xFFFFF4E5),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      '⏳ Seu cadastro de prestador ainda está em análise — assim que for '
+                      'ativado, você passa a aparecer nas buscas dos clientes.',
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Atalhos',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.5,
+            children: [
+              _ShortcutCard(
+                icon: Icons.people_outline,
+                label: 'Clientes',
+                onTap: () => context.push('/clientes'),
+              ),
+              _ShortcutCard(
+                icon: Icons.calendar_month_outlined,
+                label: 'Agenda',
+                onTap: () => context.push('/agenda'),
+              ),
+              _ShortcutCard(
+                icon: Icons.description_outlined,
+                label: 'Orçamentos',
+                onTap: () => context.push('/orcamentos'),
+              ),
+              _ShortcutCard(
+                icon: Icons.inbox_outlined,
+                label: 'Pedidos',
+                onTap: () => context.push('/pedidos'),
+              ),
+            ],
+          ),
           if (showBiometricOffer) ...[
             const SizedBox(height: 16),
             BiometricOfferCard(
@@ -209,6 +275,36 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShortcutCard extends StatelessWidget {
+  const _ShortcutCard({required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: AppColors.primary),
+              const SizedBox(height: 8),
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+            ],
+          ),
         ),
       ),
     );

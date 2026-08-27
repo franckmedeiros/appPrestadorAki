@@ -21,7 +21,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 
   void _load() {
     final auth = context.read<AuthController>();
-    if (auth.status == AuthStatus.authenticated && auth.role == AccountRole.client) {
+    if (auth.status == AuthStatus.authenticated) {
       _future = context.read<ServiceRequestsRepository>().listForClient();
     }
   }
@@ -38,7 +38,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
-    final isClient = auth.status == AuthStatus.authenticated && auth.role == AccountRole.client;
+    final isClient = auth.status == AuthStatus.authenticated;
     if (isClient && _future == null) _load();
     if (!isClient) _future = null;
 
