@@ -66,6 +66,24 @@ class ServiceRequestsRepository {
     }
   }
 
+  /// Versão "ao vivo" de `listForClient()` — usada por `MyRequestsScreen`
+  /// no lugar de um `Future` recarregado manualmente. Essa tela vive
+  /// dentro do shell único do app (StatefulShellRoute.indexedStack — ver
+  /// UnifiedShell), que mantém o widget vivo o tempo todo; como o envio
+  /// de uma nova solicitação acontece em OUTRA tela
+  /// (RequestQuoteFormScreen, empilhada por cima), não existia nenhum
+  /// jeito natural de avisar esta aqui "algo mudou, recarregue" — daí a
+  /// reclamação de precisar sair e entrar de novo pra ver a solicitação
+  /// nova. Com `.snapshots()` isso deixa de ser necessário: a lista se
+  /// atualiza sozinha assim que a escrita é confirmada.
+  Stream<List<ServiceRequest>> watchForClient() {
+    return _collection
+        .where('clientUid', isEqualTo: _auth.currentUser!.uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(ServiceRequest.fromFirestore).toList());
+  }
+
   Future<List<ServiceRequest>> listForProvider() async {
     try {
       final snapshot = await _collection

@@ -17,30 +17,36 @@ class MyRequestsScreen extends StatefulWidget {
 }
 
 class _MyRequestsScreenState extends State<MyRequestsScreen> {
-  Future<List<ServiceRequest>>? _future;
+  // Stream em vez de Future recarregado manualmente: esta tela é uma aba
+  // do shell único do app (StatefulShellRoute.indexedStack — ver
+  // UnifiedShell), que fica viva o tempo todo, e o envio de uma nova
+  // solicitação acontece em OUTRA tela empilhada por cima
+  // (RequestQuoteFormScreen) — não existia nenhum jeito natural de avisar
+  // esta aqui pra recarregar, daí a lista "não vinha" sem sair e entrar
+  // de novo. Ver ServiceRequestsRepository.watchForClient.
+  Stream<List<ServiceRequest>>? _stream;
+  String? _streamForUid;
 
-  void _load() {
-    final auth = context.read<AuthController>();
-    if (auth.status == AuthStatus.authenticated) {
-      _future = context.read<ServiceRequestsRepository>().listForClient();
-    }
-  }
-
-  Future<void> _reload() async {
-    setState(_load);
-    await _future;
+  void _ensureStream(String uid) {
+    if (_streamForUid == uid) return;
+    _streamForUid = uid;
+    _stream = context.read<ServiceRequestsRepository>().watchForClient();
   }
 
   Future<void> _signIn() async {
-    if (await ensureClientAccount(context) && mounted) setState(_load);
+    if (await ensureClientAccount(context) && mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final isClient = auth.status == AuthStatus.authenticated;
-    if (isClient && _future == null) _load();
-    if (!isClient) _future = null;
+    if (isClient) {
+      _ensureStream(auth.providerId);
+    } else {
+      _stream = null;
+      _streamForUid = null;
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Minhas solicitações')),
@@ -50,11 +56,9 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               message: 'Crie uma conta grátis para acompanhar suas solicitações de orçamento.',
               onPressed: _signIn,
             )
-          : RefreshIndicator(
-              onRefresh: _reload,
-              child: FutureBuilder<List<ServiceRequest>>(
-                future: _future,
-                builder: (context, snapshot) {
+          : StreamBuilder<List<ServiceRequest>>(
+              stream: _stream,
+              builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
@@ -119,7 +123,6 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     },
                   );
                 },
-              ),
             ),
     );
   }

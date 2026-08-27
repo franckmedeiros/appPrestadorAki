@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/auth_controller.dart';
+import '../../core/date_text_utils.dart';
+import '../../widgets/mask_text_input_formatter.dart';
 import 'client_auth_gate.dart';
 import 'models/provider_listing.dart';
 import 'service_requests_repository.dart';
@@ -24,7 +26,12 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
-  DateTime? _preferredDate;
+  // Digitável, já vem preenchido com a data de hoje (decisão combinada
+  // com o Franck) em vez de só um botão que abre o calendário vazio — a
+  // pessoa edita se quiser outra data, ou apaga se realmente não tiver
+  // preferência (ver core/date_text_utils.dart).
+  late final _dateController = TextEditingController(text: formatDateDdMmYyyy(DateTime.now()));
+  final _dateMask = MaskTextInputFormatter('##/##/####');
 
   bool _saving = false;
   String? _error;
@@ -34,17 +41,19 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
   void dispose() {
     _descriptionController.dispose();
     _addressController.dispose();
+    _dateController.dispose();
     super.dispose();
   }
 
   Future<void> _pickDate() async {
+    final current = tryParseDateDdMmYyyy(_dateController.text) ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
+      initialDate: current,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked != null) setState(() => _preferredDate = picked);
+    if (picked != null) setState(() => _dateController.text = formatDateDdMmYyyy(picked));
   }
 
   Future<void> _submit() async {
@@ -60,17 +69,18 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
       _error = null;
     });
     try {
+      final preferredDate = tryParseDateDdMmYyyy(_dateController.text.trim());
       final clientName = context.read<AuthController>().displayName;
       await context.read<ServiceRequestsRepository>().create(
             clientName: clientName,
             provider: widget.listing,
             description: _descriptionController.text.trim(),
             addressText: _addressController.text.trim(),
-            preferredDate: _preferredDate == null
+            preferredDate: preferredDate == null
                 ? null
-                : '${_preferredDate!.year.toString().padLeft(4, '0')}-'
-                    '${_preferredDate!.month.toString().padLeft(2, '0')}-'
-                    '${_preferredDate!.day.toString().padLeft(2, '0')}',
+                : '${preferredDate.year.toString().padLeft(4, '0')}-'
+                    '${preferredDate.month.toString().padLeft(2, '0')}-'
+                    '${preferredDate.day.toString().padLeft(2, '0')}',
           );
       if (mounted) setState(() => _sent = true);
     } on ApiException catch (e) {
@@ -168,15 +178,19 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
                     (value == null || value.trim().isEmpty) ? 'Informe o endereço' : null,
               ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                label: Text(
-                  _preferredDate == null
-                      ? 'Quando você precisa? (opcional)'
-                      : '${_preferredDate!.day.toString().padLeft(2, '0')}/'
-                          '${_preferredDate!.month.toString().padLeft(2, '0')}/'
-                          '${_preferredDate!.year}',
+              TextFormField(
+                controller: _dateController,
+                keyboardType: TextInputType.datetime,
+                inputFormatters: [_dateMask],
+                decoration: InputDecoration(
+                  labelText: 'Quando você precisa? (opcional)',
+                  hintText: 'DD/MM/AAAA',
+                  prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+                  suffixIcon: IconButton(
+                    tooltip: 'Escolher no calendário',
+                    icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                    onPressed: _pickDate,
+                  ),
                 ),
               ),
               if (_error != null) ...[
