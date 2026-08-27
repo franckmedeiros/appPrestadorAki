@@ -33,6 +33,33 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # Só gera os arquivos de ícone (ver config abaixo) — não entra no app
+  # final, é rodado uma vez à mão (`dart run flutter_launcher_icons`)
+  # sempre que a arte do ícone mudar.
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
+
+# Configuração do flutter_launcher_icons — corrige o ícone do Android
+# aparecer pequeno e apertado dentro de um círculo branco (o Franck
+# reparou comparando com o app Resenha, que preenche o círculo todo).
+# Causa: o app nunca tinha um "ícone adaptativo" (Android 8+) de verdade,
+# só o PNG quadrado antigo — sem uma camada de primeiro plano/fundo
+# separadas, o launcher (reparado num Moto) encolhe o ícone inteiro e
+# desenha ele dentro de um círculo branco por conta própria, pra não
+# cortar as bordas. `adaptive_icon_foreground` é só o glifo do pin+casa
+# (extraído do ícone atual, sem as linhas decorativas — elas ficam fora
+# da "área segura" central que o Android garante visível em qualquer
+# formato de máscara do launcher), e `adaptive_icon_background` é a cor
+# de marca sólida, preenchendo o círculo/quadrado inteiro sem cortar nada.
+# `image_path` continua sendo a arte completa de sempre — usada como está
+# pro ícone do iOS e como alternativa pra Android < 8 (que não têm ícone
+# adaptativo).
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png"
+  adaptive_icon_background: "#E7502E"
+  adaptive_icon_foreground: "assets/icon/ic_launcher_foreground.png"
+  min_sdk_android: 21
