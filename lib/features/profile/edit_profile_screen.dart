@@ -1,7 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
@@ -11,10 +9,14 @@ import '../marketplace/provider_directory_repository.dart';
 
 /// Formulário de edição dos dados do próprio usuário — igual ao pedido
 /// do Franck ("no meu perfil, deveria ficar assim", com referência ao
-/// app Resenha): nome, data de nascimento (opcional), chave Pix e
-/// WhatsApp pra todo mundo; categoria/cidade/UF só pro prestador (são os
-/// mesmos campos preenchidos no cadastro, que decidem em quais buscas
-/// ele aparece — ver ProviderDirectoryRepository.upsertOwnListing).
+/// app Resenha), depois ajustado por ele mesmo: sem data de nascimento
+/// nem chave Pix — no lugar, e-mail (editável) e endereço. WhatsApp
+/// continua pra todo mundo; categoria/cidade/UF de "área de atuação" só
+/// pro prestador (são os mesmos campos preenchidos no cadastro, que
+/// decidem em quais buscas ele aparece — ver
+/// ProviderDirectoryRepository.upsertOwnListing). O endereço (CEP, rua e
+/// número, bairro, cidade, UF) é um dado só da conta — nunca aparece no
+/// perfil público do diretório.
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key, this.currentListing});
 
@@ -31,17 +33,20 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  final _birthDateController = TextEditingController();
-  final _pixKeyController = TextEditingController();
+  late final TextEditingController _emailController;
   final _whatsappController = TextEditingController();
+  final _cepController = TextEditingController();
+  final _streetController = TextEditingController();
+  final _neighborhoodController = TextEditingController();
+  final _addressCityController = TextEditingController();
+  final _addressStateController = TextEditingController();
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
   ServiceCategory _category = ServiceCategory.eletricista;
 
   final _phoneMask = _MaskTextInputFormatter('(##) #####-####');
-  final _dateMask = _MaskTextInputFormatter('##/##/####');
+  final _cepMask = _MaskTextInputFormatter('#####-###');
 
-  DateTime? _birthDate;
   bool _loading = true;
   bool _isSaving = false;
   String? _error;
@@ -49,7 +54,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: context.read<AuthController>().displayName);
+    final auth = context.read<AuthController>();
+    _nameController = TextEditingController(text: auth.displayName);
+    _emailController = TextEditingController(text: auth.currentUserEmail ?? '');
     final listing = widget.currentListing;
     _cityController.text = listing?.city ?? '';
     _stateController.text = listing?.state ?? '';
@@ -60,13 +67,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _loadOwnData() async {
     final data = await context.read<AuthController>().fetchOwnProfileData();
     if (!mounted) return;
-    final birthTimestamp = data['birthDate'] as Timestamp?;
-    if (birthTimestamp != null) {
-      final date = birthTimestamp.toDate();
-      _birthDate = date;
-      _birthDateController.text = DateFormat('dd/MM/yyyy').format(date);
-    }
-    _pixKeyController.text = data['pixKey'] as String? ?? '';
+    _cepController.text = data['addressZipCode'] as String? ?? '';
+    _streetController.text = data['addressStreet'] as String? ?? '';
+    _neighborhoodController.text = data['addressNeighborhood'] as String? ?? '';
+    _addressCityController.text = data['addressCity'] as String? ?? '';
+    _addressStateController.text = data['addressState'] as String? ?? '';
     _whatsappController.text = data['whatsapp'] as String? ?? '';
     setState(() => _loading = false);
   }
@@ -74,9 +79,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _birthDateController.dispose();
-    _pixKeyController.dispose();
+    _emailController.dispose();
     _whatsappController.dispose();
+    _cepController.dispose();
+    _streetController.dispose();
+    _neighborhoodController.dispose();
+    _addressCityController.dispose();
+    _addressStateController.dispose();
     _cityController.dispose();
     _stateController.dispose();
     super.dispose();
@@ -84,59 +93,83 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   bool get _isProvider => context.read<AuthController>().role == AccountRole.provider;
 
-  Future<void> _pickBirthDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
+  /// Pede a senha atual antes de trocar o e-mail — o Firebase exige uma
+  /// reautenticação recente pra esse tipo de operação sensível (senão
+  /// lança `requires-recent-login`). Devolve `null` se o usuário cancelar.
+  Future<String?> _promptCurrentPassword() {
+    final controller = TextEditingController();
+    return showDialog<String>(
       context: context,
-      initialDate: _birthDate ?? DateTime(now.year - 30, now.month, now.day),
-      firstDate: DateTime(now.year - 100),
-      lastDate: now,
-      helpText: 'Data de nascimento',
+      builder: (context) => AlertDialog(
+        title: const Text('Confirme sua senha'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Pra trocar seu e-mail de login, digite sua senha atual.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Senha atual'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
     );
-    if (picked != null) {
-      setState(() {
-        _birthDate = picked;
-        _birthDateController.text = DateFormat('dd/MM/yyyy').format(picked);
-      });
-    }
-  }
-
-  /// Converte o texto digitado (com a máscara dd/mm/aaaa) numa data de
-  /// verdade — devolve null se ainda estiver incompleto ou se a data não
-  /// existir (ex: 31/02), pra não deixar passar algo tipo "31/02/2000"
-  /// que o DateTime só "arredondaria" pra 03/03. Mesma lógica do app
-  /// Resenha (EditPerfilScreen).
-  DateTime? _parseTypedDate(String text) {
-    final digits = text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length < 8) return null;
-    final day = int.tryParse(digits.substring(0, 2));
-    final month = int.tryParse(digits.substring(2, 4));
-    final year = int.tryParse(digits.substring(4, 8));
-    if (day == null || month == null || year == null) return null;
-    final date = DateTime(year, month, day);
-    if (date.day != day || date.month != month || date.year != year) return null;
-    return date;
-  }
-
-  void _onBirthDateTextChanged(String text) {
-    final date = _parseTypedDate(text);
-    _birthDate = (date != null && !date.isAfter(DateTime.now())) ? date : null;
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final auth = context.read<AuthController>();
+    final newEmail = _emailController.text.trim();
+    final emailChanged = newEmail != (auth.currentUserEmail ?? '');
+
+    String? currentPassword;
+    if (emailChanged) {
+      currentPassword = await _promptCurrentPassword();
+      if (!mounted) return;
+      if (currentPassword == null || currentPassword.isEmpty) return;
+    }
+
     setState(() {
       _isSaving = true;
       _error = null;
     });
 
-    final auth = context.read<AuthController>();
+    if (emailChanged) {
+      final emailOk = await auth.updateEmailAddress(newEmail, currentPassword!);
+      if (!mounted) return;
+      if (!emailOk) {
+        setState(() {
+          _isSaving = false;
+          _error = auth.errorMessage ?? 'Não foi possível atualizar o e-mail.';
+        });
+        return;
+      }
+    }
+
     final name = _nameController.text.trim();
     final ok = await auth.updateOwnProfile(
       name: name,
-      birthDate: _birthDate,
-      pixKey: _pixKeyController.text.trim(),
       whatsapp: _whatsappController.text.trim(),
+      addressZipCode: _cepController.text.trim(),
+      addressStreet: _streetController.text.trim(),
+      addressNeighborhood: _neighborhoodController.text.trim(),
+      addressCity: _addressCityController.text.trim(),
+      addressState: _addressStateController.text.trim().toUpperCase(),
     );
 
     if (ok && _isProvider) {
@@ -160,7 +193,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!mounted) return;
     setState(() => _isSaving = false);
     if (ok) {
-      Navigator.of(context).pop();
+      // O `pop(emailChanged)` avisa a UserProfileScreen pra mostrar o
+      // aviso sobre o link de confirmação — SnackBar não sobrevive bem
+      // se disparado bem em cima de um pop desta própria tela.
+      Navigator.of(context).pop(emailChanged);
     } else {
       setState(() => _error = auth.errorMessage ?? 'Não foi possível salvar as alterações.');
     }
@@ -195,37 +231,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  controller: _birthDateController,
-                  decoration: InputDecoration(
-                    labelText: 'Data de nascimento (opcional)',
-                    hintText: 'dd/mm/aaaa',
-                    prefixIcon: const Icon(Icons.cake_outlined),
-                    suffixIcon: IconButton(
-                      onPressed: _pickBirthDate,
-                      icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                    ),
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [_dateMask],
-                  onChanged: _onBirthDateTextChanged,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) return null;
-                    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-                    if (digits.length < 8) return 'Data incompleta';
-                    final date = _parseTypedDate(value);
-                    if (date == null) return 'Data inválida';
-                    if (date.isAfter(DateTime.now())) return 'Data não pode ser no futuro';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _pixKeyController,
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'Chave Pix (opcional)',
-                    hintText: 'CPF, e-mail, telefone ou chave aleatória',
-                    prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                    labelText: 'E-mail',
+                    prefixIcon: Icon(Icons.email_outlined),
                   ),
+                  validator: (value) =>
+                      (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Se você trocar o e-mail, vamos pedir sua senha atual e mandar um '
+                  'link de confirmação pro e-mail novo.',
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -244,7 +263,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   },
                 ),
                 if (isProvider) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
+                  const Text('Área de atuação', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 8),
                   DropdownButtonFormField<ServiceCategory>(
                     initialValue: _category,
                     decoration:
@@ -284,6 +305,50 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                 ],
+                const SizedBox(height: 20),
+                const Text('Endereço', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(height: 4),
+                const Text(
+                  'Fica só na sua conta — não aparece no seu perfil público.',
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _cepController,
+                  decoration: const InputDecoration(labelText: 'CEP (opcional)', hintText: '00000-000'),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [_cepMask],
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _streetController,
+                  decoration: const InputDecoration(labelText: 'Rua e número (opcional)'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _neighborhoodController,
+                  decoration: const InputDecoration(labelText: 'Bairro (opcional)'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextFormField(
+                        controller: _addressCityController,
+                        decoration: const InputDecoration(labelText: 'Cidade (opcional)'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _addressStateController,
+                        maxLength: 2,
+                        decoration: const InputDecoration(labelText: 'UF', counterText: ''),
+                      ),
+                    ),
+                  ],
+                ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(_error!, style: const TextStyle(color: AppColors.danger)),
@@ -312,7 +377,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 /// menos uma dependência do Gradle pra dar problema, ver o histórico de
 /// build do compileSdk). `#` no padrão vira "próximo dígito digitado";
 /// qualquer outro caractere do padrão (espaço, parênteses, traço, barra)
-/// é inserido literalmente. Usada tanto pro telefone quanto pra data.
+/// é inserido literalmente. Usada pro telefone e pro CEP.
 class _MaskTextInputFormatter extends TextInputFormatter {
   _MaskTextInputFormatter(this.mask);
 

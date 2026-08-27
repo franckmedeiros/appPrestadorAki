@@ -1,9 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../marketplace/client_auth_gate.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
@@ -16,6 +15,14 @@ import 'edit_profile_screen.dart';
 /// pra editar, atalho pra ativar/desativar a biometria, e sair da conta.
 /// Existe nos dois lados do app (AppShell e ClientShell) — ver
 /// app_router.dart.
+///
+/// No lado do prestador essa rota é "só de conta" (ver
+/// `_providerOnlyRoutes` no router) — nunca é vista por um convidado. Já
+/// no lado do cliente (`/perfil`), a busca é sempre livre, então um
+/// convidado (ex.: acabou de sair da conta) chega aqui sem sessão — nesse
+/// caso mostramos o mesmo convite de login/cadastro usado em
+/// Favoritos/Minhas solicitações (ClientAuthGate), em vez de uma tela de
+/// perfil vazia sem nenhum jeito óbvio de voltar a entrar.
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
 
@@ -32,7 +39,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void initState() {
     super.initState();
     _loadListingIfProvider();
-    _ownDataFuture = context.read<AuthController>().fetchOwnProfileData();
+    _ownDataFuture = _fetchOwnData();
     _checkBiometricAvailability();
   }
 
@@ -43,9 +50,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
+  /// `fetchOwnProfileData` exige sessão (lê `providers/{uid}` ou
+  /// `clients/{uid}` do próprio usuário) — sem isso daria erro pra um
+  /// convidado. `build()` só chama esse future quando `isAuthenticated`,
+  /// mas ele é montado aqui no `initState` (antes de sabermos se a tela
+  /// vai de fato precisar dele), então a checagem fica aqui também.
+  Future<Map<String, dynamic>> _fetchOwnData() {
+    final auth = context.read<AuthController>();
+    if (auth.status != AuthStatus.authenticated) return Future.value(const <String, dynamic>{});
+    return auth.fetchOwnProfileData();
+  }
+
   void _reloadOwnData() {
     _loadListingIfProvider();
-    _ownDataFuture = context.read<AuthController>().fetchOwnProfileData();
+    _ownDataFuture = _fetchOwnData();
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -54,15 +72,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     setState(() => _biometricAvailable = available);
   }
 
+  Future<void> _signIn() async {
+    if (await ensureClientAccount(context) && mounted) setState(_reloadOwnData);
+  }
+
   Future<void> _editProfile() async {
     final auth = context.read<AuthController>();
     final listing = auth.role == AccountRole.provider ? await _listingFuture : null;
     if (!mounted) return;
-    await Navigator.of(context).push(
+    final emailChanged = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EditProfileScreen(currentListing: listing)),
     );
     if (!mounted) return;
     setState(_reloadOwnData);
+    if (emailChanged == true) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+          'Enviamos um link de confirmação pro e-mail novo. Seu e-mail de '
+          'login só muda depois que você confirmar pelo link.',
+        ),
+        duration: Duration(seconds: 6),
+      ));
+    }
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -87,7 +118,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
+    final isAuthenticated = auth.status == AuthStatus.authenticated;
     final isProvider = auth.role == AccountRole.provider;
+
+    if (!isAuthenticated) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Meu perfil')),
+        body: ClientSignInPrompt(
+          icon: Icons.person_outline,
+          message: 'Entre ou crie uma conta para ver e editar seus dados.',
+          onPressed: _signIn,
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Meu perfil')),
@@ -147,27 +190,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             future: _ownDataFuture,
             builder: (context, snapshot) {
               final data = snapshot.data ?? const <String, dynamic>{};
-              final birthTimestamp = data['birthDate'] as Timestamp?;
-              final birthLabel =
-                  birthTimestamp != null ? DateFormat('dd/MM/yyyy').format(birthTimestamp.toDate()) : null;
-              final pixKey = data['pixKey'] as String?;
               final whatsapp = data['whatsapp'] as String?;
               return Column(
                 children: [
                   _InfoTile(
-                    icon: Icons.cake_outlined,
-                    label: 'Data de nascimento',
-                    value: birthLabel ?? 'Não informado',
-                  ),
-                  _InfoTile(
-                    icon: Icons.account_balance_wallet_outlined,
-                    label: 'Chave Pix',
-                    value: (pixKey != null && pixKey.isNotEmpty) ? pixKey : 'Não informado',
-                  ),
-                  _InfoTile(
                     icon: Icons.phone_outlined,
                     label: 'Telefone/WhatsApp',
                     value: (whatsapp != null && whatsapp.isNotEmpty) ? whatsapp : 'Não informado',
+                  ),
+                  _InfoTile(
+                    icon: Icons.home_outlined,
+                    label: 'Endereço',
+                    value: _formatAddress(data),
                   ),
                 ],
               );
@@ -212,6 +246,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   String _currentEmail(BuildContext context) => context.read<AuthController>().currentUserEmail ?? '';
+
+  String _formatAddress(Map<String, dynamic> data) {
+    final street = data['addressStreet'] as String?;
+    final neighborhood = data['addressNeighborhood'] as String?;
+    final city = data['addressCity'] as String?;
+    final state = data['addressState'] as String?;
+    final zipCode = data['addressZipCode'] as String?;
+    final cityState = (city != null && city.isNotEmpty)
+        ? ((state != null && state.isNotEmpty) ? '$city/$state' : city)
+        : null;
+    final parts = <String>[
+      if (street != null && street.isNotEmpty) street,
+      if (neighborhood != null && neighborhood.isNotEmpty) neighborhood,
+      if (cityState != null) cityState,
+      if (zipCode != null && zipCode.isNotEmpty) 'CEP $zipCode',
+    ];
+    return parts.isEmpty ? 'Não informado' : parts.join(' - ');
+  }
 }
 
 class _InfoTile extends StatelessWidget {

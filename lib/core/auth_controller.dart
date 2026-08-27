@@ -239,14 +239,23 @@ class AuthController extends ChangeNotifier {
   /// Pro lado do prestador, a tela também chama
   /// `ProviderDirectoryRepository.upsertOwnListing` à parte — esse método
   /// aqui não mexe no perfil público do diretório, só nos dados da conta.
-  /// `birthDate`/`pixKey`/`whatsapp` são opcionais: passar `null` (ou uma
-  /// string vazia) apaga o campo em vez de gravar vazio — `FieldValue
+  /// `whatsapp` e os campos de endereço são opcionais: passar `null` (ou
+  /// uma string vazia) apaga o campo em vez de gravar vazio — `FieldValue
   /// .delete()` funciona normalmente dentro de um `.set(merge: true)`.
+  /// Os campos de endereço são campos "planos" (`addressStreet`,
+  /// `addressCity`...), não um mapa aninhado — mesma convenção que
+  /// `Customer` já usa em `providers/{uid}/customers/{id}` (ver
+  /// customers_repository.dart), e reaproveita os campos `addressCity`/
+  /// `addressState` que já estavam documentados (mas nunca preenchidos)
+  /// em `providers/{uid}`.
   Future<bool> updateOwnProfile({
     required String name,
-    DateTime? birthDate,
-    String? pixKey,
     String? whatsapp,
+    String? addressZipCode,
+    String? addressStreet,
+    String? addressNeighborhood,
+    String? addressCity,
+    String? addressState,
   }) =>
       _submit(() async {
         final user = _auth.currentUser!;
@@ -259,15 +268,49 @@ class AuthController extends ChangeNotifier {
         await _firestore.collection(_ownCollection).doc(user.uid).set(
           {
             'name': name,
-            'birthDate': birthDate != null ? Timestamp.fromDate(birthDate) : FieldValue.delete(),
-            'pixKey':
-                (pixKey != null && pixKey.isNotEmpty) ? pixKey : FieldValue.delete(),
             'whatsapp':
                 (whatsapp != null && whatsapp.isNotEmpty) ? whatsapp : FieldValue.delete(),
+            'addressZipCode':
+                (addressZipCode != null && addressZipCode.isNotEmpty)
+                    ? addressZipCode
+                    : FieldValue.delete(),
+            'addressStreet':
+                (addressStreet != null && addressStreet.isNotEmpty)
+                    ? addressStreet
+                    : FieldValue.delete(),
+            'addressNeighborhood':
+                (addressNeighborhood != null && addressNeighborhood.isNotEmpty)
+                    ? addressNeighborhood
+                    : FieldValue.delete(),
+            'addressCity':
+                (addressCity != null && addressCity.isNotEmpty)
+                    ? addressCity
+                    : FieldValue.delete(),
+            'addressState':
+                (addressState != null && addressState.isNotEmpty)
+                    ? addressState
+                    : FieldValue.delete(),
             'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
         );
+      });
+
+  /// Troca o e-mail de login da conta — chamado pela tela "Editar perfil"
+  /// quando o campo E-mail é alterado. Por segurança, o Firebase exige
+  /// reautenticação recente antes de mexer no e-mail (senão lança
+  /// `requires-recent-login`); e o método antigo `updateEmail` foi
+  /// descontinuado nos SDKs recentes — agora só dá pra trocar via
+  /// `verifyBeforeUpdateEmail`, que manda um link de confirmação pro
+  /// e-mail NOVO. O e-mail de login só muda de fato (e `currentUserEmail`
+  /// só reflete isso) depois que o usuário clica nesse link.
+  Future<bool> updateEmailAddress(String newEmail, String currentPassword) =>
+      _submit(() async {
+        final user = _auth.currentUser!;
+        final credential =
+            EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+        await user.reauthenticateWithCredential(credential);
+        await user.verifyBeforeUpdateEmail(newEmail);
       });
 
   Future<void> logout() async {
@@ -349,6 +392,8 @@ class AuthController extends ChangeNotifier {
         return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
       case 'network-request-failed':
         return 'Sem conexão com a internet.';
+      case 'requires-recent-login':
+        return 'Por segurança, saia e entre de novo antes de trocar o e-mail.';
       default:
         return 'Não foi possível completar a operação ($code).';
     }

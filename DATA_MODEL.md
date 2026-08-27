@@ -27,14 +27,15 @@ email               string
 companyName         string?
 tradeName           string?
 cpfCnpj             string?
-whatsapp            string?
+whatsapp            string?  — opcional, editável em "Meu perfil"
 contactEmail        string?
-addressCity         string?
-addressState        string?
+addressZipCode      string?  — opcional, editável em "Meu perfil"
+addressStreet       string?  — opcional, editável em "Meu perfil" (rua e número)
+addressNeighborhood string?  — opcional, editável em "Meu perfil"
+addressCity         string?  — opcional, editável em "Meu perfil"
+addressState        string?  — opcional, editável em "Meu perfil"
 logoUrl             string?
 description         string?
-birthDate           Timestamp? — opcional, editável em "Meu perfil"
-pixKey              string?  — opcional, editável em "Meu perfil"
 nextBudgetNumber    number   — incrementado pela Cloud Function createBudget
 createdAt           Timestamp
 updatedAt           Timestamp
@@ -195,18 +196,25 @@ preocupação com LGPD sobre a carga inicial).
 `providers/{uid}`, mas para o outro lado do marketplace.
 
 ```
-name        string
-email       string
-whatsapp    string?  — opcional, editável em "Meu perfil"
-birthDate   Timestamp? — opcional, editável em "Meu perfil"
-pixKey      string?  — opcional, editável em "Meu perfil"
-createdAt, updatedAt   Timestamp
+name                 string
+email                string
+whatsapp             string?  — opcional, editável em "Meu perfil"
+addressZipCode       string?  — opcional, editável em "Meu perfil"
+addressStreet        string?  — opcional, editável em "Meu perfil" (rua e número)
+addressNeighborhood  string?  — opcional, editável em "Meu perfil"
+addressCity          string?  — opcional, editável em "Meu perfil"
+addressState         string?  — opcional, editável em "Meu perfil"
+createdAt, updatedAt Timestamp
 ```
 
-`whatsapp`/`birthDate`/`pixKey` do lado do cliente existem só pra dar
+`whatsapp` e os campos `address*` do lado do cliente existem só pra dar
 paridade com "Meu perfil" do prestador (mesma tela, UserProfileScreen/
-EditProfileScreen) — nenhum dos três aparece em nenhuma busca ou perfil
-público, ficam só no documento raiz do próprio dono.
+EditProfileScreen) — nenhum deles aparece em nenhuma busca ou perfil
+público, ficam só no documento raiz do próprio dono. O e-mail também é
+editável em "Meu perfil", mas não é um campo do Firestore — é o e-mail de
+login do Firebase Auth, trocado via `AuthController.updateEmailAddress`
+(exige confirmar a senha atual e clicar num link enviado pro e-mail
+novo).
 
 Criado direto pelo app, uma única vez, logo após o cadastro (quando a
 pessoa escolhe "Sou cliente" na tela de criar conta).
