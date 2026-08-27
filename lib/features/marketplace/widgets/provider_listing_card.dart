@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/app_theme.dart';
 import '../../../widgets/app_list_card.dart';
 import '../models/provider_listing.dart';
+import '../models/service_category.dart';
 
 /// Card de listagem de um [ProviderListing], compartilhado entre a busca
 /// (ClientHomeScreen) e Meus favoritos (MyFavoritesScreen) — antes cada

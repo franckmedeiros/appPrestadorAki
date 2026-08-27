@@ -7,6 +7,7 @@ import 'client_auth_gate.dart';
 import 'favorites_repository.dart';
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
+import 'models/service_category.dart';
 import 'provider_directory_repository.dart';
 import 'service_requests_repository.dart';
 
