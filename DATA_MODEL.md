@@ -34,6 +34,10 @@ addressStreet       string?  — opcional, editável em "Meu perfil" (rua e núm
 addressNeighborhood string?  — opcional, editável em "Meu perfil"
 addressCity         string?  — opcional, editável em "Meu perfil"
 addressState        string?  — opcional, editável em "Meu perfil"
+category            string?  — área de atuação (ServiceCategory.wireValue) — ver abaixo
+city                string?  — cidade de atuação (diferente de addressCity: endereço pessoal)
+state               string?  — UF de atuação
+listingStatus       string?  — 'pending' | 'active' (ver nota abaixo); ausente = ativo (contas antigas)
 logoUrl             string?
 description         string?
 nextBudgetNumber    number   — incrementado pela Cloud Function createBudget
@@ -41,9 +45,30 @@ createdAt           Timestamp
 updatedAt           Timestamp
 ```
 
-Criado direto pelo app, uma única vez, logo após
-`createUserWithEmailAndPassword` ter sucesso (o próprio usuário recém-criado
-grava seu próprio documento — permitido pela regra `isOwner`).
+Criado direto pelo app, logo após `createUserWithEmailAndPassword` ter
+sucesso, OU depois — quando uma conta que já era só cliente decide
+"também quero oferecer serviços" pela tela de perfil (ver
+`AuthController.becomeProvider`) — o próprio usuário grava seu próprio
+documento nos dois casos (permitido pela regra `isOwner`).
+
+**Conta unificada** (decisão combinada com o Franck): ter um documento
+aqui NUNCA significa que a conta deixou de ser cliente — toda conta
+autenticada também tem (ou ganha, na primeira ação de cliente) um
+`clients/{uid}` (ver abaixo). As duas coisas coexistem sempre.
+
+**Gate de pagamento — "só preparar o terreno"** (decisão combinada com o
+Franck, sem pagamento de verdade integrado ainda): um prestador recém-
+criado (seja no cadastro ou virando prestador depois) nasce com
+`listingStatus: 'pending'` e o app NÃO cria a entrada correspondente em
+`providerDirectory` automaticamente — ou seja, ele não aparece de graça
+na busca do cliente. A ativação hoje é manual, direto no Firebase
+Console: (1) mudar `listingStatus` pra `'active'` no documento de
+`providers/{uid}`, e (2) o próprio prestador precisa salvar o perfil uma
+vez (`EditProfileScreen` -> "Salvar alterações") depois disso pra
+`providerDirectory/{uid}` ser criado/atualizado — ou, mais direto, criar
+esse documento manualmente também. Contas de prestador criadas ANTES
+dessa mudança não têm o campo `listingStatus` — a ausência do campo é
+tratada como "ativo" (nunca tira alguém que já estava aparecendo do ar).
 
 ## `providers/{uid}/customers/{customerId}`
 
@@ -192,8 +217,14 @@ preocupação com LGPD sobre a carga inicial).
 
 ### `clients/{uid}`
 
-`{uid}` é o UID do Firebase Auth do cliente — mesmo desenho de
-`providers/{uid}`, mas para o outro lado do marketplace.
+`{uid}` é o UID do Firebase Auth da conta — mesmo desenho de
+`providers/{uid}`, mas com os dados "de cliente". **Conta unificada**
+(decisão combinada com o Franck, substitui o desenho anterior de "conta é
+OU prestador OU cliente"): TODA conta autenticada tem um documento aqui,
+seja ela também prestador ou não — é a identidade base. Um prestador que
+também quer favoritar/pedir orçamento como cliente usa o mesmo uid, sem
+precisar de uma segunda conta (ver `AuthController.isProvider` e
+`ensureClientDocument`).
 
 ```
 name                 string
@@ -216,8 +247,12 @@ login do Firebase Auth, trocado via `AuthController.updateEmailAddress`
 (exige confirmar a senha atual e clicar num link enviado pro e-mail
 novo).
 
-Criado direto pelo app, uma única vez, logo após o cadastro (quando a
-pessoa escolhe "Sou cliente" na tela de criar conta).
+Criado direto pelo app, uma única vez: no cadastro (sempre, pra toda
+conta nova — ver `AuthController.register`) ou, pra uma conta de
+prestador que já existia antes desse documento ser garantido sempre, na
+primeira vez que ela tenta uma ação de cliente (favoritar, pedir
+orçamento — ver `ClientAuthGate.ensureClientAccount` ->
+`AuthController.ensureClientDocument`).
 
 #### `clients/{uid}/favorites/{listingId}`
 
@@ -246,12 +281,14 @@ createdAt, updatedAt   Timestamp
 ```
 
 **Perfil reivindicado** (`claimed: true`): o id do documento é sempre
-igual ao `providerUid` — criado automaticamente quando um prestador se
-cadastra escolhendo categoria/cidade (`AuthController.register`), e pode
-ser atualizado depois via `ProviderDirectoryRepository.upsertOwnListing`
-— chamado tanto no cadastro quanto na tela "Editar perfil"
-(EditProfileScreen), que deixa o prestador mudar nome/categoria/cidade/UF
-depois de criar a conta.
+igual ao `providerUid`. Desde o gate de pagamento ("só preparar o
+terreno" — ver `providers/{uid}`), este documento NÃO nasce mais junto
+com o cadastro/`becomeProvider` — só é criado (ou atualizado) via
+`ProviderDirectoryRepository.upsertOwnListing`, chamado pela tela
+"Editar perfil" (EditProfileScreen), e só quando
+`providers/{uid}.listingStatus != 'pending'`. Ou seja, um prestador
+recém-cadastrado só ganha entrada aqui depois de ser ativado manualmente
+E salvar o perfil de novo uma vez.
 
 **Leitura pública, de propósito**: buscar e ver um perfil nunca exige
 conta (ver `README.md`, "Quem precisa de conta — mudança de ideia") —
