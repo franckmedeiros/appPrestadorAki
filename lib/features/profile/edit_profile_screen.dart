@@ -1,11 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../widgets/mask_text_input_formatter.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
@@ -48,8 +48,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _streetFocusNode = FocusNode();
   ServiceCategory _category = ServiceCategory.eletricista;
 
-  final _phoneMask = _MaskTextInputFormatter('(##) #####-####');
-  final _cepMask = _MaskTextInputFormatter('#####-###');
+  final _phoneMask = MaskTextInputFormatter('(##) #####-####');
+  final _cepMask = MaskTextInputFormatter('#####-###');
 
   bool _loading = true;
   bool _isSaving = false;
@@ -512,30 +512,3 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 }
 
-/// Máscara de texto minimalista (sem depender de nenhum pacote externo —
-/// menos uma dependência do Gradle pra dar problema, ver o histórico de
-/// build do compileSdk). `#` no padrão vira "próximo dígito digitado";
-/// qualquer outro caractere do padrão (espaço, parênteses, traço, barra)
-/// é inserido literalmente. Usada pro telefone e pro CEP.
-class _MaskTextInputFormatter extends TextInputFormatter {
-  _MaskTextInputFormatter(this.mask);
-
-  final String mask;
-
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final buffer = StringBuffer();
-    var digitIndex = 0;
-    for (var i = 0; i < mask.length && digitIndex < digits.length; i++) {
-      if (mask[i] == '#') {
-        buffer.write(digits[digitIndex]);
-        digitIndex++;
-      } else {
-        buffer.write(mask[i]);
-      }
-    }
-    final text = buffer.toString();
-    return TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
-  }
-}
