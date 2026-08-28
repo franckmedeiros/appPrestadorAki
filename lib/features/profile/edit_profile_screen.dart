@@ -43,8 +43,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _cepController = TextEditingController();
   final _streetController = TextEditingController();
   final _neighborhoodController = TextEditingController();
-  final _addressCityController = TextEditingController();
-  final _addressStateController = TextEditingController();
+  String? _addressCity;
+  String? _addressUf;
   String? _areaCity;
   String? _areaUf;
   final _streetFocusNode = FocusNode();
@@ -88,8 +88,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _cepController.text = data['addressZipCode'] as String? ?? '';
     _streetController.text = data['addressStreet'] as String? ?? '';
     _neighborhoodController.text = data['addressNeighborhood'] as String? ?? '';
-    _addressCityController.text = data['addressCity'] as String? ?? '';
-    _addressStateController.text = data['addressState'] as String? ?? '';
+    _addressCity = data['addressCity'] as String?;
+    _addressUf = data['addressState'] as String?;
     _whatsappController.text = data['whatsapp'] as String? ?? '';
     _listingStatus = data['listingStatus'] as String?;
     // A área de atuação vem de providers/{uid} (sempre existe, mesmo
@@ -115,8 +115,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _cepController.dispose();
     _streetController.dispose();
     _neighborhoodController.dispose();
-    _addressCityController.dispose();
-    _addressStateController.dispose();
+
     _streetFocusNode.dispose();
     super.dispose();
   }
@@ -156,8 +155,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _streetController.text =
             (logradouro != null && logradouro.isNotEmpty) ? '$logradouro, ' : _streetController.text;
         _neighborhoodController.text = (data['bairro'] as String?) ?? _neighborhoodController.text;
-        _addressCityController.text = (data['localidade'] as String?) ?? _addressCityController.text;
-        _addressStateController.text = (data['uf'] as String?) ?? _addressStateController.text;
+        _addressCity = (data['localidade'] as String?) ?? _addressCity;
+        _addressUf = (data['uf'] as String?) ?? _addressUf;
       });
       _streetController.selection =
           TextSelection.fromPosition(TextPosition(offset: _streetController.text.length));
@@ -245,8 +244,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       addressZipCode: _cepController.text.trim(),
       addressStreet: _streetController.text.trim(),
       addressNeighborhood: _neighborhoodController.text.trim(),
-      addressCity: _addressCityController.text.trim(),
-      addressState: _addressStateController.text.trim().toUpperCase(),
+      addressCity: (_addressCity ?? '').trim(),
+      addressState: (_addressUf ?? '').trim().toUpperCase(),
     );
 
     if (ok && _isProvider) {
@@ -474,20 +473,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const SizedBox(height: 12),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      flex: 3,
-                      child: TextFormField(
-                        controller: _addressCityController,
-                        decoration: const InputDecoration(labelText: 'Cidade (opcional)'),
+                      child: StateSelectorField(
+                        key: ValueKey('address-uf-$_addressUf'),
+                        initialValue: _addressUf,
+                        label: 'Estado (opcional)',
+                        onChanged: (uf) => setState(() {
+                          _addressUf = uf;
+                          _addressCity = null;
+                        }),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextFormField(
-                        controller: _addressStateController,
-                        maxLength: 2,
-                        decoration: const InputDecoration(labelText: 'UF', counterText: ''),
+                      flex: 3,
+                      child: CitySelectorField(
+                        key: ValueKey('address-city-$_addressUf-$_addressCity'),
+                        uf: _addressUf,
+                        initialValue: _addressCity,
+                        label: 'Cidade (opcional)',
+                        onChanged: (city) => setState(() => _addressCity = city),
                       ),
                     ),
                   ],

@@ -41,6 +41,41 @@ class _AgendaScreenState extends State<AgendaScreen> {
     // manualmente aqui.
   }
 
+  Future<bool> _confirmDelete(Appointment appointment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir compromisso?'),
+        content: Text(
+          'Isso remove ${appointment.customerName ?? appointment.type.label} da agenda. '
+          'Use isso quando o cliente desistiu do agendamento.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _deleteAppointment(Appointment appointment) async {
+    try {
+      await context.read<AppointmentsRepository>().delete(appointment.id);
+      // A stream já reflete a exclusão sozinha — sem precisar recarregar
+      // nada manualmente aqui (mesma razão do comentário em watchRange).
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível excluir o compromisso. Tenta de novo.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -80,10 +115,28 @@ class _AgendaScreenState extends State<AgendaScreen> {
             padding: const EdgeInsets.all(16),
             itemCount: appointments.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) => _AppointmentCard(
-              appointment: appointments[index],
-              onTap: () => _openAppointment(appointments[index]),
-            ),
+            itemBuilder: (context, index) {
+              final appointment = appointments[index];
+              return Dismissible(
+                key: ValueKey(appointment.id),
+                direction: DismissDirection.endToStart,
+                confirmDismiss: (_) => _confirmDelete(appointment),
+                onDismissed: (_) => _deleteAppointment(appointment),
+                background: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.danger,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: const Icon(Icons.delete_outline, color: Colors.white),
+                ),
+                child: _AppointmentCard(
+                  appointment: appointment,
+                  onTap: () => _openAppointment(appointment),
+                ),
+              );
+            },
           );
         },
       ),

@@ -9,6 +9,8 @@ import '../../widgets/biometric_offer_card.dart';
 import '../../widgets/notification_bell.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
+import '../marketplace/models/service_request.dart';
+import '../marketplace/service_requests_repository.dart';
 
 /// Aba "Dashboard" — só existe pra quem tem a capacidade de prestador
 /// (ver UnifiedShell/AuthController.isProvider). Primeiro rascunho
@@ -17,11 +19,11 @@ import '../agenda/models/appointment.dart';
 /// agora só existem a partir daqui — o layout definitivo ainda precisa de
 /// uma revisão em conjunto (ver combinado no chat).
 ///
-/// O card de "Orçamentos abertos" ainda é estático — o endpoint
-/// /providers/dashboard (contrato de API, seção 5) não existe (só entra
-/// junto com o módulo de Orçamentos). Já "Compromissos hoje" usa o
-/// endpoint /appointments de verdade, reaproveitando o mesmo repositório
-/// da aba Agenda.
+/// "Compromissos hoje" e "Orçamentos abertos" usam dados reais — o
+/// primeiro via /appointments (mesmo repositório da aba Agenda), o
+/// segundo contando os pedidos do marketplace (ServiceRequestsRepository)
+/// com status "aguardando_prestador" (pedidos que o cliente fez pelo
+/// botão "Solicitar orçamento" e que este prestador ainda não respondeu).
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -40,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _dismissedThisSession = false;
   late Future<List<Appointment>> _todayFuture;
   late Future<Map<String, dynamic>?> _listingStatusFuture;
+  late Future<int> _pendingRequestsFuture;
 
   @override
   void initState() {
@@ -47,6 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _checkBiometricAvailability();
     _todayFuture = _loadToday();
     _listingStatusFuture = _loadListingStatus();
+    _pendingRequestsFuture = _loadPendingRequests();
   }
 
   Future<List<Appointment>> _loadToday() {
@@ -54,6 +58,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
     return context.read<AppointmentsRepository>().list(from: startOfDay, to: endOfDay);
+  }
+
+  Future<int> _loadPendingRequests() async {
+    // "Orçamentos abertos" = pedidos que o cliente fez (botão "Solicitar
+    // orçamento" na busca) e que ainda não foram respondidos por este
+    // prestador. Usa o mesmo repositório da tela de Pedidos
+    // (incoming_requests_screen.dart) — sem endpoint próprio, é filtro em
+    // memória mesmo, a lista de pedidos de um prestador não costuma ser
+    // grande o bastante pra justificar um endpoint agregado.
+    final requests = await context.read<ServiceRequestsRepository>().listForProvider();
+    return requests.where((r) => r.status == ServiceRequestStatus.aguardandoPrestador).length;
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -161,30 +176,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
           const SizedBox(height: 20),
-          FutureBuilder<List<Appointment>>(
-            future: _todayFuture,
-            builder: (context, snapshot) {
-              final today = snapshot.data;
-              return Row(
-                children: [
-                  const Expanded(
-                    child: _StatCard(
-                      icon: Icons.description_outlined,
-                      label: 'Orçamentos abertos',
-                      value: '—',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _StatCard(
+          Row(
+            children: [
+              Expanded(
+                child: FutureBuilder<List<Appointment>>(
+                  future: _todayFuture,
+                  builder: (context, snapshot) {
+                    final today = snapshot.data;
+                    return _StatCard(
                       icon: Icons.event_available_outlined,
                       label: 'Compromissos hoje',
                       value: today == null ? '—' : '${today.length}',
-                    ),
-                  ),
-                ],
-              );
-            },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FutureBuilder<int>(
+                  future: _pendingRequestsFuture,
+                  builder: (context, snapshot) {
+                    final pending = snapshot.data;
+                    return _StatCard(
+                      icon: Icons.description_outlined,
+                      label: 'Orçamentos abertos',
+                      value: pending == null ? '—' : '$pending',
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           Text(

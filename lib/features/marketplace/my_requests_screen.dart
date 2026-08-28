@@ -37,6 +37,19 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     if (await ensureClientAccount(context) && mounted) setState(() {});
   }
 
+  Future<void> _respond(ServiceRequest request, bool accepted) async {
+    try {
+      await context.read<ServiceRequestsRepository>().respond(request.id, accepted: accepted);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível responder agora. Tenta de novo.')),
+      );
+    }
+    // Não precisa recarregar manualmente: a tela usa watchForClient()
+    // (Stream), então a lista já atualiza sozinha quando o status muda.
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
@@ -81,6 +94,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     itemBuilder: (context, index) {
                       final request = requests[index];
                       final accepted = request.status == ServiceRequestStatus.aceito;
+                      final awaitingDecision = request.status == ServiceRequestStatus.orcamentoEnviado;
                       return AppListCard(
                         leading: AppListCard.iconAvatar(request.category.icon),
                         title: request.providerName,
@@ -103,22 +117,38 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                         // — leva pro perfil público, onde a seção de
                         // avaliação de verdade mora (evita duplicar o
                         // formulário de estrelas em duas telas).
-                        footer: accepted
-                            ? Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () =>
-                                      context.push('/prestador/${request.providerDirectoryId}'),
-                                  icon: const Icon(Icons.star_outline, size: 16),
-                                  label: const Text('Avaliar este prestador'),
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: const Size(0, 32),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        footer: awaitingDecision
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  TextButton(
+                                    onPressed: () => _respond(request, false),
+                                    style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                                    child: const Text('Recusar'),
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                  FilledButton(
+                                    onPressed: () => _respond(request, true),
+                                    child: const Text('Aceitar'),
+                                  ),
+                                ],
                               )
-                            : null,
+                            : accepted
+                                ? Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: TextButton.icon(
+                                      onPressed: () =>
+                                          context.push('/prestador/${request.providerDirectoryId}'),
+                                      icon: const Icon(Icons.star_outline, size: 16),
+                                      label: const Text('Avaliar este prestador'),
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 32),
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                  )
+                                : null,
                       );
                     },
                   );

@@ -383,7 +383,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: TextButton(
-                onPressed: () => context.push('/welcome'),
+                onPressed: () => context.push(
+                  context.read<AuthController>().status == AuthStatus.authenticated
+                      ? '/perfil'
+                      : '/welcome',
+                ),
                 child: const Text('É prestador de serviços? Cadastre-se aqui'),
               ),
             ),
