@@ -8,7 +8,10 @@ import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/text_normalize.dart';
+import '../../core/notification_service.dart';
 import '../../widgets/biometric_offer_card.dart';
+import '../../widgets/notification_bell.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
 import 'models/provider_listing.dart';
@@ -62,6 +65,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     // logada, ver ensureLoaded) garante que o coração de cada card já
     // nasce certo, sem precisar de nenhum estado próprio desta tela.
     context.read<FavoritesController>().ensureLoaded();
+    // Só faz sentido pedir permissão de notificação e guardar o token
+    // depois de logado — ClientHomeScreen também é aberta livre por
+    // convidados (ver app_router.dart), então isso não roda pra quem
+    // ainda não tem conta.
+    if (context.read<AuthController>().status == AuthStatus.authenticated) {
+      NotificationService.instance.init();
+    }
     _future = _search();
     _citiesFuture = context.read<ProviderDirectoryRepository>().listCities();
     // Igual o iFood: tenta preencher a cidade sozinho assim que a tela
@@ -118,18 +128,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   void _runSearch() => setState(() => _future = _search());
 
-  // Remove acentos pra comparar digitação com o nome da cidade sem exigir
-  // que o usuário digite certinho (ex.: "sertaozi" ou "Sertãozi" acham
-  // "Sertãozinho" do mesmo jeito).
-  static const _accented = 'áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ';
-  static const _plain = 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC';
-  String _normalize(String value) {
-    var result = value.toLowerCase();
-    for (var i = 0; i < _accented.length; i++) {
-      result = result.replaceAll(_accented[i].toLowerCase(), _plain[i].toLowerCase());
-    }
-    return result;
-  }
+  // Extraído pra core/text_normalize.dart (agora reaproveitado também
+  // por ProviderDirectoryRepository e pelos seletores de Estado/Cidade —
+  // ver widgets/state_city_fields.dart). Mantido aqui como um atalho de
+  // instância, só pra não precisar trocar todo `_normalize(...)` abaixo
+  // por `normalizeForSearch(...)`.
+  String _normalize(String value) => normalizeForSearch(value);
 
   // Categorias em ordem alfabética pelo rótulo — "Outro" sempre por
   // último, como opção coringa, independente de onde caia no alfabeto.
@@ -268,7 +272,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         !_dismissedBiometricOffer;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Encontre um profissional')),
+      appBar: AppBar(
+        title: const Text('Encontre um profissional'),
+        actions: const [NotificationBell()],
+      ),
       body: Column(
         children: [
           if (showBiometricOffer)

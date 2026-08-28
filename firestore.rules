@@ -81,6 +81,16 @@ service cloud.firestore {
       match /favorites/{listingId} {
         allow read, write: if isOwner(clientUid);
       }
+
+      // Central de notificações (sininho — ver
+      // functions/src/notifications.ts e NotificationBell/
+      // NotificationsScreen no app). Só as Cloud Functions (Admin SDK,
+      // que ignora estas regras) criam um item aqui — o app só lê, marca
+      // como lida (`update`) e apaga (`delete`) as próprias.
+      match /notifications/{notificationId} {
+        allow read, update, delete: if isOwner(clientUid);
+        allow create: if false;
+      }
     }
 
     // Diretório público de prestadores (marketplace) — leitura é pública

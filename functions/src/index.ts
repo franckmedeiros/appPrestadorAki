@@ -11,3 +11,5 @@ export {
 
 export { confirmarAssinaturaPrestador, processarNotificacaoPlay } from './subscription';
 
+export { onServiceRequestCreated, onServiceRequestResponded } from './notifications';
+

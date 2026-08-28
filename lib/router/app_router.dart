@@ -16,6 +16,7 @@ import '../features/marketplace/incoming_requests_screen.dart';
 import '../features/marketplace/models/provider_listing.dart';
 import '../features/marketplace/my_favorites_screen.dart';
 import '../features/marketplace/my_requests_screen.dart';
+import '../features/notifications/notifications_screen.dart';
 import '../features/marketplace/provider_public_profile_screen.dart';
 import '../features/marketplace/request_quote_form_screen.dart';
 import '../features/profile/user_profile_screen.dart';
@@ -113,6 +114,10 @@ GoRouter buildAppRouter(AuthController authController) {
       ),
       GoRoute(path: '/orcamentos', builder: (context, state) => const BudgetsScreen()),
       GoRoute(path: '/pedidos', builder: (context, state) => const IncomingRequestsScreen()),
+      // Central de notificações (sininho) — aberta pros dois lados da
+      // conta (cliente e prestador usam o mesmo uid, ver DATA_MODEL.md),
+      // por isso não entra em `_providerOnlyRoutes`.
+      GoRoute(path: '/notificacoes', builder: (context, state) => const NotificationsScreen()),
       // Perfil público de um prestador do marketplace — aberto pra
       // qualquer um, sem precisar de conta (ver mudança de ideia acima).
       GoRoute(

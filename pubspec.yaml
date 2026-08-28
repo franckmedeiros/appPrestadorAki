@@ -37,6 +37,14 @@ dependencies:
   # e functions/src/subscription.ts.
   in_app_purchase: ^3.2.0
 
+  # Notificações push (central de notificações — sininho, igual ao app
+  # Resenha): firebase_messaging entrega o push de verdade (mesmo com o
+  # app fechado), flutter_local_notifications mostra a notificação na
+  # hora quando o app está ABERTO (o Android não faz isso sozinho nesse
+  # caso). Ver lib/core/notification_service.dart.
+  firebase_messaging: ^16.5.0
+  flutter_local_notifications: ^18.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -48,6 +56,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Lista de estados + cidades do Brasil (nomes oficiais, com
+    # acentuação correta) — usada pelos seletores de Estado/Cidade em
+    # "Editar perfil"/"Virar prestador" (ver lib/core/brazil_locations.dart).
+    # Empacotada como asset em vez de consultar uma API toda hora: fica
+    # disponível offline e não depende de nenhum serviço externo no ar.
+    - assets/data/br_locations.json
 
 # Configuração do flutter_launcher_icons — corrige o ícone do Android
 # aparecer pequeno e apertado dentro de um círculo branco (o Franck

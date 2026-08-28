@@ -10,11 +10,24 @@
          memória pra achar a cidade mais próxima. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- Necessária a partir do Android 13 (API 33) pro app poder mostrar
+         notificações — sem isso, o pop-up de permissão de notificação
+         nem aparece (ver core/notification_service.dart). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="prestadoraki"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:networkSecurityConfig="@xml/network_security_config">
+        <!-- Ícone/canal padrão das notificações push (usados pelo
+             firebase_messaging quando o app está em segundo plano —
+             ver core/notification_service.dart). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="prestadoraki_avisos" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -10,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'core/app_theme.dart';
 import 'core/auth_controller.dart';
 import 'core/biometric_service.dart';
+import 'core/notification_service.dart';
 import 'core/token_storage.dart';
 import 'features/agenda/appointments_repository.dart';
 import 'features/customers/customers_repository.dart';
@@ -17,6 +19,7 @@ import 'features/marketplace/favorites_controller.dart';
 import 'features/marketplace/favorites_repository.dart';
 import 'features/marketplace/provider_directory_repository.dart';
 import 'features/marketplace/service_requests_repository.dart';
+import 'features/notifications/notifications_repository.dart';
 import 'firebase_options.dart';
 import 'router/app_router.dart';
 
@@ -53,6 +56,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Registrado aqui (não dentro de NotificationService.init(), que só
+  // roda depois do login) porque o FCM precisa desse handler cadastrado
+  // desde o início do processo — mensagens podem chegar com o app
+  // fechado, antes de qualquer tela abrir. Ver core/notification_service.dart.
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   if (_useFirebaseEmulator) {
     debugPrint('[Firebase] usando emuladores locais em $_emulatorHost');
@@ -101,6 +110,7 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
         Provider(create: (context) => ProviderDirectoryRepository()),
         Provider(create: (context) => ServiceRequestsRepository()),
         Provider(create: (context) => FavoritesRepository()),
+        Provider(create: (context) => NotificationsRepository()),
         ChangeNotifierProvider(
           create: (context) => FavoritesController(context.read<FavoritesRepository>()),
         ),

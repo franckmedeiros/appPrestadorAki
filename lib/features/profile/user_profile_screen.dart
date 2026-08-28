@@ -8,6 +8,7 @@ import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
 import 'edit_profile_screen.dart';
+import '../../widgets/state_city_fields.dart';
 import 'provider_paywall_screen.dart';
 
 /// Aba "Meu perfil" — igual ao pedido do Franck ("colocar a opção de
@@ -349,27 +350,21 @@ class _BecomeProviderSheet extends StatefulWidget {
 
 class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _cityController = TextEditingController();
-  final _stateController = TextEditingController();
+  String? _city;
+  String? _uf;
   ServiceCategory _category = ServiceCategory.eletricista;
-
-  @override
-  void dispose() {
-    _cityController.dispose();
-    _stateController.dispose();
-    super.dispose();
-  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final state = _stateController.text.trim().toUpperCase();
+    final state = (_uf ?? '').trim().toUpperCase();
+    final city = (_city ?? '').trim();
     if (kBypassProviderSubscriptionGate) {
       // TEMPORÁRIO (ver lib/core/testing_flags.dart) — pula o paywall e
       // vira prestador de graça, só pra testar a busca/listagem antes do
       // Play Billing estar configurado de verdade.
       final ok = await context.read<AuthController>().becomeProvider(
             category: _category.wireValue,
-            city: _cityController.text.trim(),
+            city: city,
             state: state.isEmpty ? null : state,
           );
       if (ok && mounted) Navigator.pop(context, true);
@@ -379,7 +374,7 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
       MaterialPageRoute(
         builder: (_) => ProviderPaywallScreen(
           category: _category.wireValue,
-          city: _cityController.text.trim(),
+          city: city,
           state: state.isEmpty ? null : state,
         ),
       ),
@@ -437,22 +432,30 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
               ),
               const SizedBox(height: 12),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    flex: 3,
-                    child: TextFormField(
-                      controller: _cityController,
-                      decoration: const InputDecoration(labelText: 'Cidade'),
+                    child: StateSelectorField(
+                      key: ValueKey('become-uf-$_uf'),
+                      initialValue: _uf,
                       validator: (value) =>
-                          (value == null || value.trim().isEmpty) ? 'Informe a cidade' : null,
+                          (value == null || value.isEmpty) ? 'Selecione' : null,
+                      onChanged: (uf) => setState(() {
+                        _uf = uf;
+                        _city = null;
+                      }),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: TextFormField(
-                      controller: _stateController,
-                      maxLength: 2,
-                      decoration: const InputDecoration(labelText: 'UF', counterText: ''),
+                    flex: 3,
+                    child: CitySelectorField(
+                      key: ValueKey('become-city-$_uf-$_city'),
+                      uf: _uf,
+                      initialValue: _city,
+                      validator: (value) =>
+                          (value == null || value.isEmpty) ? 'Informe a cidade' : null,
+                      onChanged: (city) => setState(() => _city = city),
                     ),
                   ),
                 ],

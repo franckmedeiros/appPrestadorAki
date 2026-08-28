@@ -6,6 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../widgets/app_list_card.dart';
 import '../../widgets/biometric_offer_card.dart';
+import '../../widgets/notification_bell.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
 
@@ -83,7 +84,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _biometricAvailable == true && !auth.biometricEnabled && !_dismissedThisSession;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Dashboard')),
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: const [NotificationBell()],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

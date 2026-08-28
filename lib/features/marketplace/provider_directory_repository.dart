@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/api_exception.dart';
+import '../../core/text_normalize.dart';
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'models/service_category.dart';
@@ -51,9 +52,17 @@ class ProviderDirectoryRepository {
       if (category != null) {
         query = query.where('category', isEqualTo: category.wireValue);
       }
-      if (city != null && city.isNotEmpty) {
-        query = query.where('city', isEqualTo: city);
-      }
+      // Nota honesta: o filtro de cidade NÃO usa mais `where('city',
+      // isEqualTo: ...)` do Firestore — isso é comparação exata de
+      // string, sensível a acento/maiúscula, e cadastros antigos (feitos
+      // antes do seletor fechado de Estado/Cidade existir — ver
+      // BrazilLocations) podem ter gravado a mesma cidade com grafias
+      // diferentes (ex.: "Criciuma" sem acento). Filtrar aqui no Dart com
+      // `normalizeForSearch` casa essas variações; o preço é baixar todos
+      // os prestadores da categoria (ou todos, sem categoria) em vez de só
+      // os da cidade — aceitável pro tamanho de diretório esperado aqui,
+      // mesma filosofia já usada na ordenação/filtro de `visible` abaixo.
+      final normalizedCity = (city != null && city.isNotEmpty) ? normalizeForSearch(city) : null;
       final snapshot = await query.get();
       // Filtro de `visible` feito aqui no app, não no Firestore, pela
       // mesma razão da ordenação abaixo: um `where('visible', ...)`
@@ -63,6 +72,8 @@ class ProviderDirectoryRepository {
       final listings = snapshot.docs
           .where((doc) => doc.data()['visible'] != false)
           .map(ProviderListing.fromFirestore)
+          .where((listing) =>
+              normalizedCity == null || normalizeForSearch(listing.city) == normalizedCity)
           .toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       return listings;
@@ -84,13 +95,20 @@ class ProviderDirectoryRepository {
   Future<List<String>> listCities() async {
     try {
       final snapshot = await _collection.get();
-      final cities = snapshot.docs
-          .where((doc) => doc.data()['visible'] != false)
-          .map((doc) => doc.data()['city'] as String?)
-          .whereType<String>()
-          .where((city) => city.isNotEmpty)
-          .toSet()
-          .toList()
+      // Dedupe por grafia NORMALIZADA (sem acento/maiúscula), não pela
+      // string crua — sem isso, "Criciuma" e "Criciúma" apareceriam como
+      // duas cidades diferentes nessa lista (mesmo bug de fundo do
+      // `search` acima). Guarda a primeira grafia vista de cada cidade
+      // como rótulo de exibição — não tenta adivinhar qual delas está
+      // "certa".
+      final seen = <String, String>{};
+      for (final doc in snapshot.docs) {
+        if (doc.data()['visible'] == false) continue;
+        final city = doc.data()['city'] as String?;
+        if (city == null || city.isEmpty) continue;
+        seen.putIfAbsent(normalizeForSearch(city), () => city);
+      }
+      final cities = seen.values.toList()
         ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
       return cities;
     } on FirebaseException catch (e) {

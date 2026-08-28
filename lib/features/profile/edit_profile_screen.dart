@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../widgets/mask_text_input_formatter.dart';
+import '../../widgets/state_city_fields.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
@@ -43,8 +44,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _neighborhoodController = TextEditingController();
   final _addressCityController = TextEditingController();
   final _addressStateController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _stateController = TextEditingController();
+  String? _areaCity;
+  String? _areaUf;
   final _streetFocusNode = FocusNode();
   ServiceCategory _category = ServiceCategory.eletricista;
 
@@ -74,8 +75,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController = TextEditingController(text: auth.displayName);
     _emailController = TextEditingController(text: auth.currentUserEmail ?? '');
     final listing = widget.currentListing;
-    _cityController.text = listing?.city ?? '';
-    _stateController.text = listing?.state ?? '';
+    _areaCity = listing?.city;
+    _areaUf = listing?.state;
     if (listing != null) _category = listing.category;
     _loadOwnData();
   }
@@ -100,8 +101,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final city = data['city'] as String?;
     final state = data['state'] as String?;
     if (category != null) _category = serviceCategoryFromWire(category);
-    if (city != null && city.isNotEmpty) _cityController.text = city;
-    if (state != null && state.isNotEmpty) _stateController.text = state;
+    if (city != null && city.isNotEmpty) _areaCity = city;
+    if (state != null && state.isNotEmpty) _areaUf = state;
     setState(() => _loading = false);
   }
 
@@ -115,8 +116,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _neighborhoodController.dispose();
     _addressCityController.dispose();
     _addressStateController.dispose();
-    _cityController.dispose();
-    _stateController.dispose();
     _streetFocusNode.dispose();
     super.dispose();
   }
@@ -256,8 +255,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         // 'pending'.
         final businessInfoOk = await auth.updateProviderBusinessInfo(
           category: _category.wireValue,
-          city: _cityController.text.trim(),
-          state: _stateController.text.trim().toUpperCase(),
+          city: (_areaCity ?? '').trim(),
+          state: (_areaUf ?? '').trim().toUpperCase(),
         );
         if (!businessInfoOk) {
           if (!mounted) return;
@@ -275,8 +274,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           await context.read<ProviderDirectoryRepository>().upsertOwnListing(
                 name: name,
                 category: _category,
-                city: _cityController.text.trim(),
-                state: _stateController.text.trim().toUpperCase(),
+                city: (_areaCity ?? '').trim(),
+                state: (_areaUf ?? '').trim().toUpperCase(),
               );
         }
       } catch (e) {
@@ -390,23 +389,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        flex: 3,
-                        child: TextFormField(
-                          controller: _cityController,
-                          decoration: const InputDecoration(labelText: 'Cidade'),
-                          validator: (value) => (value == null || value.trim().isEmpty)
-                              ? 'Informe a cidade'
-                              : null,
+                        child: StateSelectorField(
+                          key: ValueKey('area-uf-$_areaUf'),
+                          initialValue: _areaUf,
+                          validator: (value) =>
+                              (value == null || value.isEmpty) ? 'Selecione' : null,
+                          onChanged: (uf) => setState(() {
+                            _areaUf = uf;
+                            _areaCity = null;
+                          }),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
-                          controller: _stateController,
-                          maxLength: 2,
-                          decoration: const InputDecoration(labelText: 'UF', counterText: ''),
+                        flex: 3,
+                        child: CitySelectorField(
+                          key: ValueKey('area-city-$_areaUf-$_areaCity'),
+                          uf: _areaUf,
+                          initialValue: _areaCity,
+                          validator: (value) =>
+                              (value == null || value.isEmpty) ? 'Informe a cidade' : null,
+                          onChanged: (city) => setState(() => _areaCity = city),
                         ),
                       ),
                     ],
