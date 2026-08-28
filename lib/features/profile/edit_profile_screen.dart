@@ -7,6 +7,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/state_city_fields.dart';
+import '../../widgets/service_category_field.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
@@ -47,7 +48,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _areaCity;
   String? _areaUf;
   final _streetFocusNode = FocusNode();
-  ServiceCategory _category = ServiceCategory.eletricista;
+  ServiceCategory? _category;
 
   final _phoneMask = MaskTextInputFormatter('(##) #####-####');
   final _cepMask = MaskTextInputFormatter('#####-###');
@@ -254,7 +255,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         // status de ativação — não se perde enquanto listingStatus segue
         // 'pending'.
         final businessInfoOk = await auth.updateProviderBusinessInfo(
-          category: _category.wireValue,
+          category: _category!.wireValue,
           city: (_areaCity ?? '').trim(),
           state: (_areaUf ?? '').trim().toUpperCase(),
         );
@@ -273,7 +274,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (_listingStatus != 'pending') {
           await context.read<ProviderDirectoryRepository>().upsertOwnListing(
                 name: name,
-                category: _category,
+                category: _category!,
                 city: (_areaCity ?? '').trim(),
                 state: (_areaUf ?? '').trim().toUpperCase(),
               );
@@ -378,14 +379,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ],
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<ServiceCategory>(
+                  ServiceCategorySelectorField(
+                    label: 'Sua principal categoria de serviço',
                     initialValue: _category,
-                    decoration:
-                        const InputDecoration(labelText: 'Sua principal categoria de serviço'),
-                    items: ServiceCategory.values
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
-                        .toList(),
-                    onChanged: (value) => setState(() => _category = value ?? _category),
+                    validator: (value) => value == null ? 'Selecione' : null,
+                    onChanged: (value) => setState(() => _category = value),
                   ),
                   const SizedBox(height: 12),
                   Row(

@@ -63,6 +63,10 @@ flutter:
     # Empacotada como asset em vez de consultar uma API toda hora: fica
     # disponível offline e não depende de nenhum serviço externo no ar.
     - assets/data/br_locations.json
+    # Catálogo de categorias/subcategorias de serviço (13 grupos, mais de
+    # 120 subcategorias) — usado pelo seletor em duas etapas em vez de um
+    # enum fixo no código (ver lib/features/marketplace/models/service_category.dart).
+    - assets/data/service_categories.json
 
 # Configuração do flutter_launcher_icons — corrige o ícone do Android
 # aparecer pequeno e apertado dentro de um círculo branco (o Franck

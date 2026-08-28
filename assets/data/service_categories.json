@@ -1,0 +1,609 @@
+{
+  "groups": [
+    {
+      "id": "casa_construcao",
+      "label": "Casa e Construção",
+      "emoji": "🏠",
+      "subcategories": [
+        {
+          "id": "pedreiro",
+          "label": "Pedreiro / Alvenaria"
+        },
+        {
+          "id": "azulejista",
+          "label": "Azulejista / Revestimentos"
+        },
+        {
+          "id": "gesseiro",
+          "label": "Gesseiro / Drywall"
+        },
+        {
+          "id": "telhadista",
+          "label": "Telhados e Calhas"
+        },
+        {
+          "id": "impermeabilizacao",
+          "label": "Impermeabilização"
+        },
+        {
+          "id": "fundacao",
+          "label": "Fundação e Estrutura"
+        },
+        {
+          "id": "reforma_geral",
+          "label": "Reforma Geral"
+        },
+        {
+          "id": "construcao_civil",
+          "label": "Construção Civil / Engenheiro"
+        },
+        {
+          "id": "arquiteto",
+          "label": "Arquiteto"
+        },
+        {
+          "id": "mestre_obras",
+          "label": "Mestre de Obras"
+        },
+        {
+          "id": "pisos",
+          "label": "Instalação de Pisos e Laminados"
+        },
+        {
+          "id": "vidraceiro",
+          "label": "Vidraçaria"
+        },
+        {
+          "id": "marmore_granito",
+          "label": "Marmoraria / Granito"
+        },
+        {
+          "id": "esquadrias",
+          "label": "Esquadrias de Alumínio"
+        }
+      ]
+    },
+    {
+      "id": "manutencao_reparos",
+      "label": "Manutenção e Reparos",
+      "emoji": "🔧",
+      "subcategories": [
+        {
+          "id": "eletricista",
+          "label": "Eletricista"
+        },
+        {
+          "id": "encanador",
+          "label": "Encanador"
+        },
+        {
+          "id": "serralheiro",
+          "label": "Serralheiro"
+        },
+        {
+          "id": "pintor",
+          "label": "Pintor"
+        },
+        {
+          "id": "chaveiro",
+          "label": "Chaveiro"
+        },
+        {
+          "id": "dedetizador",
+          "label": "Dedetização / Controle de Pragas"
+        },
+        {
+          "id": "antenista",
+          "label": "Antenas e TV por Assinatura"
+        },
+        {
+          "id": "alarme_seguranca",
+          "label": "Instalação de Alarmes e Câmeras"
+        },
+        {
+          "id": "reparo_geral",
+          "label": "Marido de Aluguel / Reparos Gerais"
+        },
+        {
+          "id": "gas",
+          "label": "Instalador de Gás"
+        },
+        {
+          "id": "manutencao_predial",
+          "label": "Manutenção Predial"
+        },
+        {
+          "id": "contador",
+          "label": "Contador"
+        },
+        {
+          "id": "despachante",
+          "label": "Despachante"
+        },
+        {
+          "id": "portao_eletronico",
+          "label": "Portões Eletrônicos"
+        },
+        {
+          "id": "interfone",
+          "label": "Interfone e Portaria"
+        }
+      ]
+    },
+    {
+      "id": "climatizacao_eletro",
+      "label": "Climatização e Eletrodomésticos",
+      "emoji": "❄️",
+      "subcategories": [
+        {
+          "id": "climatizacao",
+          "label": "Técnico de Ar-condicionado"
+        },
+        {
+          "id": "refrigeracao",
+          "label": "Refrigeração / Geladeiras e Freezers"
+        },
+        {
+          "id": "maquina_lavar",
+          "label": "Conserto de Máquina de Lavar"
+        },
+        {
+          "id": "fogao_forno",
+          "label": "Conserto de Fogão e Forno"
+        },
+        {
+          "id": "eletrodomesticos_geral",
+          "label": "Conserto de Eletrodomésticos em Geral"
+        },
+        {
+          "id": "aquecedor",
+          "label": "Aquecedor de Água / Boiler"
+        },
+        {
+          "id": "exaustor_coifa",
+          "label": "Exaustor e Coifa"
+        },
+        {
+          "id": "ventilacao",
+          "label": "Ventilação Industrial"
+        },
+        {
+          "id": "purificador_agua",
+          "label": "Purificador de Água"
+        }
+      ]
+    },
+    {
+      "id": "jardim_externo",
+      "label": "Jardim e Áreas Externas",
+      "emoji": "🌱",
+      "subcategories": [
+        {
+          "id": "jardineiro",
+          "label": "Jardineiro"
+        },
+        {
+          "id": "paisagismo",
+          "label": "Paisagismo"
+        },
+        {
+          "id": "poda_arvores",
+          "label": "Poda de Árvores"
+        },
+        {
+          "id": "piscina",
+          "label": "Manutenção de Piscina"
+        },
+        {
+          "id": "irrigacao",
+          "label": "Sistemas de Irrigação"
+        },
+        {
+          "id": "gramado",
+          "label": "Plantio e Manutenção de Gramado"
+        },
+        {
+          "id": "cerca_muro",
+          "label": "Cercas e Muros"
+        },
+        {
+          "id": "dedetizacao_jardim",
+          "label": "Controle de Pragas em Jardim"
+        },
+        {
+          "id": "horta",
+          "label": "Horta Urbana"
+        }
+      ]
+    },
+    {
+      "id": "automoveis",
+      "label": "Automóveis",
+      "emoji": "🚗",
+      "subcategories": [
+        {
+          "id": "mecanico",
+          "label": "Mecânico Automotivo"
+        },
+        {
+          "id": "eletricista_auto",
+          "label": "Eletricista Automotivo"
+        },
+        {
+          "id": "funilaria",
+          "label": "Funilaria e Pintura"
+        },
+        {
+          "id": "lavagem_auto",
+          "label": "Lava-rápido / Estética Automotiva"
+        },
+        {
+          "id": "borracheiro",
+          "label": "Borracheiro"
+        },
+        {
+          "id": "guincho",
+          "label": "Guincho / Reboque"
+        },
+        {
+          "id": "instalador_som",
+          "label": "Instalação de Som e Acessórios"
+        },
+        {
+          "id": "vidraceiro_auto",
+          "label": "Vidraçaria Automotiva"
+        },
+        {
+          "id": "moto_mecanico",
+          "label": "Mecânico de Motos"
+        },
+        {
+          "id": "revisao_veicular",
+          "label": "Revisão Veicular"
+        },
+        {
+          "id": "chaveiro_automotivo",
+          "label": "Chaveiro Automotivo"
+        }
+      ]
+    },
+    {
+      "id": "limpeza_domestica",
+      "label": "Limpeza e Serviços Domésticos",
+      "emoji": "🧹",
+      "subcategories": [
+        {
+          "id": "limpeza",
+          "label": "Diarista"
+        },
+        {
+          "id": "limpeza_pos_obra",
+          "label": "Limpeza Pós-obra"
+        },
+        {
+          "id": "passadeira",
+          "label": "Passadeira de Roupas"
+        },
+        {
+          "id": "cozinheira",
+          "label": "Cozinheira Particular"
+        },
+        {
+          "id": "organizadora",
+          "label": "Organizadora de Ambientes"
+        },
+        {
+          "id": "limpeza_estofados",
+          "label": "Limpeza de Estofados e Tapetes"
+        },
+        {
+          "id": "limpeza_vidros",
+          "label": "Limpeza de Vidros e Fachadas"
+        },
+        {
+          "id": "baba",
+          "label": "Babá"
+        },
+        {
+          "id": "cuidador_idosos",
+          "label": "Cuidador de Idosos"
+        },
+        {
+          "id": "lavanderia",
+          "label": "Lavanderia a Domicílio"
+        }
+      ]
+    },
+    {
+      "id": "tecnologia",
+      "label": "Tecnologia",
+      "emoji": "💻",
+      "subcategories": [
+        {
+          "id": "tecnico_informatica",
+          "label": "Técnico de Informática"
+        },
+        {
+          "id": "tecnico_celular",
+          "label": "Assistência Técnica de Celular"
+        },
+        {
+          "id": "redes_wifi",
+          "label": "Instalação de Redes e Wi-Fi"
+        },
+        {
+          "id": "desenvolvedor",
+          "label": "Desenvolvedor de Sistemas / Apps"
+        },
+        {
+          "id": "suporte_ti",
+          "label": "Suporte de TI"
+        },
+        {
+          "id": "design_grafico",
+          "label": "Design Gráfico"
+        },
+        {
+          "id": "marketing_digital",
+          "label": "Marketing Digital"
+        },
+        {
+          "id": "cftv",
+          "label": "Instalação de Câmeras / CFTV"
+        },
+        {
+          "id": "social_media",
+          "label": "Gestão de Redes Sociais"
+        }
+      ]
+    },
+    {
+      "id": "mudancas_transporte",
+      "label": "Mudanças e Transporte",
+      "emoji": "📦",
+      "subcategories": [
+        {
+          "id": "mudanca",
+          "label": "Mudanças Residenciais"
+        },
+        {
+          "id": "frete",
+          "label": "Frete e Carreto"
+        },
+        {
+          "id": "motoboy",
+          "label": "Motoboy"
+        },
+        {
+          "id": "transporte_escolar",
+          "label": "Transporte Escolar"
+        },
+        {
+          "id": "transporte_cargas",
+          "label": "Transporte de Cargas"
+        },
+        {
+          "id": "embalagem_mudanca",
+          "label": "Embalagem para Mudança"
+        }
+      ]
+    },
+    {
+      "id": "moveis_decoracao",
+      "label": "Móveis e Decoração",
+      "emoji": "🪑",
+      "subcategories": [
+        {
+          "id": "marceneiro",
+          "label": "Marceneiro"
+        },
+        {
+          "id": "montador_moveis",
+          "label": "Montador de Móveis"
+        },
+        {
+          "id": "estofador",
+          "label": "Estofador"
+        },
+        {
+          "id": "decorador",
+          "label": "Decorador de Interiores"
+        },
+        {
+          "id": "tapeceiro",
+          "label": "Tapeceiro"
+        },
+        {
+          "id": "cortineiro",
+          "label": "Instalador de Cortinas e Persianas"
+        },
+        {
+          "id": "restaurador_moveis",
+          "label": "Restaurador de Móveis"
+        },
+        {
+          "id": "vitral",
+          "label": "Vitral e Vidro Decorativo"
+        }
+      ]
+    },
+    {
+      "id": "servicos_profissionais",
+      "label": "Serviços Profissionais",
+      "emoji": "👷",
+      "subcategories": [
+        {
+          "id": "advogado",
+          "label": "Advogado"
+        },
+        {
+          "id": "contabilidade",
+          "label": "Consultoria Contábil"
+        },
+        {
+          "id": "traducao",
+          "label": "Tradutor / Intérprete"
+        },
+        {
+          "id": "consultoria_financeira",
+          "label": "Consultoria Financeira"
+        },
+        {
+          "id": "fotografo",
+          "label": "Fotógrafo Profissional"
+        },
+        {
+          "id": "videomaker",
+          "label": "Videomaker"
+        },
+        {
+          "id": "professor_particular",
+          "label": "Professor Particular / Aulas"
+        },
+        {
+          "id": "personal_trainer",
+          "label": "Personal Trainer"
+        },
+        {
+          "id": "psicologo",
+          "label": "Psicólogo"
+        },
+        {
+          "id": "nutricionista",
+          "label": "Nutricionista"
+        },
+        {
+          "id": "corretor_imoveis",
+          "label": "Corretor de Imóveis"
+        }
+      ]
+    },
+    {
+      "id": "eventos",
+      "label": "Eventos",
+      "emoji": "🎉",
+      "subcategories": [
+        {
+          "id": "buffet",
+          "label": "Buffet"
+        },
+        {
+          "id": "dj",
+          "label": "DJ"
+        },
+        {
+          "id": "fotografo_eventos",
+          "label": "Fotografia para Eventos"
+        },
+        {
+          "id": "decoracao_festas",
+          "label": "Decoração de Festas"
+        },
+        {
+          "id": "garcom",
+          "label": "Garçom / Recepcionista"
+        },
+        {
+          "id": "cerimonialista",
+          "label": "Cerimonialista"
+        },
+        {
+          "id": "som_luz_eventos",
+          "label": "Som e Iluminação para Eventos"
+        },
+        {
+          "id": "confeiteira",
+          "label": "Confeiteira / Doces para Festas"
+        },
+        {
+          "id": "aluguel_estruturas",
+          "label": "Aluguel de Estruturas e Mobiliário"
+        }
+      ]
+    },
+    {
+      "id": "beleza_bem_estar",
+      "label": "Beleza e Bem-estar",
+      "emoji": "💇",
+      "subcategories": [
+        {
+          "id": "cabeleireiro",
+          "label": "Cabeleireiro"
+        },
+        {
+          "id": "manicure",
+          "label": "Manicure e Pedicure"
+        },
+        {
+          "id": "maquiadora",
+          "label": "Maquiadora"
+        },
+        {
+          "id": "esteticista",
+          "label": "Esteticista"
+        },
+        {
+          "id": "massagista",
+          "label": "Massagista"
+        },
+        {
+          "id": "barbeiro",
+          "label": "Barbeiro"
+        },
+        {
+          "id": "depilacao",
+          "label": "Depilação"
+        },
+        {
+          "id": "designer_sobrancelhas",
+          "label": "Designer de Sobrancelhas"
+        },
+        {
+          "id": "spa_domicilio",
+          "label": "Spa a Domicílio"
+        }
+      ]
+    },
+    {
+      "id": "animais",
+      "label": "Serviços para Animais",
+      "emoji": "🐶",
+      "subcategories": [
+        {
+          "id": "veterinario",
+          "label": "Veterinário"
+        },
+        {
+          "id": "banho_tosa",
+          "label": "Banho e Tosa"
+        },
+        {
+          "id": "adestrador",
+          "label": "Adestrador de Cães"
+        },
+        {
+          "id": "dog_walker",
+          "label": "Dog Walker / Passeador"
+        },
+        {
+          "id": "pet_sitter",
+          "label": "Pet Sitter / Hospedagem"
+        },
+        {
+          "id": "petshop_domicilio",
+          "label": "Petshop a Domicílio"
+        }
+      ]
+    }
+  ],
+  "featured": [
+    "eletricista",
+    "encanador",
+    "pedreiro",
+    "pintor",
+    "jardineiro",
+    "limpeza",
+    "montador_moveis",
+    "climatizacao"
+  ]
+}

@@ -12,6 +12,7 @@ import '../../core/text_normalize.dart';
 import '../../core/notification_service.dart';
 import '../../widgets/biometric_offer_card.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/service_category_field.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
 import 'models/provider_listing.dart';
@@ -134,14 +135,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   // instância, só pra não precisar trocar todo `_normalize(...)` abaixo
   // por `normalizeForSearch(...)`.
   String _normalize(String value) => normalizeForSearch(value);
-
-  // Categorias em ordem alfabética pelo rótulo — "Outro" sempre por
-  // último, como opção coringa, independente de onde caia no alfabeto.
-  List<ServiceCategory> get _sortedCategories {
-    final list = ServiceCategory.values.where((c) => c != ServiceCategory.outro).toList()
-      ..sort((a, b) => a.label.compareTo(b.label));
-    return [...list, ServiceCategory.outro];
-  }
 
   /// Tenta preencher a cidade sozinho, sem pedir nenhum toque — chamado
   /// uma vez, na abertura da tela (ver `initState`). Silencioso de
@@ -290,14 +283,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                DropdownButtonFormField<ServiceCategory?>(
+                ServiceCategorySelectorField(
+                  label: 'O que você precisa?',
                   initialValue: _category,
-                  decoration: const InputDecoration(labelText: 'O que você precisa?'),
-                  items: [
-                    const DropdownMenuItem<ServiceCategory?>(
-                        value: null, child: Text('Todas as categorias')),
-                    ..._sortedCategories.map((c) => DropdownMenuItem(value: c, child: Text(c.label))),
-                  ],
+                  allowClear: true,
                   onChanged: (value) {
                     setState(() => _category = value);
                     _runSearch();

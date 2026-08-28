@@ -20,6 +20,7 @@ import 'features/marketplace/favorites_repository.dart';
 import 'features/marketplace/provider_directory_repository.dart';
 import 'features/marketplace/service_requests_repository.dart';
 import 'features/notifications/notifications_repository.dart';
+import 'features/marketplace/models/service_category.dart';
 import 'firebase_options.dart';
 import 'router/app_router.dart';
 
@@ -56,6 +57,14 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Catálogo de categorias/subcategorias de serviço: precisa estar
+  // pronto de forma síncrona antes de qualquer tela abrir, porque
+  // ProviderListing/ServiceRequest.fromFirestore chamam
+  // serviceCategoryFromWire(...) de forma síncrona ao converter
+  // documentos vindos do Firestore. Mesmo raciocínio do
+  // Firebase.initializeApp logo acima.
+  await ServiceCategoryCatalog.load();
 
   // Registrado aqui (não dentro de NotificationService.init(), que só
   // roda depois do login) porque o FCM precisa desse handler cadastrado

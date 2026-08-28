@@ -9,6 +9,7 @@ import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
 import 'edit_profile_screen.dart';
 import '../../widgets/state_city_fields.dart';
+import '../../widgets/service_category_field.dart';
 import 'provider_paywall_screen.dart';
 
 /// Aba "Meu perfil" — igual ao pedido do Franck ("colocar a opção de
@@ -352,7 +353,7 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
   final _formKey = GlobalKey<FormState>();
   String? _city;
   String? _uf;
-  ServiceCategory _category = ServiceCategory.eletricista;
+  ServiceCategory? _category;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -363,7 +364,7 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
       // vira prestador de graça, só pra testar a busca/listagem antes do
       // Play Billing estar configurado de verdade.
       final ok = await context.read<AuthController>().becomeProvider(
-            category: _category.wireValue,
+            category: _category!.wireValue,
             city: city,
             state: state.isEmpty ? null : state,
           );
@@ -373,7 +374,7 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
     final confirmed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ProviderPaywallScreen(
-          category: _category.wireValue,
+          category: _category!.wireValue,
           city: city,
           state: state.isEmpty ? null : state,
         ),
@@ -422,13 +423,11 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
                 style: TextStyle(color: AppColors.muted, fontSize: 13),
               ),
               const SizedBox(height: 20),
-              DropdownButtonFormField<ServiceCategory>(
+              ServiceCategorySelectorField(
+                label: 'Sua principal categoria de serviço',
                 initialValue: _category,
-                decoration: const InputDecoration(labelText: 'Sua principal categoria de serviço'),
-                items: ServiceCategory.values
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
-                    .toList(),
-                onChanged: (value) => setState(() => _category = value ?? _category),
+                validator: (value) => value == null ? 'Selecione' : null,
+                onChanged: (value) => setState(() => _category = value),
               ),
               const SizedBox(height: 12),
               Row(
