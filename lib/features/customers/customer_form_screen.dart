@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../widgets/mask_text_input_formatter.dart';
+import '../../widgets/state_city_fields.dart';
 import 'customers_repository.dart';
 import 'models/customer.dart';
 
@@ -22,8 +23,8 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   late final _nameController = TextEditingController(text: widget.customer?.name ?? '');
   late final _phoneController =
       TextEditingController(text: widget.customer?.phone ?? widget.customer?.whatsapp ?? '');
-  late final _cityController = TextEditingController(text: widget.customer?.addressCity ?? '');
-  late final _stateController = TextEditingController(text: widget.customer?.addressState ?? '');
+  late String? _city = widget.customer?.addressCity;
+  late String? _uf = widget.customer?.addressState;
 
   final _phoneMask = MaskTextInputFormatter('(##) #####-####');
 
@@ -36,8 +37,6 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _cityController.dispose();
-    _stateController.dispose();
     super.dispose();
   }
 
@@ -54,15 +53,15 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
           widget.customer!.id,
           name: _nameController.text.trim(),
           phone: _phoneController.text.trim(),
-          addressCity: _cityController.text.trim(),
-          addressState: _stateController.text.trim().toUpperCase(),
+          addressCity: (_city ?? '').trim(),
+          addressState: (_uf ?? '').trim().toUpperCase(),
         );
       } else {
         await repository.create(
           name: _nameController.text.trim(),
           phone: _phoneController.text.trim(),
-          addressCity: _cityController.text.trim(),
-          addressState: _stateController.text.trim().toUpperCase(),
+          addressCity: (_city ?? '').trim(),
+          addressState: (_uf ?? '').trim().toUpperCase(),
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -101,20 +100,26 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
               ),
               const SizedBox(height: 12),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    flex: 3,
-                    child: TextFormField(
-                      controller: _cityController,
-                      decoration: const InputDecoration(labelText: 'Cidade'),
+                    child: StateSelectorField(
+                      key: ValueKey('customer-uf-$_uf'),
+                      initialValue: _uf,
+                      onChanged: (uf) => setState(() {
+                        _uf = uf;
+                        _city = null;
+                      }),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: TextFormField(
-                      controller: _stateController,
-                      maxLength: 2,
-                      decoration: const InputDecoration(labelText: 'UF', counterText: ''),
+                    flex: 3,
+                    child: CitySelectorField(
+                      key: ValueKey('customer-city-$_uf-$_city'),
+                      uf: _uf,
+                      initialValue: _city,
+                      onChanged: (city) => setState(() => _city = city),
                     ),
                   ),
                 ],
