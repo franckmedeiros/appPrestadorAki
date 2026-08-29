@@ -52,12 +52,20 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.opoutsourcing.prestadoraki
       vars:
+        BUNDLE_ID: "com.opoutsourcing.prestadoraki"
         # Apple ID numérico do app (não é o Bundle ID) — aparece na página
         # do app em App Store Connect, em "Informações do App", assim que
         # você terminar de criar o app lá. Troque o 0 abaixo por esse
         # número antes de rodar este workflow pela primeira vez.
         APP_STORE_APPLE_ID: 6806624870
     scripts:
+      - name: Preparar keychain para assinatura
+        script: keychain initialize
+      - name: Buscar/criar certificado e perfil de distribuição na Apple
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID"             --type IOS_APP_STORE             --create
+      - name: Adicionar certificado na keychain
+        script: keychain add-certificates
       - name: Configurar assinatura de código no Xcode
         script: xcode-project use-profiles
       - name: Instalar dependências
