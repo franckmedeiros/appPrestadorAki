@@ -38,6 +38,45 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
   bool _sent = false;
 
   @override
+  void initState() {
+    super.initState();
+    _prefillAddress();
+  }
+
+  // Prévia do endereço a partir do perfil de quem está solicitando (Editar
+  // perfil > endereço pessoal) — poupa digitar de novo o que já está
+  // cadastrado. Continua editável: quem for atender num endereço diferente
+  // (ex.: outra casa, endereço de um parente) só apaga e digita o certo.
+  Future<void> _prefillAddress() async {
+    try {
+      final data = await context.read<AuthController>().fetchOwnProfileData();
+      final address = _formatProfileAddress(data);
+      if (address.isNotEmpty && mounted && _addressController.text.isEmpty) {
+        setState(() => _addressController.text = address);
+      }
+    } catch (_) {
+      // Sem endereço salvo ou falha ao buscar: o campo só fica vazio,
+      // sem travar o formulário — a pessoa digita na mão normalmente.
+    }
+  }
+
+  String _formatProfileAddress(Map<String, dynamic> data) {
+    final parts = <String>[];
+    final street = (data['addressStreet'] as String?)?.trim();
+    if (street != null && street.isNotEmpty) parts.add(street);
+    final neighborhood = (data['addressNeighborhood'] as String?)?.trim();
+    if (neighborhood != null && neighborhood.isNotEmpty) parts.add(neighborhood);
+    final city = (data['addressCity'] as String?)?.trim();
+    final uf = (data['addressState'] as String?)?.trim();
+    if (city != null && city.isNotEmpty) {
+      parts.add((uf != null && uf.isNotEmpty) ? '$city - $uf' : city);
+    } else if (uf != null && uf.isNotEmpty) {
+      parts.add(uf);
+    }
+    return parts.join(', ');
+  }
+
+  @override
   void dispose() {
     _descriptionController.dispose();
     _addressController.dispose();
