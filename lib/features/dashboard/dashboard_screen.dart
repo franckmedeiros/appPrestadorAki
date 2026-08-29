@@ -19,11 +19,12 @@ import '../marketplace/service_requests_repository.dart';
 /// agora só existem a partir daqui — o layout definitivo ainda precisa de
 /// uma revisão em conjunto (ver combinado no chat).
 ///
-/// "Compromissos hoje" e "Orçamentos abertos" usam dados reais — o
-/// primeiro via /appointments (mesmo repositório da aba Agenda), o
-/// segundo contando os pedidos do marketplace (ServiceRequestsRepository)
-/// com status "aguardando_prestador" (pedidos que o cliente fez pelo
-/// botão "Solicitar orçamento" e que este prestador ainda não respondeu).
+/// "Compromissos de hoje" mostra a agenda do dia de verdade (mesmo
+/// repositório da aba Agenda, já ordenado por data/hora). O selo no
+/// atalho "Orçamentos" conta os pedidos do marketplace
+/// (ServiceRequestsRepository) com status "aguardando_prestador" —
+/// pedidos que o cliente fez pelo botão "Solicitar orçamento" e que este
+/// prestador ainda não respondeu.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -134,6 +135,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 12),
           Text(
+            'Compromissos de hoje',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          FutureBuilder<List<Appointment>>(
+            future: _todayFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              // Já vem ordenado por data/hora — mesmo orderBy('scheduledAt')
+              // de AppointmentsRepository.list() usado pela aba Agenda.
+              final today = snapshot.data ?? [];
+              if (today.isEmpty) {
+                return const _EmptyState(
+                  icon: Icons.event_note_outlined,
+                  message:
+                      'Nada agendado ainda. Vá para a aba Agenda para marcar uma visita técnica ou serviço.',
+                );
+              }
+              return Column(
+                children: today
+                    .map(
+                      (appointment) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _TodayAppointmentTile(appointment: appointment),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          Text(
             'Atalhos',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
@@ -156,10 +194,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: 'Agenda',
                 onTap: () => context.push('/agenda'),
               ),
-              _ShortcutCard(
-                icon: Icons.description_outlined,
-                label: 'Orçamentos',
-                onTap: () => context.push('/orcamentos'),
+              FutureBuilder<int>(
+                future: _pendingRequestsFuture,
+                builder: (context, snapshot) => _ShortcutCard(
+                  icon: Icons.description_outlined,
+                  label: 'Orçamentos',
+                  onTap: () => context.push('/orcamentos'),
+                  badgeCount: snapshot.data,
+                ),
               ),
               _ShortcutCard(
                 icon: Icons.inbox_outlined,
@@ -175,73 +217,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onDismiss: () => setState(() => _dismissedThisSession = true),
             ),
           ],
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: FutureBuilder<List<Appointment>>(
-                  future: _todayFuture,
-                  builder: (context, snapshot) {
-                    final today = snapshot.data;
-                    return _StatCard(
-                      icon: Icons.event_available_outlined,
-                      label: 'Compromissos hoje',
-                      value: today == null ? '—' : '${today.length}',
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FutureBuilder<int>(
-                  future: _pendingRequestsFuture,
-                  builder: (context, snapshot) {
-                    final pending = snapshot.data;
-                    return _StatCard(
-                      icon: Icons.description_outlined,
-                      label: 'Orçamentos abertos',
-                      value: pending == null ? '—' : '$pending',
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Compromissos de hoje',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          FutureBuilder<List<Appointment>>(
-            future: _todayFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              final today = snapshot.data ?? [];
-              if (today.isEmpty) {
-                return const _EmptyState(
-                  icon: Icons.event_note_outlined,
-                  message:
-                      'Nada agendado ainda. Vá para a aba Agenda para marcar uma visita técnica ou serviço.',
-                );
-              }
-              return Column(
-                children: today
-                    .map(
-                      (appointment) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _TodayAppointmentTile(appointment: appointment),
-                      ),
-                    )
-                    .toList(),
-              );
-            },
-          ),
         ],
       ),
     );
@@ -279,59 +254,58 @@ class _TodayAppointmentTile extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.icon, required this.label, required this.value});
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: AppColors.primary),
-            const SizedBox(height: 12),
-            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _ShortcutCard extends StatelessWidget {
-  const _ShortcutCard({required this.icon, required this.label, required this.onTap});
+  const _ShortcutCard({required this.icon, required this.label, required this.onTap, this.badgeCount});
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
+  /// Número mostrado num selo no canto do card — hoje só usado no atalho
+  /// "Orçamentos" (pedidos pendentes, ver _loadPendingRequests). `null` ou
+  /// zero não mostra selo nenhum.
+  final int? badgeCount;
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: AppColors.primary),
-              const SizedBox(height: 8),
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-            ],
+    return Stack(
+      children: [
+        Card(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: AppColors.primary),
+                  const SizedBox(height: 8),
+                  Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
+        if (badgeCount != null && badgeCount! > 0)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.danger,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$badgeCount',
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
