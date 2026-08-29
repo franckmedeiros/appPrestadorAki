@@ -37,11 +37,13 @@ workflows:
     # então só deve rodar quando você mandar manualmente (Codemagic >
     # Start new build > escolher "ios-release").
     integrations:
-      # Nome da integração já cadastrada em Codemagic > Team settings >
-      # Integrations > Apple Developer Portal (a mesma usada no outro
-      # app) — troque "appstore_connect" pelo nome exato que aparece lá,
-      # se for diferente.
-      app_store_connect: appstore_connect
+      # Mesma integração já usada pro app Resenha (Team settings >
+      # Integrations > Apple Developer Portal) — uma chave de API do App
+      # Store Connect normalmente enxerga TODOS os apps do seu time, não
+      # só um, então não precisa criar uma chave nova só pro
+      # PrestadorAki.
+      app_store_connect: Resenha
+
     environment:
       flutter: stable
       xcode: latest
