@@ -28,6 +28,62 @@ workflows:
           success: true
           failure: true
 
+  ios-release:
+    name: iOS - build assinado e publicar (TestFlight)
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    # Não roda sozinho a cada push (ver ios-simulator/android-debug acima)
+    # — esse workflow ASSINA e ENVIA pro App Store Connect de verdade,
+    # então só deve rodar quando você mandar manualmente (Codemagic >
+    # Start new build > escolher "ios-release").
+    integrations:
+      # Nome da integração já cadastrada em Codemagic > Team settings >
+      # Integrations > Apple Developer Portal (a mesma usada no outro
+      # app) — troque "appstore_connect" pelo nome exato que aparece lá,
+      # se for diferente.
+      app_store_connect: appstore_connect
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.opoutsourcing.prestadoraki
+      vars:
+        # Apple ID numérico do app (não é o Bundle ID) — aparece na página
+        # do app em App Store Connect, em "Informações do App", assim que
+        # você terminar de criar o app lá. Troque o 0 abaixo por esse
+        # número antes de rodar este workflow pela primeira vez.
+        APP_STORE_APPLE_ID: 0
+    scripts:
+      - name: Configurar assinatura de código no Xcode
+        script: xcode-project use-profiles
+      - name: Instalar dependências
+        script: flutter pub get
+      - name: Instalar pods do iOS
+        script: find . -name "Podfile" -execdir pod install \;
+      - name: Build IPA assinado
+        script: |
+          flutter build ipa --release \
+            --build-number=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID") + 1)) \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # Deixa false até você decidir de propósito mandar pra revisão da
+        # Apple pela primeira vez — evita enviar sem querer antes de ter
+        # screenshots/descrição prontos na ficha da loja.
+        submit_to_app_store: false
+      email:
+        recipients:
+          - franck.medeiros.silva@gmail.com
+        notify:
+          success: true
+          failure: true
+
   ios-simulator:
     name: iOS - build simulador (sem assinatura)
     max_build_duration: 30
