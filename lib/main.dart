@@ -14,6 +14,7 @@ import 'core/biometric_service.dart';
 import 'core/notification_service.dart';
 import 'core/token_storage.dart';
 import 'features/agenda/appointments_repository.dart';
+import 'features/budgets/budgets_repository.dart';
 import 'features/customers/customers_repository.dart';
 import 'features/marketplace/favorites_controller.dart';
 import 'features/marketplace/favorites_repository.dart';
@@ -116,6 +117,7 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
         // caso das duas primeiras, do lado certo do marketplace).
         Provider(create: (context) => CustomersRepository()),
         Provider(create: (context) => AppointmentsRepository()),
+        Provider(create: (context) => BudgetsRepository()),
         Provider(create: (context) => ProviderDirectoryRepository()),
         Provider(create: (context) => ServiceRequestsRepository()),
         Provider(create: (context) => FavoritesRepository()),

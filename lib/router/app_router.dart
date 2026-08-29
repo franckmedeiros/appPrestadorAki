@@ -9,7 +9,9 @@ import '../features/agenda/agenda_screen.dart';
 import '../features/agenda/appointment_form_screen.dart';
 import '../features/customers/models/customer.dart';
 import '../features/agenda/models/appointment.dart';
+import '../features/budgets/budget_form_screen.dart';
 import '../features/budgets/budgets_screen.dart';
+import '../features/budgets/models/budget.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/marketplace/client_home_screen.dart';
 import '../features/marketplace/incoming_requests_screen.dart';
@@ -43,6 +45,7 @@ const _providerOnlyRoutes = {
   '/agenda/novo',
   '/agenda/editar',
   '/orcamentos',
+  '/orcamentos/editar',
   '/pedidos',
 };
 
@@ -113,6 +116,12 @@ GoRouter buildAppRouter(AuthController authController) {
         builder: (context, state) => AppointmentFormScreen(appointment: state.extra as Appointment?),
       ),
       GoRoute(path: '/orcamentos', builder: (context, state) => const BudgetsScreen()),
+      // `extra` carrega o Budget sendo editado, null pra criar um novo —
+      // mesmo padrão de '/clientes/editar' e '/agenda/editar'.
+      GoRoute(
+        path: '/orcamentos/editar',
+        builder: (context, state) => BudgetFormScreen(budget: state.extra as Budget?),
+      ),
       GoRoute(path: '/pedidos', builder: (context, state) => const IncomingRequestsScreen()),
       // Central de notificações (sininho) — aberta pros dois lados da
       // conta (cliente e prestador usam o mesmo uid, ver DATA_MODEL.md),

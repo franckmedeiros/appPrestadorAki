@@ -42,14 +42,18 @@ service cloud.firestore {
         allow read, write: if isOwner(providerId);
       }
 
-      // Orçamentos: criação, atualização (com versionamento), envio e
-      // decisão (aprovar/recusar) só acontecem via Cloud Functions
-      // (callable), porque exigem numeração sequencial atômica e/ou
-      // criação automática de job — regras declarativas do Firestore não
-      // dão conta disso com segurança. O prestador só LÊ diretamente.
+      // Orçamentos (módulo formal, ligado a Clientes — ver
+      // lib/features/budgets/): versão simples implementada em
+      // 2026-08, direto do app (BudgetsRepository), sem numeração
+      // sequencial/versionamento/job automático — o desenho documentado
+      // abaixo (Cloud Functions, aprovação, `jobs` automático) era um
+      // plano mais ambicioso que nunca chegou a ser construído. Fica a
+      // nota histórica caso esse fluxo mais completo (orçamento
+      // formalmente enviado, cliente aprova/recusa, job nasce sozinho)
+      // vire prioridade de verdade; até lá, é CRUD direto do prestador
+      // dono, igual `customers`/`appointments` acima.
       match /budgets/{budgetId} {
-        allow read: if isOwner(providerId);
-        allow write: if false;
+        allow read, write: if isOwner(providerId);
 
         match /versions/{versionId} {
           allow read: if isOwner(providerId);
