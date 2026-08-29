@@ -48,9 +48,12 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.opoutsourcing.prestadoraki
+      # Sem bloco ios_signing aqui de propósito: ele faz uma checagem
+      # automática ANTES dos scripts rodarem e falha se não achar um
+      # perfil já existente, sem chance dos scripts abaixo (que criam
+      # o certificado/perfil na hora) rodarem. Assinatura 100% manual
+      # via app-store-connect fetch-signing-files + xcode-project
+      # use-profiles, abaixo.
       vars:
         BUNDLE_ID: "com.opoutsourcing.prestadoraki"
         # Apple ID numérico do app (não é o Bundle ID) — aparece na página
