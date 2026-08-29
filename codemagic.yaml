@@ -56,7 +56,7 @@ workflows:
         provisioning_profiles:
           - prestadoraki_app_store
         certificates:
-          - prestadoraki_distribution
+          - "PrestadorAki App Store"
       vars:
         # Apple ID numérico do app (não é o Bundle ID) — aparece na página
         # do app em App Store Connect, em "Informações do App", assim que
