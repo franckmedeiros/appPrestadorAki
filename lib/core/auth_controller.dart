@@ -331,6 +331,8 @@ class AuthController extends ChangeNotifier {
     String? addressNeighborhood,
     String? addressCity,
     String? addressState,
+    String? pixKey,
+    String? logoUrl,
   }) =>
       _submit(() async {
         final user = _auth.currentUser!;
@@ -365,6 +367,14 @@ class AuthController extends ChangeNotifier {
                 (addressState != null && addressState.isNotEmpty)
                     ? addressState
                     : FieldValue.delete(),
+            // Chave Pix e logo: só fazem sentido pro lado prestador (ver
+            // EditProfileScreen, que só mostra os campos quando
+            // `isProvider`), mas gravar aqui em vez de em
+            // `updateProviderBusinessInfo` é mais simples — não são dados
+            // "de negócio" (categoria/cidade) que decidem a busca, são só
+            // dados da conta, igual telefone/endereço acima.
+            'pixKey': (pixKey != null && pixKey.isNotEmpty) ? pixKey : FieldValue.delete(),
+            'logoUrl': (logoUrl != null && logoUrl.isNotEmpty) ? logoUrl : FieldValue.delete(),
             'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),

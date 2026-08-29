@@ -40,6 +40,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
   final _whatsappController = TextEditingController();
+  final _pixKeyController = TextEditingController();
+  final _logoUrlController = TextEditingController();
   final _cepController = TextEditingController();
   final _streetController = TextEditingController();
   final _neighborhoodController = TextEditingController();
@@ -91,6 +93,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _addressCity = data['addressCity'] as String?;
     _addressUf = data['addressState'] as String?;
     _whatsappController.text = data['whatsapp'] as String? ?? '';
+    _pixKeyController.text = data['pixKey'] as String? ?? '';
+    _logoUrlController.text = data['logoUrl'] as String? ?? '';
     _listingStatus = data['listingStatus'] as String?;
     // A área de atuação vem de providers/{uid} (sempre existe, mesmo
     // 'pending' — ver functions/src/subscription.ts), não só do
@@ -112,6 +116,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _whatsappController.dispose();
+    _pixKeyController.dispose();
+    _logoUrlController.dispose();
     _cepController.dispose();
     _streetController.dispose();
     _neighborhoodController.dispose();
@@ -246,6 +252,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       addressNeighborhood: _neighborhoodController.text.trim(),
       addressCity: (_addressCity ?? '').trim(),
       addressState: (_addressUf ?? '').trim().toUpperCase(),
+      pixKey: _isProvider ? _pixKeyController.text.trim() : null,
+      logoUrl: _isProvider ? _logoUrlController.text.trim() : null,
     );
 
     if (ok && _isProvider) {
@@ -418,6 +426,65 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const Text(
                     'Cidade e categoria são o que faz você aparecer nas buscas '
                     'dos clientes no PrestadorAki.',
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Dados de pagamento', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _pixKeyController,
+                    decoration: const InputDecoration(
+                      labelText: 'Chave Pix (opcional)',
+                      prefixIcon: Icon(Icons.qr_code_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Usada mais pra frente pra gerar o QR code no orçamento enviado ao cliente.',
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Logo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                        ),
+                        child: _logoUrlController.text.trim().isEmpty
+                            ? const Icon(Icons.storefront_outlined, color: AppColors.primary)
+                            : Image.network(
+                                _logoUrlController.text.trim(),
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(Icons.broken_image_outlined, color: AppColors.muted),
+                              ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _logoUrlController,
+                          decoration: const InputDecoration(
+                            labelText: 'Link da logo (opcional)',
+                            hintText: 'https://...',
+                          ),
+                          keyboardType: TextInputType.url,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Aparece no seu perfil e, mais pra frente, no orçamento enviado ao '
+                    'cliente. Cole o link de uma imagem já hospedada em algum lugar '
+                    '(ex.: Google Drive, Imgur).',
                     style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                 ],

@@ -155,14 +155,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           Center(
-            child: Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: 0.1),
-              ),
-              child: const Icon(Icons.person, size: 42, color: AppColors.primary),
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: _ownDataFuture,
+              builder: (context, snapshot) {
+                final logoUrl = snapshot.data?['logoUrl'] as String?;
+                return Container(
+                  width: 84,
+                  height: 84,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                  ),
+                  child: (logoUrl != null && logoUrl.isNotEmpty)
+                      ? Image.network(
+                          logoUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.person, size: 42, color: AppColors.primary),
+                        )
+                      : const Icon(Icons.person, size: 42, color: AppColors.primary),
+                );
+              },
             ),
           ),
           const SizedBox(height: 12),
