@@ -56,7 +56,7 @@ workflows:
         # do app em App Store Connect, em "Informações do App", assim que
         # você terminar de criar o app lá. Troque o 0 abaixo por esse
         # número antes de rodar este workflow pela primeira vez.
-        APP_STORE_APPLE_ID: 0
+        APP_STORE_APPLE_ID: 6806624870
     scripts:
       - name: Configurar assinatura de código no Xcode
         script: xcode-project use-profiles
