@@ -364,7 +364,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     final listing = listings[index];
                     return providerListingCard(
                       listing: listing,
-                      onTap: () => context.push('/prestador/${listing.id}'),
+                      onTap: () async {
+                        await context.push('/prestador/${listing.id}');
+                        // Volta do perfil (onde mora a avaliação, ver
+                        // ProviderPublicProfileScreen) e recarrega a busca —
+                        // sem isso a nota ficava desatualizada aqui até a
+                        // pessoa trocar de filtro ou reabrir a tela.
+                        if (mounted) _runSearch();
+                      },
                       isFavorite: favoriteIds.contains(listing.id),
                       onToggleFavorite: () => _toggleFavorite(listing),
                     );
