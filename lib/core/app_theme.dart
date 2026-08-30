@@ -14,6 +14,15 @@ class AppColors {
   static const warning = Color(0xFFC98A1B);
   static const danger = Color(0xFFC0392B);
   static const muted = Color(0xFF8A7B76);
+
+  /// Gradiente usado nos cabeçalhos decorativos de Boas-vindas/Login/
+  /// Cadastro (ver widgets/decorative_header.dart) — mesmo desenho do
+  /// app Resenha, só que nas cores da marca OP OutSourcing em vez de azul.
+  static const primaryGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [primaryDark, primary],
+  );
 }
 
 class AppTheme {

@@ -4,7 +4,14 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/biometric_service.dart';
+import '../../widgets/decorative_header.dart';
+import '../../widgets/gradient_pill_button.dart';
+import '../../widgets/labeled_text_field.dart';
 
+/// Layout reestilizado igual ao app Resenha (cabeçalho em gradiente +
+/// cartão branco arredondado por cima, ver widgets/decorative_header.dart)
+/// — a lógica de login/biometria continua exatamente a mesma de antes,
+/// só a aparência mudou.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -16,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   // Igual ao app Resenha: um botão de biometria de verdade (não só um
   // indicador passivo) fica sempre visível aqui na tela de login — toca
@@ -66,92 +74,128 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
+    final canPop = context.canPop();
 
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Form(
-              key: _formKey,
+      backgroundColor: AppColors.background,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DecorativeHeader(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _Logo(),
-                  const SizedBox(height: 32),
-                  Text(
-                    'Entrar',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'E-mail'),
-                    validator: (value) =>
-                        (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Senha'),
-                    validator: (value) =>
-                        (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
-                  ),
-                  if (auth.errorMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      auth.errorMessage!,
-                      style: const TextStyle(color: AppColors.danger),
+                  if (canPop) ...[
+                    GestureDetector(
+                      onTap: () => context.pop(),
+                      child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
                     ),
-                  ],
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: auth.isBusy ? null : () => _submit(auth),
-                    child: auth.isBusy
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Text('Entrar'),
+                    const SizedBox(height: 14),
+                  ] else
+                    const SizedBox(height: 8),
+                  const Text(
+                    'Bem-vindo de volta!',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
                   ),
-                  const SizedBox(height: 20),
-                  _BiometricButton(
-                    available: _biometricAvailable,
-                    ready: _biometricAvailable == true &&
-                        auth.biometricEnabled &&
-                        auth.hasCachedSession,
-                    loading: _unlockingBiometrics,
-                    onTap: () => _unlockWithBiometrics(auth),
-                  ),
-                  const SizedBox(height: 20),
-                  TextButton(
-                    onPressed: () => context.push('/register'),
-                    child: const Text('Ainda não tenho conta'),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Entre para continuar gerenciando seus atendimentos',
+                    style: TextStyle(fontSize: 13.5, color: Colors.white70),
                   ),
                 ],
               ),
             ),
-          ),
+            Transform.translate(
+              offset: const Offset(0, -24),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      LabeledTextField(
+                        label: 'E-mail',
+                        controller: _emailController,
+                        hintText: 'seuemail@exemplo.com',
+                        keyboardType: TextInputType.emailAddress,
+                        prefixIcon: Icons.mail_outline,
+                        textInputAction: TextInputAction.next,
+                        validator: (value) =>
+                            (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                      ),
+                      const SizedBox(height: 18),
+                      LabeledTextField(
+                        label: 'Senha',
+                        controller: _passwordController,
+                        hintText: '••••••••',
+                        obscureText: _obscurePassword,
+                        prefixIcon: Icons.lock_outline,
+                        textInputAction: TextInputAction.done,
+                        validator: (value) =>
+                            (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            color: AppColors.muted,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      if (auth.errorMessage != null) ...[
+                        const SizedBox(height: 12),
+                        Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
+                      ],
+                      const SizedBox(height: 24),
+                      GradientPillButton(
+                        label: 'Entrar',
+                        isLoading: auth.isBusy,
+                        onPressed: auth.isBusy ? null : () => _submit(auth),
+                      ),
+                      const SizedBox(height: 28),
+                      _BiometricSection(
+                        available: _biometricAvailable,
+                        ready: _biometricAvailable == true && auth.biometricEnabled && auth.hasCachedSession,
+                        loading: _unlockingBiometrics,
+                        onTap: () => _unlockWithBiometrics(auth),
+                      ),
+                      const SizedBox(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('Não tem conta? ', style: TextStyle(color: AppColors.muted)),
+                          GestureDetector(
+                            onTap: () => context.push('/register'),
+                            child: const Text(
+                              'Cadastre-se',
+                              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Botão de biometria — igual ao app Resenha: um círculo com o ícone de
-/// digital, sempre visível na tela de login, com o texto embaixo
-/// explicando o estado atual. Só fica tocável (`ready`) quando o aparelho
-/// suporta, a biometria já foi ativada antes e existe uma sessão salva
-/// pra destravar — nos outros casos fica desabilitado (opacidade menor),
-/// mas continua visível, deixando claro o que falta pra poder usar.
-class _BiometricButton extends StatelessWidget {
-  const _BiometricButton({
+/// Divisor "ou entre com biometria" + círculo tocável — mesmo desenho do
+/// app Resenha, adaptado pra reagir ao estado real de biometria do
+/// PrestadorAki (aparelho suporta / já foi ativada / tem sessão salva).
+class _BiometricSection extends StatelessWidget {
+  const _BiometricSection({
     required this.available,
     required this.ready,
     required this.loading,
@@ -172,67 +216,47 @@ class _BiometricButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (available == null) return const SizedBox(height: 20);
+    if (available == null) return const SizedBox.shrink();
 
-    return Center(
-      child: GestureDetector(
-        onTap: (loading || !ready) ? null : onTap,
-        child: Opacity(
-          opacity: ready ? 1 : 0.4,
-          child: Column(
-            children: [
-              const Text('ou entre com biometria',
-                  style: TextStyle(fontSize: 12, color: AppColors.muted)),
-              const SizedBox(height: 12),
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
-                ),
-                child: loading
-                    ? const Padding(
-                        padding: EdgeInsets.all(18),
-                        child: CircularProgressIndicator(strokeWidth: 2.4, color: AppColors.primary),
-                      )
-                    : const Icon(Icons.fingerprint, color: AppColors.primary, size: 34),
-              ),
-              const SizedBox(height: 8),
-              Text(_helperText, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Logo extends StatelessWidget {
-  const _Logo();
-
-  @override
-  Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(20),
+        const Row(
+          children: [
+            Expanded(child: Divider(color: Color(0xFFE4DAD6))),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text('ou entre com biometria', style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+            ),
+            Expanded(child: Divider(color: Color(0xFFE4DAD6))),
+          ],
+        ),
+        const SizedBox(height: 20),
+        GestureDetector(
+          onTap: (loading || !ready) ? null : onTap,
+          child: Opacity(
+            opacity: ready ? 1 : 0.4,
+            child: Column(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                  ),
+                  child: loading
+                      ? const Padding(
+                          padding: EdgeInsets.all(18),
+                          child: CircularProgressIndicator(strokeWidth: 2.4, color: AppColors.primary),
+                        )
+                      : const Icon(Icons.fingerprint, color: AppColors.primary, size: 34),
+                ),
+                const SizedBox(height: 8),
+                Text(_helperText, style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+              ],
+            ),
           ),
-          child: const Icon(Icons.handyman_rounded, color: Colors.white, size: 36),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'PrestadorAki',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.ink),
-        ),
-        const Text(
-          'Tecnologia que conecta.',
-          style: TextStyle(fontSize: 13, color: AppColors.muted),
         ),
       ],
     );

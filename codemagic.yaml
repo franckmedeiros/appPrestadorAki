@@ -81,6 +81,13 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+        # Sem isso, o build sobe e processa mas fica "solto" — precisa
+        # vincular na mão em App Store Connect > TestFlight toda vez.
+        # "Tester" é o grupo de teste interno que você já tem criado lá
+        # (não precisa de revisão da Apple, aparece na hora pra quem
+        # estiver nesse grupo).
+        beta_groups:
+          - Tester
         # Deixa false até você decidir de propósito mandar pra revisão da
         # Apple pela primeira vez — evita enviar sem querer antes de ter
         # screenshots/descrição prontos na ficha da loja.

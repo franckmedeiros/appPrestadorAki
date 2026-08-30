@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../widgets/decorative_header.dart';
+import '../../widgets/gradient_pill_button.dart';
+import '../../widgets/labeled_text_field.dart';
 
 /// Cadastro (decisão combinada com o Franck): toda conta nasce como
 /// cliente — a capacidade de prestador não entra mais por aqui, porque
@@ -10,6 +13,10 @@ import '../../core/auth_controller.dart';
 /// atrelar a compra a um uid do Firebase depois que a conta já existe).
 /// Quem quiser virar prestador faz isso depois, em "Meu perfil" → "Também
 /// quero oferecer serviços" (ver UserProfileScreen/ProviderPaywallScreen).
+///
+/// Layout reestilizado igual ao app Resenha (mesmo cabeçalho em gradiente
+/// + cartão branco da LoginScreen) — só a aparência mudou, os campos
+/// continuam os mesmos de sempre (nome, e-mail, senha, biometria).
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -22,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   // Mesma ideia da LoginScreen/DashboardScreen: oferece biometria já no
   // cadastro, em vez de só depois do primeiro login — assim quem já sabe
@@ -67,70 +75,173 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final auth = context.watch<AuthController>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Criar conta')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Seu nome'),
-                  validator: (value) =>
-                      (value == null || value.trim().isEmpty) ? 'Informe seu nome' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'E-mail'),
-                  validator: (value) =>
-                      (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Senha (mínimo 8 caracteres)'),
-                  validator: (value) =>
-                      (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
-                ),
-                if (_biometricAvailable == true) ...[
-                  const SizedBox(height: 8),
-                  CheckboxListTile(
-                    value: _useBiometrics,
-                    onChanged: (value) => setState(() => _useBiometrics = value ?? false),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('Usar biometria pra entrar mais rápido'),
-                    subtitle: const Text(
-                      'Digital ou reconhecimento facial, na próxima vez que abrir o app. '
-                      'Dá pra ativar depois também, quando quiser.',
-                      style: TextStyle(fontSize: 12),
-                    ),
+      backgroundColor: AppColors.background,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DecorativeHeader(
+              height: 150,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Criar conta',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Leva menos de um minuto',
+                    style: TextStyle(fontSize: 13.5, color: Colors.white70),
                   ),
                 ],
-                if (auth.errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
-                ],
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: auth.isBusy ? null : () => _submit(auth),
-                  child: auth.isBusy
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text('Criar conta'),
-                ),
-              ],
+              ),
             ),
-          ),
+            Transform.translate(
+              offset: const Offset(0, -24),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      LabeledTextField(
+                        label: 'Nome completo',
+                        controller: _nameController,
+                        hintText: 'Digite seu nome completo',
+                        prefixIcon: Icons.person_outline,
+                        textInputAction: TextInputAction.next,
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty) ? 'Informe seu nome' : null,
+                      ),
+                      const SizedBox(height: 18),
+                      LabeledTextField(
+                        label: 'E-mail',
+                        controller: _emailController,
+                        hintText: 'seuemail@exemplo.com',
+                        keyboardType: TextInputType.emailAddress,
+                        prefixIcon: Icons.mail_outline,
+                        textInputAction: TextInputAction.next,
+                        validator: (value) =>
+                            (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                      ),
+                      const SizedBox(height: 18),
+                      LabeledTextField(
+                        label: 'Senha',
+                        controller: _passwordController,
+                        hintText: 'Mínimo de 8 caracteres',
+                        obscureText: _obscurePassword,
+                        prefixIcon: Icons.lock_outline,
+                        textInputAction: TextInputAction.done,
+                        validator: (value) =>
+                            (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            color: AppColors.muted,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      if (_biometricAvailable == true) ...[
+                        const SizedBox(height: 18),
+                        _BiometricCheckbox(
+                          value: _useBiometrics,
+                          onChanged: (value) => setState(() => _useBiometrics = value),
+                        ),
+                      ],
+                      if (auth.errorMessage != null) ...[
+                        const SizedBox(height: 12),
+                        Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
+                      ],
+                      const SizedBox(height: 24),
+                      GradientPillButton(
+                        label: 'Criar conta',
+                        isLoading: auth.isBusy,
+                        onPressed: auth.isBusy ? null : () => _submit(auth),
+                      ),
+                      const SizedBox(height: 20),
+                      Center(
+                        child: GestureDetector(
+                          onTap: () => Navigator.of(context).maybePop(),
+                          child: const Text(
+                            'Já tenho conta, entrar',
+                            style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Cartão de "usar biometria" — mesma informação do checkbox antigo, só
+/// que estilizado como um cartão discreto pra combinar com o resto do
+/// formulário reestilizado.
+class _BiometricCheckbox extends StatelessWidget {
+  const _BiometricCheckbox({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.primary.withValues(alpha: value ? 0.4 : 0.12)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: value,
+              onChanged: (v) => onChanged(v ?? false),
+              activeColor: AppColors.primary,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Usar biometria pra entrar mais rápido',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Digital ou reconhecimento facial, na próxima vez que abrir o app. '
+                      'Dá pra ativar depois também, quando quiser.',
+                      style: TextStyle(fontSize: 11.5, color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
