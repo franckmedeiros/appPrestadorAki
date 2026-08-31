@@ -53,9 +53,16 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
-    final isClient = auth.status == AuthStatus.authenticated;
+    // `auth.providerIdOrNull` em vez de `auth.providerId`: evita um crash
+    // real visto em produção (Null check operator used on a null value)
+    // quando `status` ainda diz "authenticated" num rebuild transitório
+    // logo depois de sair da conta, mas o Firebase Auth de verdade já
+    // não tem mais `currentUser`. Se isso acontecer, só trata como "sem
+    // conta" por esse frame — o próximo rebuild já corrige sozinho.
+    final uid = auth.status == AuthStatus.authenticated ? auth.providerIdOrNull : null;
+    final isClient = uid != null;
     if (isClient) {
-      _ensureStream(auth.providerId);
+      _ensureStream(uid);
     } else {
       _stream = null;
       _streamForUid = null;

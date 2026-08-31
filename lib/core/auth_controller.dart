@@ -62,6 +62,18 @@ class AuthController extends ChangeNotifier {
   /// garantido pelo redirect do go_router.
   String get providerId => _auth.currentUser!.uid;
 
+  /// Mesma coisa que [providerId], mas sem forçar login — usada só onde
+  /// `status` pode estar momentaneamente desatualizado em relação ao
+  /// Firebase Auth de verdade (bug real: MyRequestsScreen crashando com
+  /// "Null check operator used on a null value" logo depois de sair da
+  /// conta, porque o rebuild daquela aba do StatefulShellRoute ainda via
+  /// `status == authenticated` de um frame anterior enquanto
+  /// `_auth.currentUser` já tinha virado null). Prefira [providerId] em
+  /// qualquer outro lugar — ele falha alto de propósito quando usado fora
+  /// de hora; isso aqui é só pra blindar rebuilds transitórios de abas
+  /// que ficam vivas o tempo todo.
+  String? get providerIdOrNull => _auth.currentUser?.uid;
+
   /// Nome de exibição do usuário logado — usado, por exemplo, ao preencher
   /// automaticamente o nome do cliente num pedido de orçamento do
   /// marketplace.

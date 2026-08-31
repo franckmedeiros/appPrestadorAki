@@ -51,8 +51,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   void _loadListingIfProvider() {
     final auth = context.read<AuthController>();
-    if (auth.isProvider) {
-      _listingFuture = context.read<ProviderDirectoryRepository>().get(auth.providerId);
+    // providerIdOrNull (não providerId): mesma blindagem aplicada em
+    // MyRequestsScreen depois de um crash real visto ali — evita repetir
+    // o mesmo "Null check operator used on a null value" aqui, caso
+    // `isProvider` ainda esteja com um valor de um frame anterior num
+    // rebuild bem na hora de sair da conta.
+    final uid = auth.providerIdOrNull;
+    if (auth.isProvider && uid != null) {
+      _listingFuture = context.read<ProviderDirectoryRepository>().get(uid);
     }
   }
 
