@@ -63,8 +63,8 @@ Widget _footerFor(BuildContext context, ProviderListing listing) {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.chat_bubble, size: 15, color: Color(0xFF25D366)),
-              const SizedBox(width: 4),
+              const WhatsappBadge(size: 16),
+              const SizedBox(width: 5),
               Text(
                 listing.whatsapp!.trim(),
                 style: const TextStyle(fontSize: 12, color: AppColors.muted),
@@ -108,6 +108,29 @@ Future<void> abrirWhatsappDoPrestador(BuildContext context, String whatsappLocal
   if (!abriu && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Não foi possível abrir o WhatsApp.')),
+    );
+  }
+}
+
+/// Selo redondo verde com um telefone branco dentro - lembra o WhatsApp
+/// sem copiar o logo de verdade (questão de marca registrada), pra
+/// identificar rapidinho o contato como "conversa direta" sem depender só
+/// da cor do texto. Antes era só um Icon(Icons.chat_bubble) verde solto,
+/// que em tamanho pequeno ficava um retângulo feio, sem parecer profissional
+/// (feedback do Franck) - o círculo com ícone branco dentro é o mesmo
+/// truque visual que apps de contato usam pra selo de "verificado"/"WhatsApp".
+class WhatsappBadge extends StatelessWidget {
+  const WhatsappBadge({super.key, this.size = 18});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(color: Color(0xFF25D366), shape: BoxShape.circle),
+      child: Icon(Icons.phone, size: size * 0.55, color: Colors.white),
     );
   }
 }

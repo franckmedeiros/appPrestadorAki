@@ -5,7 +5,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
-import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador;
+import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador, WhatsappBadge;
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'models/service_category.dart';
@@ -156,8 +156,8 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.chat_bubble, size: 18, color: Color(0xFF25D366)),
-                              const SizedBox(width: 6),
+                              const WhatsappBadge(size: 20),
+                              const SizedBox(width: 8),
                               Text(
                                 listing.whatsapp!.trim(),
                                 style: const TextStyle(fontSize: 14, color: AppColors.muted),
