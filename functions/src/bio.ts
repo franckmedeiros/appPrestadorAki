@@ -8,8 +8,13 @@
  * Usa a Gemini Developer API (pacote `@google/genai`) com uma chave de
  * API guardada no Secret Manager (`GEMINI_API_KEY`) — mesmo padrão já
  * usado pra a chave da service account do Google Play em
- * subscription.ts. `gemini-2.5-flash` é rápido e barato o suficiente pra
- * um texto curto como esse.
+ * subscription.ts. `gemini-3.7-flash` e rapido e barato o suficiente pra
+ * um texto curto como esse (nao precisa nem de plano pago Blaze na
+ * Gemini Developer API - so as versoes preview exigem billing). Antes
+ * era `gemini-2.5-flash`, mas o Google desativou esse modelo (aviso de
+ * desligamento pra outubro de 2026, e gente relatando 404 mesmo antes
+ * disso) - foi o que causou o erro 'Nao foi possivel gerar o texto
+ * agora' que o Franck viu.
  *
  * Duas cautelas deliberadas no prompt:
  * 1. Instrução explícita pra NUNCA inventar anos de experiência,
@@ -119,7 +124,7 @@ export const gerarDescricaoPrestador = onCall({ secrets: [geminiApiKey] }, async
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.7-flash',
       contents: conteudo,
       config: {
         systemInstruction,
