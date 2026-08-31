@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/provider_logo_service.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/state_city_fields.dart';
 import '../../widgets/service_category_field.dart';
@@ -41,7 +44,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _emailController;
   final _whatsappController = TextEditingController();
   final _pixKeyController = TextEditingController();
-  final _logoUrlController = TextEditingController();
+  String _logoUrl = '';
+  bool _uploadingLogo = false;
   final _cepController = TextEditingController();
   final _streetController = TextEditingController();
   final _neighborhoodController = TextEditingController();
@@ -94,7 +98,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _addressUf = data['addressState'] as String?;
     _whatsappController.text = data['whatsapp'] as String? ?? '';
     _pixKeyController.text = data['pixKey'] as String? ?? '';
-    _logoUrlController.text = data['logoUrl'] as String? ?? '';
+    _logoUrl = data['logoUrl'] as String? ?? '';
     _listingStatus = data['listingStatus'] as String?;
     // A área de atuação vem de providers/{uid} (sempre existe, mesmo
     // 'pending' — ver functions/src/subscription.ts), não só do
@@ -111,13 +115,94 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _loading = false);
   }
 
+  /// Deixa escolher entre tirar uma foto na hora ou pegar da galeria —
+  /// mesmo padrão do EnviarComprovanteButton do app Resenha.
+  Future<ImageSource?> _escolherFonteDaLogo(BuildContext context) {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
+                title: const Text('Escolher da galeria'),
+                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: AppColors.primary),
+                title: const Text('Tirar foto'),
+                onTap: () => Navigator.of(context).pop(ImageSource.camera),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Toca no ícone do perfil pra trocar a logo — pedido do Franck pra
+  /// substituir o campo antigo de "colar o link da imagem" por um upload
+  /// de verdade (ver ProviderLogoService). Sobe pro Firebase Storage e já
+  /// atualiza `_logoUrl` — o salvamento de fato (gravar a URL nova em
+  /// providers/{uid}) só acontece quando o usuário confirmar em "Salvar",
+  /// igual aos outros campos desse formulário.
+  Future<void> _trocarLogo(BuildContext context) async {
+    final fonte = await _escolherFonteDaLogo(context);
+    if (fonte == null || !context.mounted) return;
+
+    XFile? foto;
+    try {
+      foto = await ImagePicker().pickImage(
+        source: fonte,
+        maxWidth: 1600,
+        imageQuality: 85,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('Não foi possível abrir ${fonte == ImageSource.camera ? 'a câmera' : 'a galeria'}.\n$e'),
+        ),
+      );
+      return;
+    }
+    if (foto == null || !context.mounted) return;
+
+    final uid = context.read<AuthController>().providerId;
+    setState(() => _uploadingLogo = true);
+    try {
+      final url = await ProviderLogoService.instance.enviar(uid: uid, arquivo: File(foto.path));
+      if (!mounted) return;
+      setState(() {
+        _logoUrl = url;
+        _uploadingLogo = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _uploadingLogo = false);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível enviar a imagem.\n$e')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _whatsappController.dispose();
     _pixKeyController.dispose();
-    _logoUrlController.dispose();
     _cepController.dispose();
     _streetController.dispose();
     _neighborhoodController.dispose();
@@ -253,7 +338,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       addressCity: (_addressCity ?? '').trim(),
       addressState: (_addressUf ?? '').trim().toUpperCase(),
       pixKey: _isProvider ? _pixKeyController.text.trim() : null,
-      logoUrl: _isProvider ? _logoUrlController.text.trim() : null,
+      logoUrl: _isProvider ? _logoUrl.trim() : null,
     );
 
     if (ok && _isProvider) {
@@ -447,45 +532,64 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const Text('Logo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                   const SizedBox(height: 8),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.primary.withValues(alpha: 0.1),
+                      GestureDetector(
+                        onTap: _uploadingLogo ? null : () => _trocarLogo(context),
+                        child: Container(
+                          width: 72,
+                          height: 72,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                          ),
+                          child: _uploadingLogo
+                              ? const Center(
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    _logoUrl.trim().isEmpty
+                                        ? const Icon(Icons.storefront_outlined,
+                                            color: AppColors.primary, size: 30)
+                                        : Image.network(
+                                            _logoUrl.trim(),
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => const Icon(
+                                                Icons.broken_image_outlined,
+                                                color: AppColors.muted),
+                                          ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      left: 0,
+                                      child: Container(
+                                        color: Colors.black.withValues(alpha: 0.45),
+                                        padding: const EdgeInsets.symmetric(vertical: 3),
+                                        child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
-                        child: _logoUrlController.text.trim().isEmpty
-                            ? const Icon(Icons.storefront_outlined, color: AppColors.primary)
-                            : Image.network(
-                                _logoUrlController.text.trim(),
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.broken_image_outlined, color: AppColors.muted),
-                              ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
-                          controller: _logoUrlController,
-                          decoration: const InputDecoration(
-                            labelText: 'Link da logo (opcional)',
-                            hintText: 'https://...',
-                          ),
-                          keyboardType: TextInputType.url,
-                          onChanged: (_) => setState(() {}),
+                        child: Text(
+                          'Toque no ícone pra tirar uma foto ou escolher da galeria. '
+                          'Aparece no seu perfil e, mais pra frente, no orçamento '
+                          'enviado ao cliente.',
+                          style: TextStyle(fontSize: 12, color: AppColors.muted),
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Aparece no seu perfil e, mais pra frente, no orçamento enviado ao '
-                    'cliente. Cole o link de uma imagem já hospedada em algum lugar '
-                    '(ex.: Google Drive, Imgur).',
-                    style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                 ],
                 const SizedBox(height: 20),
