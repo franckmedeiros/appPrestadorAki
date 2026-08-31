@@ -11,11 +11,18 @@ class GradientPillButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.isLoading = false,
+    this.icon,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
+
+  /// Ícone opcional depois do texto (ex.: seta) - pedido do mockup do
+  /// Franck pro painel de login/cadastro da aba "Meu perfil"
+  /// (guest_profile_panel.dart). Null mantém o botão só com texto, como
+  /// já era nas telas de Login/Cadastro.
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -49,13 +56,22 @@ class GradientPillButton extends StatelessWidget {
                         valueColor: AlwaysStoppedAnimation(Colors.white),
                       ),
                     )
-                  : Text(
-                      label,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (icon != null) ...[
+                          const SizedBox(width: 8),
+                          Icon(icon, color: Colors.white, size: 18),
+                        ],
+                      ],
                     ),
             ),
           ),

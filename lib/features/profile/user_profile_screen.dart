@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/testing_flags.dart';
-import '../marketplace/client_auth_gate.dart';
+import 'guest_profile_panel.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
@@ -75,10 +75,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final available = await context.read<AuthController>().biometricAvailable;
     if (!mounted) return;
     setState(() => _biometricAvailable = available);
-  }
-
-  Future<void> _signIn() async {
-    if (await ensureClientAccount(context) && mounted) setState(_reloadOwnData);
   }
 
   /// "Também quero oferecer serviços" — abre o mesmo tipo de formulário do
@@ -229,14 +225,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final isProvider = auth.isProvider;
 
     if (!isAuthenticated) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Meu perfil')),
-        body: ClientSignInPrompt(
-          icon: Icons.person_outline,
-          message: 'Entre ou crie uma conta para ver e editar seus dados.',
-          onPressed: _signIn,
-        ),
-      );
+      return GuestProfilePanel(onAuthenticated: () => setState(_reloadOwnData));
     }
 
     return Scaffold(
