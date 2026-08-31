@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/app_theme.dart';
-import '../../../widgets/app_list_card.dart';
 import '../client_auth_gate.dart';
 import '../models/provider_listing.dart';
 import '../models/service_category.dart';
@@ -45,29 +44,22 @@ Widget providerListingCard({
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AppListCard.iconAvatar(listing.category.icon),
+                    _CardAvatar(icon: listing.category.icon),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  listing.name,
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (listing.isVerifiedSubscriber) ...[
-                                const SizedBox(width: 8),
-                                const _VerifiedBadge(),
-                              ],
-                            ],
+                          Text(
+                            listing.name,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
+                          if (listing.isVerifiedSubscriber) ...[
+                            const SizedBox(height: 4),
+                            const _VerifiedBadge(),
+                          ],
                           const SizedBox(height: 6),
                           Row(
                             children: [
@@ -159,6 +151,33 @@ Widget providerListingCard({
       ),
     ),
   );
+}
+
+/// Avatar do card — maior que o `AppListCard.iconAvatar` compartilhado
+/// (usado em Orçamentos/Solicitações, que tem menos espaço de sobra),
+/// pra chegar mais perto da proporção do mockup que o Franck mandou
+/// nessa tela específica de busca.
+class _CardAvatar extends StatelessWidget {
+  const _CardAvatar({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 62,
+      height: 62,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary, AppColors.primaryDark],
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Icon(icon, color: Colors.white, size: 30),
+    );
+  }
 }
 
 /// Selo "Verificado" - só pra quem tem conta de verdade com assinatura
