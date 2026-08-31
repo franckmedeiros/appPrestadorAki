@@ -4,6 +4,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/testing_flags.dart';
 import 'guest_profile_panel.dart';
+import '../../widgets/decorative_header.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
@@ -229,158 +230,223 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Meu perfil')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Center(
-            child: FutureBuilder<Map<String, dynamic>>(
-              future: _ownDataFuture,
-              builder: (context, snapshot) {
-                final logoUrl = snapshot.data?['logoUrl'] as String?;
-                return Container(
-                  width: 84,
-                  height: 84,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                  ),
-                  child: (logoUrl != null && logoUrl.isNotEmpty)
-                      ? Image.network(
-                          logoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.person, size: 42, color: AppColors.primary),
-                        )
-                      : const Icon(Icons.person, size: 42, color: AppColors.primary),
-                );
-              },
+      backgroundColor: AppColors.background,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const DecorativeHeader(
+              height: 150,
+              child: Text(
+                'Meu perfil',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              auth.displayName,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Center(
-            child: Text(
-              _currentEmail(context),
-              style: const TextStyle(color: AppColors.muted, fontSize: 13),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Categoria/cidade (quando prestador) vêm de `_ownDataFuture`
-          // (providers/{uid}, o documento PRÓPRIO do dono da conta) — não
-          // de `_listingFuture` (providerDirectory, o diretório PÚBLICO).
-          // Enquanto a assinatura não estiver ativa, providerDirectory
-          // nem chega a existir (ver DATA_MODEL.md, "Gate de pagamento"),
-          // então usar o diretório público aqui faria a própria pessoa ver
-          // "Não informado" pros dados que ela mesma já preencheu — mesmo
-          // que "Editar perfil" mostre tudo certinho, porque lê a mesma
-          // fonte (`_ownDataFuture`) que este bloco agora também usa.
-          FutureBuilder<Map<String, dynamic>>(
-            future: _ownDataFuture,
-            builder: (context, snapshot) {
-              final data = snapshot.data ?? const <String, dynamic>{};
-              final whatsapp = data['whatsapp'] as String?;
-              final category = data['category'] as String?;
-              final city = data['city'] as String?;
-              final state = data['state'] as String?;
-              final cityLabel = (city != null && city.isNotEmpty)
-                  ? ((state != null && state.isNotEmpty) ? '$city/$state' : city)
-                  : null;
-              return Column(
-                children: [
-                  if (isProvider) ...[
-                    _InfoTile(
-                      icon: Icons.handyman_outlined,
-                      label: 'Categoria',
-                      value: (category != null && category.isNotEmpty)
-                          ? serviceCategoryFromWire(category).label
-                          : 'Não informado',
+            Transform.translate(
+              offset: const Offset(0, -24),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+                child: Column(
+                  children: [
+                    // Avatar sobreposto à borda do cabeçalho (anel branco +
+                    // sombra), tocável — leva direto pra "Editar perfil", com
+                    // um selinho de lápis só de dica visual (mesma ideia de
+                    // apps que deixam a própria foto como atalho de edição).
+                    Center(
+                      child: FutureBuilder<Map<String, dynamic>>(
+                        future: _ownDataFuture,
+                        builder: (context, snapshot) {
+                          final logoUrl = snapshot.data?['logoUrl'] as String?;
+                          return InkWell(
+                            onTap: _editProfile,
+                            customBorder: const CircleBorder(),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 88,
+                                  height: 88,
+                                  clipBehavior: Clip.antiAlias,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                    border: Border.all(color: AppColors.surface, width: 4),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.10),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: (logoUrl != null && logoUrl.isNotEmpty)
+                                      ? Image.network(
+                                          logoUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) =>
+                                              const Icon(Icons.person, size: 42, color: AppColors.primary),
+                                        )
+                                      : const Icon(Icons.person, size: 42, color: AppColors.primary),
+                                ),
+                                Positioned(
+                                  right: -2,
+                                  bottom: -2,
+                                  child: Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: AppColors.primary,
+                                      border: Border.fromBorderSide(
+                                        BorderSide(color: AppColors.surface, width: 2),
+                                      ),
+                                    ),
+                                    child: const Icon(Icons.edit, size: 14, color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                    _InfoTile(
-                      icon: Icons.location_city_outlined,
-                      label: 'Cidade',
-                      value: cityLabel ?? 'Não informado',
+                    const SizedBox(height: 14),
+                    Text(
+                      auth.displayName,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _currentEmail(context),
+                      style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                    ),
+                    const SizedBox(height: 28),
+                    // Categoria/cidade (quando prestador) vêm de `_ownDataFuture`
+                    // (providers/{uid}, o documento PRÓPRIO do dono da conta) — não
+                    // de `_listingFuture` (providerDirectory, o diretório PÚBLICO).
+                    // Enquanto a assinatura não estiver ativa, providerDirectory
+                    // nem chega a existir (ver DATA_MODEL.md, "Gate de pagamento"),
+                    // então usar o diretório público aqui faria a própria pessoa ver
+                    // "Não informado" pros dados que ela mesma já preencheu — mesmo
+                    // que "Editar perfil" mostre tudo certinho, porque lê a mesma
+                    // fonte (`_ownDataFuture`) que este bloco agora também usa.
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: _ProfileSectionLabel(icon: Icons.badge_outlined, label: 'Informações da conta'),
+                    ),
+                    const SizedBox(height: 10),
+                    FutureBuilder<Map<String, dynamic>>(
+                      future: _ownDataFuture,
+                      builder: (context, snapshot) {
+                        final data = snapshot.data ?? const <String, dynamic>{};
+                        final whatsapp = data['whatsapp'] as String?;
+                        final category = data['category'] as String?;
+                        final city = data['city'] as String?;
+                        final state = data['state'] as String?;
+                        final cityLabel = (city != null && city.isNotEmpty)
+                            ? ((state != null && state.isNotEmpty) ? '$city/$state' : city)
+                            : null;
+                        return Column(
+                          children: [
+                            if (isProvider) ...[
+                              _InfoTile(
+                                icon: Icons.handyman_outlined,
+                                label: 'Categoria',
+                                value: (category != null && category.isNotEmpty)
+                                    ? serviceCategoryFromWire(category).label
+                                    : 'Não informado',
+                              ),
+                              _InfoTile(
+                                icon: Icons.location_city_outlined,
+                                label: 'Cidade',
+                                value: cityLabel ?? 'Não informado',
+                              ),
+                            ],
+                            _InfoTile(
+                              icon: Icons.phone_outlined,
+                              label: 'Telefone/WhatsApp',
+                              value: (whatsapp != null && whatsapp.isNotEmpty) ? whatsapp : 'Não informado',
+                            ),
+                            _InfoTile(
+                              icon: Icons.home_outlined,
+                              label: 'Endereço',
+                              value: _formatAddress(data),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    GradientPillButton(
+                      label: 'Editar perfil',
+                      icon: Icons.edit_outlined,
+                      onPressed: _editProfile,
+                    ),
+                    if (!isProvider) ...[
+                      const SizedBox(height: 12),
+                      _BecomeProviderCard(onTap: _becomeProvider),
+                    ],
+                    if (_biometricAvailable == true) ...[
+                      const SizedBox(height: 28),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: _ProfileSectionLabel(icon: Icons.lock_outline, label: 'Segurança'),
+                      ),
+                      const SizedBox(height: 10),
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: SwitchListTile(
+                          value: auth.biometricEnabled,
+                          onChanged: (value) => context.read<AuthController>().setBiometricEnabled(value),
+                          title: const Text('Entrar com biometria'),
+                          subtitle: const Text(
+                            'Digital ou reconhecimento facial, em vez de digitar a senha toda vez.',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 28),
+                    // Sair da conta virou um botão neutro (não mais vermelho):
+                    // é uma ação comum e reversível, não destrutiva — o
+                    // vermelho de "perigo" fica só pra excluir conta de
+                    // verdade, logo abaixo, que é a ação que não tem volta.
+                    OutlinedButton.icon(
+                      onPressed: () => _logout(context),
+                      icon: const Icon(Icons.logout, color: AppColors.ink),
+                      label: const Text('Sair da conta', style: TextStyle(color: AppColors.ink)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: BorderSide(color: AppColors.muted.withValues(alpha: 0.35)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _excluindoConta ? null : () => _excluirConta(context),
+                        icon: _excluindoConta
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.delete_forever_outlined, size: 16, color: AppColors.muted),
+                        label: Text(
+                          _excluindoConta ? 'Excluindo conta...' : 'Excluir minha conta',
+                          style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+                        ),
+                      ),
                     ),
                   ],
-                  _InfoTile(
-                    icon: Icons.phone_outlined,
-                    label: 'Telefone/WhatsApp',
-                    value: (whatsapp != null && whatsapp.isNotEmpty) ? whatsapp : 'Não informado',
-                  ),
-                  _InfoTile(
-                    icon: Icons.home_outlined,
-                    label: 'Endereço',
-                    value: _formatAddress(data),
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          GradientPillButton(
-            label: 'Editar perfil',
-            onPressed: _editProfile,
-          ),
-          if (!isProvider) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _becomeProvider,
-              icon: const Icon(Icons.handyman_outlined),
-              label: const Text('Também quero oferecer serviços'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            ),
-          ],
-          if (_biometricAvailable == true) ...[
-            const SizedBox(height: 24),
-            const Text('Segurança', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            const SizedBox(height: 4),
-            Card(
-              child: SwitchListTile(
-                value: auth.biometricEnabled,
-                onChanged: (value) => context.read<AuthController>().setBiometricEnabled(value),
-                title: const Text('Entrar com biometria'),
-                subtitle: const Text(
-                  'Digital ou reconhecimento facial, em vez de digitar a senha toda vez.',
-                  style: TextStyle(fontSize: 12),
                 ),
               ),
             ),
           ],
-          const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: () => _logout(context),
-            icon: const Icon(Icons.logout, color: AppColors.danger),
-            label: const Text('Sair da conta', style: TextStyle(color: AppColors.danger)),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              side: const BorderSide(color: AppColors.danger),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Center(
-            child: TextButton.icon(
-              onPressed: _excluindoConta ? null : () => _excluirConta(context),
-              icon: _excluindoConta
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.delete_forever_outlined, size: 16, color: AppColors.muted),
-              label: Text(
-                _excluindoConta ? 'Excluindo conta...' : 'Excluir minha conta',
-                style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -417,7 +483,7 @@ class _InfoTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -425,7 +491,12 @@ class _InfoTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.primary, size: 20),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary.withValues(alpha: 0.1)),
+            child: Icon(icon, color: AppColors.primary, size: 18),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -438,6 +509,82 @@ class _InfoTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Rótulo pequeno de seção (ícone + texto em maiúsculas discretas) usado
+/// acima de "Informações da conta"/"Segurança" — mesma ideia do
+/// `_SectionHeader` de `edit_profile_screen.dart`, só que mais discreto
+/// (sem selo redondo), porque aqui é só um agrupador dentro de uma tela
+/// mais curta, não o cabeçalho de um formulário longo.
+class _ProfileSectionLabel extends StatelessWidget {
+  const _ProfileSectionLabel({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: AppColors.muted),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.muted)),
+      ],
+    );
+  }
+}
+
+/// Card de destaque pra "Também quero oferecer serviços" — antes um
+/// OutlinedButton simples, virou um card tocável com selo de ícone,
+/// título e legenda (mesma linguagem visual dos cards de categoria/
+/// cidade de hoje), pra parecer um convite de funcionalidade em vez de
+/// só mais um botão secundário perdido na tela.
+class _BecomeProviderCard extends StatelessWidget {
+  const _BecomeProviderCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.primary),
+              child: const Icon(Icons.handyman_outlined, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Também quero oferecer serviços', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  SizedBox(height: 2),
+                  Text(
+                    'Vire prestador e comece a aparecer nas buscas dos clientes.',
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.primary),
+          ],
+        ),
       ),
     );
   }
