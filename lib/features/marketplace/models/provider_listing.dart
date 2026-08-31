@@ -17,6 +17,7 @@ class ProviderListing {
     this.providerUid,
     this.ratingAverage = 0,
     this.ratingCount = 0,
+    this.bio,
   });
 
   factory ProviderListing.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -31,6 +32,7 @@ class ProviderListing {
       providerUid: data['providerUid'] as String?,
       ratingAverage: (data['ratingAverage'] as num?)?.toDouble() ?? 0,
       ratingCount: (data['ratingCount'] as num?)?.toInt() ?? 0,
+      bio: data['bio'] as String?,
     );
   }
 
@@ -51,6 +53,12 @@ class ProviderListing {
   /// ordem de exibição — ver ProviderDirectoryRepository.search.
   final double ratingAverage;
   final int ratingCount;
+
+  /// "Carta de apresentação" curta que o prestador escreve (com ajuda
+  /// opcional de IA — ver ProviderBioAiService/EditProfileScreen), visível
+  /// pro cliente no perfil público. Null/vazio pra quem ainda não
+  /// preencheu.
+  final String? bio;
 
   String get locationLabel => state == null || state!.isEmpty ? city : '$city/$state';
 }

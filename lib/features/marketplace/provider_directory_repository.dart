@@ -131,6 +131,7 @@ class ProviderDirectoryRepository {
     required ServiceCategory category,
     required String city,
     String? state,
+    String? bio,
   }) async {
     try {
       final uid = _auth.currentUser!.uid;
@@ -142,6 +143,7 @@ class ProviderDirectoryRepository {
         'category': category.wireValue,
         'city': city,
         if (state != null && state.isNotEmpty) 'state': state,
+        'bio': (bio != null && bio.trim().isNotEmpty) ? bio.trim() : FieldValue.delete(),
         'claimed': true,
         'providerUid': uid,
         'updatedAt': now,

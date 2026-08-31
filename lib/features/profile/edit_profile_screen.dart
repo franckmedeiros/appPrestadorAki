@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -8,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/provider_logo_service.dart';
+import '../../core/provider_bio_ai_service.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/state_city_fields.dart';
 import '../../widgets/service_category_field.dart';
@@ -46,6 +48,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _pixKeyController = TextEditingController();
   String _logoUrl = '';
   bool _uploadingLogo = false;
+  final _bioController = TextEditingController();
+  bool _geradorIABusy = false;
   final _cepController = TextEditingController();
   final _streetController = TextEditingController();
   final _neighborhoodController = TextEditingController();
@@ -99,6 +103,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _whatsappController.text = data['whatsapp'] as String? ?? '';
     _pixKeyController.text = data['pixKey'] as String? ?? '';
     _logoUrl = data['logoUrl'] as String? ?? '';
+    _bioController.text = data['bio'] as String? ?? '';
     _listingStatus = data['listingStatus'] as String?;
     // A área de atuação vem de providers/{uid} (sempre existe, mesmo
     // 'pending' — ver functions/src/subscription.ts), não só do
@@ -197,12 +202,52 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  /// Botões "Gerar com IA"/"Melhorar com IA" da seção Descrição — chama
+  /// a Cloud Function gerarDescricaoPrestador (Gemini). [comRascunho]
+  /// decide se manda o texto já escrito no campo (pra IA melhorar) ou
+  /// nada (pra IA gerar do zero, só com categoria/cidade).
+  Future<void> _gerarDescricao({required bool comRascunho}) async {
+    if (_category == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Escolha sua categoria de serviço primeiro.')),
+      );
+      return;
+    }
+    setState(() => _geradorIABusy = true);
+    try {
+      final descricao = await ProviderBioAiService.instance.gerar(
+        categoria: _category!.label,
+        cidade: _areaCity,
+        estado: _areaUf,
+        rascunho: comRascunho ? _bioController.text : null,
+      );
+      if (!mounted) return;
+      setState(() {
+        _bioController.text = descricao;
+        _geradorIABusy = false;
+      });
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      setState(() => _geradorIABusy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Não foi possível gerar o texto agora.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _geradorIABusy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível gerar o texto agora. Tente de novo.')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _whatsappController.dispose();
     _pixKeyController.dispose();
+    _bioController.dispose();
     _cepController.dispose();
     _streetController.dispose();
     _neighborhoodController.dispose();
@@ -339,6 +384,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       addressState: (_addressUf ?? '').trim().toUpperCase(),
       pixKey: _isProvider ? _pixKeyController.text.trim() : null,
       logoUrl: _isProvider ? _logoUrl.trim() : null,
+      bio: _isProvider ? _bioController.text.trim() : null,
     );
 
     if (ok && _isProvider) {
@@ -369,6 +415,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 category: _category!,
                 city: (_areaCity ?? '').trim(),
                 state: (_areaUf ?? '').trim().toUpperCase(),
+                bio: _bioController.text.trim(),
               );
         }
       } catch (e) {
@@ -588,6 +635,52 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           'Aparece no seu perfil e, mais pra frente, no orçamento '
                           'enviado ao cliente.',
                           style: TextStyle(fontSize: 12, color: AppColors.muted),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Descrição', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Uma "carta de apresentação" curta pro cliente ver no seu perfil público.',
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _bioController,
+                    maxLines: 4,
+                    maxLength: 400,
+                    enabled: !_geradorIABusy,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Ex.: Atendo residências e comércios, com atenção a prazos e '
+                          'organização no serviço.',
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _geradorIABusy ? null : () => _gerarDescricao(comRascunho: false),
+                          icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                          label: const Text('Gerar com IA'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: (_geradorIABusy || _bioController.text.trim().isEmpty)
+                              ? null
+                              : () => _gerarDescricao(comRascunho: true),
+                          icon: _geradorIABusy
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.auto_fix_high_outlined, size: 18),
+                          label: const Text('Melhorar com IA'),
                         ),
                       ),
                     ],

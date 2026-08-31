@@ -355,6 +355,7 @@ class AuthController extends ChangeNotifier {
     String? addressState,
     String? pixKey,
     String? logoUrl,
+    String? bio,
   }) =>
       _submit(() async {
         final user = _auth.currentUser!;
@@ -397,6 +398,7 @@ class AuthController extends ChangeNotifier {
             // dados da conta, igual telefone/endereço acima.
             'pixKey': (pixKey != null && pixKey.isNotEmpty) ? pixKey : FieldValue.delete(),
             'logoUrl': (logoUrl != null && logoUrl.isNotEmpty) ? logoUrl : FieldValue.delete(),
+            'bio': (bio != null && bio.trim().isNotEmpty) ? bio.trim() : FieldValue.delete(),
             'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),

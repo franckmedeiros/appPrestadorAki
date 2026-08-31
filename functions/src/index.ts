@@ -15,3 +15,5 @@ export { onServiceRequestCreated, onServiceRequestResponded } from './notificati
 
 export { excluirContaEDados } from './account';
 
+export { gerarDescricaoPrestador } from './bio';
+

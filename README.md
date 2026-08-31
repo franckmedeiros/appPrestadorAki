@@ -358,3 +358,32 @@ Qualquer erro de permissão nesses passos (o mais comum costuma ser
 esquecer de convidar a service account com as duas permissões certas no
 passo 2, ou errar o nome do tópico no passo 3), me manda a mensagem exata
 que eu ajudo a diagnosticar.
+
+## Descrição do prestador com IA (Gemini)
+
+Na tela "Editar perfil", o prestador pode gerar ou melhorar, com IA, a
+descrição curta que aparece no perfil público (ver
+`functions/src/bio.ts:gerarDescricaoPrestador`). Usa a Gemini Developer
+API (pacote `@google/genai`), com a chave guardada no Secret Manager —
+mesmo esquema da chave da service account do Google Play acima.
+
+1. **Gerar uma chave de API** em https://aistudio.google.com/apikey
+   (Google AI Studio — pode ser vinculada ao mesmo projeto Firebase, não
+   precisa de outra conta nem cartão de crédito pra começar; a Gemini
+   Developer API tem uma cota gratuita).
+2. **Guardar no Secret Manager** (na sua máquina, dentro da pasta do
+   projeto):
+   ```
+   firebase functions:secrets:set GEMINI_API_KEY
+   ```
+   Cola a chave quando pedir (sem colar em nenhum arquivo do
+   repositório).
+3. **Instalar a dependência nova e implantar**:
+   ```
+   cd functions && npm install && cd ..
+   firebase deploy --only functions:gerarDescricaoPrestador
+   ```
+
+Sem essa chave configurada, os botões "Gerar com IA"/"Melhorar com IA"
+aparecem normalmente no app, mas dão erro ao tocar — o campo de texto
+continua funcionando manualmente (escrever/editar na mão) mesmo sem a IA.

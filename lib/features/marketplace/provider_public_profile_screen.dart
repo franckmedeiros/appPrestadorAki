@@ -149,6 +149,13 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                           style: const TextStyle(color: AppColors.muted)),
                       const SizedBox(height: 10),
                       StarRatingBar(rating: listing.ratingAverage, count: listing.ratingCount, starSize: 26),
+                      if ((listing.bio ?? '').trim().isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          listing.bio!.trim(),
+                          style: const TextStyle(fontSize: 14, height: 1.4),
+                        ),
+                      ],
                       if (!listing.claimed) ...[
                         const SizedBox(height: 12),
                         const Card(
