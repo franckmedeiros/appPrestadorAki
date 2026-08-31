@@ -59,7 +59,7 @@ Widget _footerFor(BuildContext context, ProviderListing listing) {
       if ((listing.whatsapp ?? '').trim().isNotEmpty) ...[
         const SizedBox(height: 6),
         InkWell(
-          onTap: () => _abrirWhatsapp(context, listing.whatsapp!),
+          onTap: () => abrirWhatsappDoPrestador(context, listing.whatsapp!),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -88,13 +88,14 @@ Widget _footerFor(BuildContext context, ProviderListing listing) {
   );
 }
 
-/// Numero do WhatsApp so aparece no card (ver acima) pra quem assina de
-/// verdade - pedido do Franck. Abre direto na conversa via link
-/// https://wa.me/... (funciona com ou sem o WhatsApp instalado: com o
-/// app, abre nele; sem, cai no WhatsApp Web) - por isso nao precisa
-/// nenhuma configuracao nativa extra no Android/iOS, so o pacote
-/// url_launcher.
-Future<void> _abrirWhatsapp(BuildContext context, String whatsappLocal) async {
+/// Numero do WhatsApp so aparece pra quem assina de verdade - pedido do
+/// Franck. Publica (sem "_") porque tambem e usada no perfil publico
+/// (ver ProviderPublicProfileScreen), nao so aqui no card. Abre direto na
+/// conversa via link https://wa.me/... (funciona com ou sem o WhatsApp
+/// instalado: com o app, abre nele; sem, cai no WhatsApp Web) - por isso
+/// nao precisa nenhuma configuracao nativa extra no Android/iOS, so o
+/// pacote url_launcher.
+Future<void> abrirWhatsappDoPrestador(BuildContext context, String whatsappLocal) async {
   final digits = whatsappLocal.replaceAll(RegExp(r'[^0-9]'), '');
   if (digits.isEmpty) return;
   // Numero guardado no formato local brasileiro (DDD + numero, sem

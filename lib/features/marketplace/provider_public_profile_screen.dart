@@ -5,6 +5,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
+import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador;
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'models/service_category.dart';
@@ -147,6 +148,28 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                       const SizedBox(height: 4),
                       Text('${listing.category.label} · ${listing.locationLabel}',
                           style: const TextStyle(color: AppColors.muted)),
+                      if ((listing.whatsapp ?? '').trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: () => abrirWhatsappDoPrestador(context, listing.whatsapp!),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.chat_bubble, size: 18, color: Color(0xFF25D366)),
+                              const SizedBox(width: 6),
+                              Text(
+                                listing.whatsapp!.trim(),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF25D366),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       StarRatingBar(rating: listing.ratingAverage, count: listing.ratingCount, starSize: 26),
                       if ((listing.bio ?? '').trim().isNotEmpty) ...[
