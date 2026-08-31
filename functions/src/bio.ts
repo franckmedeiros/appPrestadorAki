@@ -138,7 +138,28 @@ export const gerarDescricaoPrestador = onCall({ secrets: [geminiApiKey] }, async
     }
     return { descricao };
   } catch (error) {
-    logger.error('Falha ao gerar descrição com IA', { uid, error });
+    // Guarda status/message/name explicitos porque o objeto de erro do
+    // @google/genai (ApiError), quando logado direto dentro de outro
+    // objeto, so aparecia com 'status'/'name' no Cloud Logging - a
+    // mensagem detalhada do Google (ex.: motivo exato do 429) sumia.
+    const err = error as { status?: number; message?: string; name?: string } | undefined;
+    logger.error('Falha ao gerar descrição com IA', {
+      uid,
+      status: err?.status,
+      name: err?.name,
+      message: err?.message,
+      error,
+    });
+    // 429 da Gemini API é "muita procura agora" (limite de uso do
+    // projeto/chave) - não é bug nosso, então vale um aviso diferente do
+    // erro genérico, pra quem usa entender que é só tentar de novo daqui
+    // a pouco (ver https://aistudio.google.com/rate-limit).
+    if (err?.status === 429) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'O serviço de IA está com muita procura agora. Espere um minuto e tente de novo.',
+      );
+    }
     throw new HttpsError('internal', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
   }
 });
