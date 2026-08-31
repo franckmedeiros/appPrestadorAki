@@ -103,6 +103,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 2,
                     child: StateSelectorField(
                       key: ValueKey('customer-uf-$_uf'),
                       initialValue: _uf,

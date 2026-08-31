@@ -554,6 +554,7 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 2,
                     child: StateSelectorField(
                       key: ValueKey('become-uf-$_uf'),
                       initialValue: _uf,

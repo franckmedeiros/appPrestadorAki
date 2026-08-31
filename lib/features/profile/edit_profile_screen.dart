@@ -482,6 +482,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
+                        flex: 2,
                         child: StateSelectorField(
                           key: ValueKey('area-uf-$_areaUf'),
                           initialValue: _areaUf,
@@ -647,10 +648,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
+                      flex: 2,
                       child: StateSelectorField(
                         key: ValueKey('address-uf-$_addressUf'),
                         initialValue: _addressUf,
-                        label: 'Estado (opcional)',
+                        label: 'UF',
                         onChanged: (uf) => setState(() {
                           _addressUf = uf;
                           _addressCity = null;

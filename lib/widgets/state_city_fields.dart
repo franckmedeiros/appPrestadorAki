@@ -50,6 +50,16 @@ class _SelectorBox extends StatelessWidget {
 /// vez de deixar digitar livre (par de `CitySelectorField`; ver a nota em
 /// `BrazilLocations` sobre por que isso substituiu o campo de texto
 /// livre).
+///
+/// Label padrão curto ("UF") de propósito: esse campo divide a linha com
+/// `CitySelectorField` numa proporção estreita (ver os usos em
+/// EditProfileScreen/CustomerFormScreen/UserProfileScreen — normalmente
+/// `Expanded` sem flex, ou seja 1 parte, contra `flex: 3` da cidade), e o
+/// `InputDecorator` já reserva boa parte dessa largura estreita pro ícone
+/// de seta. Um label mais longo ("Estado (UF)", "Estado (opcional)")
+/// nessa largura fazia o Flutter cortar o próprio texto do VALOR
+/// escolhido, não só o label — foi exatamente o bug que o Franck reportou
+/// (estado ficava certo por baixo, mas a caixa fechada aparecia vazia).
 class StateSelectorField extends FormField<String> {
   StateSelectorField({
     Key? key,
@@ -57,7 +67,7 @@ class StateSelectorField extends FormField<String> {
     FormFieldValidator<String>? validator,
     bool enabled = true,
     required ValueChanged<String?> onChanged,
-    String label = 'Estado (UF)',
+    String label = 'UF',
   }) : super(
           key: key,
           initialValue: initialValue,
