@@ -13,3 +13,5 @@ export { confirmarAssinaturaPrestador, processarNotificacaoPlay } from './subscr
 
 export { onServiceRequestCreated, onServiceRequestResponded } from './notifications';
 
+export { excluirContaEDados } from './account';
+

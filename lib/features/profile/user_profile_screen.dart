@@ -10,6 +10,8 @@ import '../marketplace/provider_directory_repository.dart';
 import 'edit_profile_screen.dart';
 import '../../widgets/state_city_fields.dart';
 import '../../widgets/service_category_field.dart';
+import '../../widgets/gradient_pill_button.dart';
+import '../../widgets/labeled_text_field.dart';
 import 'provider_paywall_screen.dart';
 
 /// Aba "Meu perfil" — igual ao pedido do Franck ("colocar a opção de
@@ -37,6 +39,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<ProviderListing?>? _listingFuture;
   late Future<Map<String, dynamic>> _ownDataFuture;
   bool? _biometricAvailable;
+  bool _excluindoConta = false;
 
   @override
   void initState() {
@@ -130,6 +133,94 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (confirm == true && context.mounted) {
       await context.read<AuthController>().logout();
     }
+  }
+
+  /// Exclusao de conta, mesma logica pedida pelo Franck ("igual ao
+  /// resenha"): avisa o que vai ser apagado, pede a senha de novo (o
+  /// Firebase exige login "recente" pra deixar apagar a conta), e so
+  /// entao chama AuthController.deleteAccount (que reautentica, chama a
+  /// Cloud Function excluirContaEDados, e encerra a sessao local). O
+  /// router redireciona sozinho pra tela de login assim que o status
+  /// muda pra unauthenticated (ver refreshListenable em app_router.dart),
+  /// entao nao precisa navegar manualmente daqui.
+  Future<void> _excluirConta(BuildContext context) async {
+    final auth = context.read<AuthController>();
+    final isProvider = auth.isProvider;
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir sua conta?'),
+        content: Text(
+          isProvider
+              ? 'Isso apaga seu perfil, seu cadastro de prestador (com '
+                  'clientes, agenda, orcamentos e trabalhos) e seus '
+                  'favoritos. Essa acao nao pode ser desfeita.'
+              : 'Isso apaga seu perfil e seus favoritos. Essa acao nao '
+                  'pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Continuar', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !context.mounted) return;
+
+    final senhaController = TextEditingController();
+    final senha = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirme sua senha'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Por seguranca, digite sua senha atual pra confirmar a '
+              'exclusao da conta.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            LabeledTextField(
+              label: 'Senha',
+              controller: senhaController,
+              obscureText: true,
+              prefixIcon: Icons.lock_outline,
+              textInputAction: TextInputAction.done,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(senhaController.text),
+            child: const Text('Excluir conta', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (senha == null || senha.isEmpty || !context.mounted) return;
+
+    setState(() => _excluindoConta = true);
+    final ok = await auth.deleteAccount(senha);
+    if (!context.mounted) return;
+    if (!ok) {
+      setState(() => _excluindoConta = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.errorMessage ?? 'Nao foi possivel excluir a conta.')),
+      );
+    }
+    // Se deu certo, nao precisa desligar _excluindoConta nem fazer nada
+    // mais aqui: o status virou unauthenticated e o router ja tirou essa
+    // tela da arvore.
   }
 
   @override
@@ -245,11 +336,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             },
           ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
+          GradientPillButton(
+            label: 'Editar perfil',
             onPressed: _editProfile,
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Editar perfil'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
           ),
           if (!isProvider) ...[
             const SizedBox(height: 8),
@@ -284,6 +373,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               side: const BorderSide(color: AppColors.danger),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: TextButton.icon(
+              onPressed: _excluindoConta ? null : () => _excluirConta(context),
+              icon: _excluindoConta
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_forever_outlined, size: 16, color: AppColors.muted),
+              label: Text(
+                _excluindoConta ? 'Excluindo conta...' : 'Excluir minha conta',
+                style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+              ),
             ),
           ),
         ],

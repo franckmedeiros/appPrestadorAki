@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'biometric_service.dart';
@@ -426,6 +427,28 @@ class AuthController extends ChangeNotifier {
             EmailAuthProvider.credential(email: user.email!, password: currentPassword);
         await user.reauthenticateWithCredential(credential);
         await user.verifyBeforeUpdateEmail(newEmail);
+      });
+
+  /// Exclui a conta e todos os dados associados (perfil, cadastro de
+  /// prestador com clientes/agenda/orçamentos, favoritos) — pedida na tela
+  /// "Meu perfil", igual ao app Resenha. Reautentica primeiro (mesma
+  /// exigência de segurança do Firebase que já existe em
+  /// updateEmailAddress, acima), depois chama a Cloud Function
+  /// excluirContaEDados, que apaga tudo no Firestore via recursiveDelete
+  /// e só então remove a conta do Firebase Auth. Como o login já deixa de
+  /// existir no servidor depois disso, encerra a sessão local do mesmo
+  /// jeito que logout() faria, sem chamar signOut (o usuário já não
+  /// existe mais pro Firebase).
+  Future<bool> deleteAccount(String currentPassword) => _submit(() async {
+        final user = _auth.currentUser!;
+        final credential =
+            EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+        await user.reauthenticateWithCredential(credential);
+        await FirebaseFunctions.instance.httpsCallable('excluirContaEDados').call();
+        await _storage.clear();
+        biometricEnabled = false;
+        isProvider = false;
+        status = AuthStatus.unauthenticated;
       });
 
   Future<void> logout() async {
