@@ -293,7 +293,7 @@ class _ContactFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final proposta = _FooterAction(
-      icon: FontAwesomeIcons.commentDots,
+      icon: const FaIcon(FontAwesomeIcons.commentDots, color: AppColors.primary, size: 19),
       color: AppColors.primary,
       title: 'Enviar proposta',
       subtitle: 'Peça um orçamento',
@@ -307,7 +307,7 @@ class _ContactFooter extends StatelessWidget {
         children: [
           Expanded(
             child: _FooterAction(
-              icon: FontAwesomeIcons.whatsapp,
+              icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366), size: 19),
               color: const Color(0xFF25D366),
               title: 'Entrar em contato',
               subtitle: 'Fale pelo WhatsApp',
@@ -332,7 +332,7 @@ class _FooterAction extends StatelessWidget {
     this.trailing,
   });
 
-  final IconData icon;
+  final Widget icon;
   final Color color;
   final String title;
   final String subtitle;
@@ -354,7 +354,7 @@ class _FooterAction extends StatelessWidget {
                 color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: color, size: 19),
+              child: icon,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -414,7 +414,7 @@ class WhatsappBadge extends StatelessWidget {
       width: size,
       height: size,
       decoration: const BoxDecoration(color: Color(0xFF25D366), shape: BoxShape.circle),
-      child: Icon(FontAwesomeIcons.whatsapp, size: size * 0.55, color: Colors.white),
+      child: FaIcon(FontAwesomeIcons.whatsapp, size: size * 0.55, color: Colors.white),
     );
   }
 }
