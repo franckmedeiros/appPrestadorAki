@@ -66,7 +66,15 @@ class StateSelectorField extends FormField<String> {
           builder: (field) => _SelectorBox(
             label: label,
             hint: 'Selecione',
-            valueText: field.value,
+            // Usa `initialValue` (o valor que o dono da tela está
+            // controlando agora), não `field.value` — este só se atualiza
+            // via `field.didChange`, chamado pelo onTap abaixo, então uma
+            // atualização EXTERNA (ex.: o preenchimento automático por CEP
+            // em EditProfileScreen, que muda a variável do estado
+            // diretamente, sem passar por aqui) nunca chegaria em
+            // field.value — só a caixa ficava desatualizada, mesmo com o
+            // seletor de baixo já mostrando o estado certo marcado.
+            valueText: initialValue,
             errorText: field.errorText,
             enabled: field.widget.enabled,
             onTap: !field.widget.enabled
@@ -75,7 +83,7 @@ class StateSelectorField extends FormField<String> {
                     final uf = await showModalBottomSheet<String>(
                       context: field.context,
                       isScrollControlled: true,
-                      builder: (_) => _StatePickerSheet(selected: field.value),
+                      builder: (_) => _StatePickerSheet(selected: initialValue),
                     );
                     if (uf != null) {
                       field.didChange(uf);
@@ -161,7 +169,10 @@ class CitySelectorField extends FormField<String> {
           builder: (field) => _SelectorBox(
             label: label,
             hint: field.widget.enabled ? 'Selecione' : 'Escolha o estado primeiro',
-            valueText: field.value,
+            // Mesmo motivo do StateSelectorField acima: `initialValue`, não
+            // `field.value`, pra refletir uma mudança externa (CEP) na
+            // hora, sem depender de `field.didChange` ter sido chamado.
+            valueText: initialValue,
             errorText: field.errorText,
             enabled: field.widget.enabled,
             onTap: !field.widget.enabled
@@ -170,7 +181,7 @@ class CitySelectorField extends FormField<String> {
                     final city = await showModalBottomSheet<String>(
                       context: field.context,
                       isScrollControlled: true,
-                      builder: (_) => _CityPickerSheet(uf: uf!, selected: field.value),
+                      builder: (_) => _CityPickerSheet(uf: uf!, selected: initialValue),
                     );
                     if (city != null) {
                       field.didChange(city);
