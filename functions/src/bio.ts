@@ -5,16 +5,18 @@
  * escreveu, e o resultado fica visível pro cliente no perfil público
  * (ver `bio` em ProviderListing/provider_public_profile_screen.dart).
  *
- * Usa a Gemini Developer API (pacote `@google/genai`) com uma chave de
- * API guardada no Secret Manager (`GEMINI_API_KEY`) — mesmo padrão já
- * usado pra a chave da service account do Google Play em
- * subscription.ts. `gemini-3.7-flash` e rapido e barato o suficiente pra
- * um texto curto como esse (nao precisa nem de plano pago Blaze na
- * Gemini Developer API - so as versoes preview exigem billing). Antes
- * era `gemini-2.5-flash`, mas o Google desativou esse modelo (aviso de
- * desligamento pra outubro de 2026, e gente relatando 404 mesmo antes
- * disso) - foi o que causou o erro 'Nao foi possivel gerar o texto
- * agora' que o Franck viu.
+ * Usa a Groq API (endpoint compatível com o formato da OpenAI, chamado
+ * direto via `fetch` — sem precisar de nenhum pacote novo, o Node 20 do
+ * Cloud Functions já tem `fetch` global) com uma chave guardada no Secret
+ * Manager (`GROQ_API_KEY`) — mesmo padrão já usado pra a chave da service
+ * account do Google Play em subscription.ts.
+ *
+ * Antes usava a Gemini Developer API (`@google/genai`), mas o tier
+ * gratuito da Gemini é bem apertado (429 "muita procura" com poucos usos
+ * seguidos, relatado pelo Franck) — a Groq tem um tier gratuito bem mais
+ * folgado. `openai/gpt-oss-20b` é o modelo rápido/leve recomendado pela
+ * própria Groq pra esse tipo de texto curto (ver
+ * https://console.groq.com/docs/models).
  *
  * Duas cautelas deliberadas no prompt:
  * 1. Instrução explícita pra NUNCA inventar anos de experiência,
@@ -31,7 +33,8 @@ import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { db } from './lib/admin';
 
-const geminiApiKey = defineSecret('GEMINI_API_KEY');
+const groqApiKey = defineSecret('GROQ_API_KEY');
+const GROQ_MODEL = 'openai/gpt-oss-20b';
 
 // Limite simples (contador vitalício, sem reset) só pra evitar uso
 // abusivo/custo indevido enquanto o app está começando — não é uma cota
@@ -77,7 +80,7 @@ function montarPrompt(params: {
   return { systemInstruction, conteudo: linhas.join('\n') };
 }
 
-export const gerarDescricaoPrestador = onCall({ secrets: [geminiApiKey] }, async (request) => {
+export const gerarDescricaoPrestador = onCall({ secrets: [groqApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Faça login primeiro.');
   }
@@ -114,52 +117,57 @@ export const gerarDescricaoPrestador = onCall({ secrets: [geminiApiKey] }, async
   const { systemInstruction, conteudo } = montarPrompt({ categoria, cidade, estado, rascunho });
 
   try {
-    // Import dinamico (nao no topo do arquivo) de proposito: o SDK do
-    // Gemini arrasta o google-auth-library, que nesta maquina demora
-    // mais de 10s pra carregar (ver 'Cannot determine backend
-    // specification. Timeout after 10000' no deploy) - isso so acontece
-    // durante a descoberta do backend, que carrega TODO import do topo
-    // do arquivo so pra registrar as functions, sem executar nada. Um
-    // import dinamico so roda quando a function e chamada de verdade.
-    const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents: conteudo,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-        maxOutputTokens: 300,
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${groqApiKey.value()}`,
       },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: conteudo },
+        ],
+        temperature: 0.7,
+        max_tokens: 300,
+      }),
     });
-    const descricao = (response.text ?? '').trim();
+
+    if (!response.ok) {
+      // Guarda o corpo do erro explícito no log porque a Groq devolve o
+      // motivo (ex.: "rate_limit_exceeded") dentro de `error.message` no
+      // corpo da resposta, não em cima da exceção — sem isso o Cloud
+      // Logging só mostraria "status 429" sem contexto nenhum.
+      const bodyText = await response.text().catch(() => '');
+      logger.error('Falha ao gerar descrição com IA (Groq)', {
+        uid,
+        status: response.status,
+        body: bodyText,
+      });
+      // 429 da Groq é "muita procura agora" (limite de uso da chave) -
+      // não é bug nosso, então vale um aviso diferente do erro genérico,
+      // pra quem usa entender que é só tentar de novo daqui a pouco.
+      if (response.status === 429) {
+        throw new HttpsError(
+          'resource-exhausted',
+          'O serviço de IA está com muita procura agora. Espere um minuto e tente de novo.',
+        );
+      }
+      throw new HttpsError('internal', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const descricao = (data.choices?.[0]?.message?.content ?? '').trim();
     if (!descricao) {
-      throw new Error('Resposta vazia da IA.');
+      throw new HttpsError('internal', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
     }
     return { descricao };
   } catch (error) {
-    // Guarda status/message/name explicitos porque o objeto de erro do
-    // @google/genai (ApiError), quando logado direto dentro de outro
-    // objeto, so aparecia com 'status'/'name' no Cloud Logging - a
-    // mensagem detalhada do Google (ex.: motivo exato do 429) sumia.
-    const err = error as { status?: number; message?: string; name?: string } | undefined;
-    logger.error('Falha ao gerar descrição com IA', {
-      uid,
-      status: err?.status,
-      name: err?.name,
-      message: err?.message,
-      error,
-    });
-    // 429 da Gemini API é "muita procura agora" (limite de uso do
-    // projeto/chave) - não é bug nosso, então vale um aviso diferente do
-    // erro genérico, pra quem usa entender que é só tentar de novo daqui
-    // a pouco (ver https://aistudio.google.com/rate-limit).
-    if (err?.status === 429) {
-      throw new HttpsError(
-        'resource-exhausted',
-        'O serviço de IA está com muita procura agora. Espere um minuto e tente de novo.',
-      );
-    }
+    if (error instanceof HttpsError) throw error;
+    logger.error('Falha ao gerar descrição com IA (Groq)', { uid, error });
     throw new HttpsError('internal', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
   }
 });
