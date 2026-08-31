@@ -18,6 +18,7 @@ class ProviderListing {
     this.ratingAverage = 0,
     this.ratingCount = 0,
     this.bio,
+    this.whatsapp,
   });
 
   factory ProviderListing.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -33,6 +34,7 @@ class ProviderListing {
       ratingAverage: (data['ratingAverage'] as num?)?.toDouble() ?? 0,
       ratingCount: (data['ratingCount'] as num?)?.toInt() ?? 0,
       bio: data['bio'] as String?,
+      whatsapp: data['whatsapp'] as String?,
     );
   }
 
@@ -59,6 +61,15 @@ class ProviderListing {
   /// pro cliente no perfil público. Null/vazio pra quem ainda não
   /// preencheu.
   final String? bio;
+
+  /// WhatsApp do prestador (formato local, ex.: "(48) 99999-0000") - so
+  /// vem preenchido pro Firestore quando a assinatura esta ativa (ver
+  /// ProviderDirectoryRepository.upsertOwnListing e
+  /// functions/src/subscription.ts): pedido do Franck pra so mostrar o
+  /// contato direto de quem realmente assina, no card de busca/favoritos
+  /// (ver ProviderListingCard). Null/vazio pra quem nao assina (inclusive
+  /// listagens "nao reivindicadas", que nunca tem esse campo).
+  final String? whatsapp;
 
   String get locationLabel => state == null || state!.isEmpty ? city : '$city/$state';
 }

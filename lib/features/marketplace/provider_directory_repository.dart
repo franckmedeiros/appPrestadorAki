@@ -132,6 +132,7 @@ class ProviderDirectoryRepository {
     required String city,
     String? state,
     String? bio,
+    String? whatsapp,
   }) async {
     try {
       final uid = _auth.currentUser!.uid;
@@ -144,6 +145,8 @@ class ProviderDirectoryRepository {
         'city': city,
         if (state != null && state.isNotEmpty) 'state': state,
         'bio': (bio != null && bio.trim().isNotEmpty) ? bio.trim() : FieldValue.delete(),
+        'whatsapp':
+            (whatsapp != null && whatsapp.trim().isNotEmpty) ? whatsapp.trim() : FieldValue.delete(),
         'claimed': true,
         'providerUid': uid,
         'updatedAt': now,

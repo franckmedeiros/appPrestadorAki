@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/app_theme.dart';
 import '../../../widgets/app_list_card.dart';
 import '../models/provider_listing.dart';
@@ -15,6 +16,7 @@ import 'star_rating_bar.dart';
 /// perfil só pra favoritar/desfavoritar ("no mercado o pessoal já sabe
 /// que é favoritar", só o ícone, sem texto).
 AppListCard providerListingCard({
+  required BuildContext context,
   required ProviderListing listing,
   required VoidCallback onTap,
   required bool isFavorite,
@@ -44,16 +46,33 @@ AppListCard providerListingCard({
         const Icon(Icons.chevron_right, color: AppColors.muted),
       ],
     ),
-    footer: _footerFor(listing),
+    footer: _footerFor(context, listing),
     onTap: onTap,
   );
 }
 
-Widget _footerFor(ProviderListing listing) {
+Widget _footerFor(BuildContext context, ProviderListing listing) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       StarRatingBar(rating: listing.ratingAverage, count: listing.ratingCount, starSize: 18),
+      if ((listing.whatsapp ?? '').trim().isNotEmpty) ...[
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () => _abrirWhatsapp(context, listing.whatsapp!),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.chat_bubble, size: 15, color: Color(0xFF25D366)),
+              const SizedBox(width: 4),
+              Text(
+                listing.whatsapp!.trim(),
+                style: const TextStyle(fontSize: 12, color: AppColors.muted),
+              ),
+            ],
+          ),
+        ),
+      ],
       if (!listing.claimed) ...[
         const SizedBox(height: 6),
         const Align(
@@ -67,4 +86,27 @@ Widget _footerFor(ProviderListing listing) {
       ],
     ],
   );
+}
+
+/// Numero do WhatsApp so aparece no card (ver acima) pra quem assina de
+/// verdade - pedido do Franck. Abre direto na conversa via link
+/// https://wa.me/... (funciona com ou sem o WhatsApp instalado: com o
+/// app, abre nele; sem, cai no WhatsApp Web) - por isso nao precisa
+/// nenhuma configuracao nativa extra no Android/iOS, so o pacote
+/// url_launcher.
+Future<void> _abrirWhatsapp(BuildContext context, String whatsappLocal) async {
+  final digits = whatsappLocal.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return;
+  // Numero guardado no formato local brasileiro (DDD + numero, sem
+  // "55") - ver MaskTextInputFormatter('(##) #####-####') em
+  // EditProfileScreen. Se por algum motivo ja vier com o "55" na frente
+  // (ex.: cadastro futuro que inclua o pais), nao duplica.
+  final comCodigoDoPais = digits.startsWith('55') ? digits : '55$digits';
+  final uri = Uri.parse('https://wa.me/$comCodigoDoPais');
+  final abriu = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!abriu && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Não foi possível abrir o WhatsApp.')),
+    );
+  }
 }

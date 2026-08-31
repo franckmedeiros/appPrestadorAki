@@ -60,6 +60,11 @@ dependencies:
   image_picker: ^1.1.2
   firebase_storage: ^13.0.0
 
+  # Abre o WhatsApp direto na conversa com o prestador a partir do card
+  # de busca/favoritos (link https://wa.me/..., ver provider_listing_card.dart)
+  # - so aparece pra quem tem assinatura ativa (ver ProviderListing.whatsapp).
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

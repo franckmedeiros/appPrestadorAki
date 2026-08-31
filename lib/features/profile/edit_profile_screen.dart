@@ -416,6 +416,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 city: (_areaCity ?? '').trim(),
                 state: (_areaUf ?? '').trim().toUpperCase(),
                 bio: _bioController.text.trim(),
+                whatsapp: _whatsappController.text.trim(),
               );
         }
       } catch (e) {

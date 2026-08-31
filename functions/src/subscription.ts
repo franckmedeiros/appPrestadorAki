@@ -190,6 +190,11 @@ async function aplicarEstadoDaAssinatura(
           category: provider.category,
           city: provider.city,
           ...(provider.state ? { state: provider.state } : {}),
+          // So mostra o WhatsApp de verdade no card do prestador (ver
+          // ProviderListingCard/lib) enquanto a assinatura estiver ativa -
+          // pedido do Franck. Guardado no proprio doc publico (em vez de
+          // so no app) pra ficar certo mesmo lido direto do Firestore.
+          ...(provider.whatsapp ? { whatsapp: provider.whatsapp } : { whatsapp: FieldValue.delete() }),
           claimed: true,
           providerUid: uid,
           visible: true,
@@ -200,7 +205,10 @@ async function aplicarEstadoDaAssinatura(
       );
     }
   } else {
-    await directoryRef.set({ visible: false, updatedAt: now }, { merge: true });
+    await directoryRef.set(
+      { visible: false, whatsapp: FieldValue.delete(), updatedAt: now },
+      { merge: true },
+    );
   }
 
   return ativa;
