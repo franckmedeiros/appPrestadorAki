@@ -459,6 +459,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _ProfileHeader(
+                  logoUrl: _logoUrl,
+                  uploading: _uploadingLogo,
+                  onTrocarFoto: () => _trocarLogo(context),
+                  nameListenable: _nameController,
+                  categoryLabel: isProvider ? _category?.label : null,
+                ),
+                const SizedBox(height: 24),
                 const _SectionHeader(icon: Icons.person_outline, title: 'Informações pessoais'),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -578,69 +586,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const Text(
                     'Usada mais pra frente pra gerar o QR code no orçamento enviado ao cliente.',
                     style: TextStyle(fontSize: 12, color: AppColors.muted),
-                  ),
-                  const SizedBox(height: 20),
-                  const _SectionHeader(icon: Icons.image_outlined, title: 'Logo e descrição'),
-                  const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      GestureDetector(
-                        onTap: _uploadingLogo ? null : () => _trocarLogo(context),
-                        child: Container(
-                          width: 72,
-                          height: 72,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                          ),
-                          child: _uploadingLogo
-                              ? const Center(
-                                  child: SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  ),
-                                )
-                              : Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    _logoUrl.trim().isEmpty
-                                        ? const Icon(Icons.storefront_outlined,
-                                            color: AppColors.primary, size: 30)
-                                        : Image.network(
-                                            _logoUrl.trim(),
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) => const Icon(
-                                                Icons.broken_image_outlined,
-                                                color: AppColors.muted),
-                                          ),
-                                    Positioned(
-                                      bottom: 0,
-                                      right: 0,
-                                      left: 0,
-                                      child: Container(
-                                        color: Colors.black.withValues(alpha: 0.45),
-                                        padding: const EdgeInsets.symmetric(vertical: 3),
-                                        child: const Icon(Icons.edit, color: Colors.white, size: 14),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Toque no ícone pra tirar uma foto ou escolher da galeria. '
-                          'Aparece no seu perfil e, mais pra frente, no orçamento '
-                          'enviado ao cliente.',
-                          style: TextStyle(fontSize: 12, color: AppColors.muted),
-                        ),
-                      ),
-                    ],
                   ),
                   const SizedBox(height: 20),
                   const _SectionHeader(icon: Icons.notes_outlined, title: 'Descrição'),
@@ -791,6 +736,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       : const Icon(Icons.check, size: 18),
                   label: const Text('Salvar alterações'),
                 ),
+                const SizedBox(height: 12),
+                const Center(
+                  child: _SecurityFootnote(),
+                ),
               ],
             ),
           ),
@@ -825,6 +774,142 @@ class _SectionHeader extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+      ],
+    );
+  }
+}
+
+/// Cabeçalho do formulário — avatar (mesma foto/upload de antes, só que
+/// em destaque no topo em vez de escondido dentro de "Logo e
+/// descrição"), nome (acompanha o campo "Nome completo" ao vivo, via
+/// AnimatedBuilder) e categoria, com um botão "Alterar foto" explícito —
+/// visual a partir de um mockup que o Franck mandou. `onTrocarFoto`
+/// reaproveita o mesmo `_trocarLogo` de sempre; nada na lógica de upload
+/// muda, só ganhou um segundo lugar (mais visível) pra disparar a mesma
+/// ação — por isso o círculo antigo dentro de "Logo e descrição" saiu
+/// dali, pra não ter dois jeitos de editar a mesma foto na mesma tela.
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({
+    required this.logoUrl,
+    required this.uploading,
+    required this.onTrocarFoto,
+    required this.nameListenable,
+    required this.categoryLabel,
+  });
+
+  final String logoUrl;
+  final bool uploading;
+  final VoidCallback onTrocarFoto;
+  final TextEditingController nameListenable;
+  final String? categoryLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        GestureDetector(
+          onTap: uploading ? null : onTrocarFoto,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: uploading
+                    ? const Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : (logoUrl.trim().isEmpty
+                        ? const Icon(Icons.storefront_outlined, color: AppColors.primary, size: 32)
+                        : Image.network(
+                            logoUrl.trim(),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.broken_image_outlined, color: AppColors.muted),
+                          )),
+              ),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 26,
+                  height: 26,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary,
+                    border: Border.fromBorderSide(BorderSide(color: AppColors.surface, width: 2)),
+                  ),
+                  child: const Icon(Icons.camera_alt_outlined, size: 13, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedBuilder(
+                animation: nameListenable,
+                builder: (context, _) => Text(
+                  nameListenable.text.trim().isEmpty ? 'Seu nome' : nameListenable.text,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (categoryLabel != null && categoryLabel!.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(categoryLabel!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+              ],
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: uploading ? null : onTrocarFoto,
+                icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                label: const Text('Alterar foto'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Legenda de rodapé abaixo do botão salvar — puramente informativa, sem
+/// nenhum link/ação (o mockup mostrava só o texto com um cadeado).
+class _SecurityFootnote extends StatelessWidget {
+  const _SecurityFootnote();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.lock_outline, size: 13, color: AppColors.muted),
+        SizedBox(width: 6),
+        Text(
+          'Suas informações estão seguras conosco.',
+          style: TextStyle(fontSize: 12, color: AppColors.muted),
+        ),
       ],
     );
   }
