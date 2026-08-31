@@ -227,12 +227,33 @@ class AuthController extends ChangeNotifier {
     String? state,
   }) async {
     final now = FieldValue.serverTimestamp();
+    // Copia os dados "pessoais" já preenchidos em clients/{uid} (WhatsApp,
+    // endereço, chave Pix, logo) — sem isso, virar prestador fazia esses
+    // campos sumirem da tela (o Franck notou com o WhatsApp): não é que os
+    // dados eram apagados, é que updateOwnProfile/fetchOwnProfileData
+    // passam a ler/gravar em providers/{uid} assim que isProvider vira
+    // true (ver `_ownCollection`), e esse documento novo nascia sem eles.
+    // Pra uma conta virando prestador pela primeira vez (`register` com
+    // `asProvider: true`) o clients/{uid} acabou de ser criado, então essa
+    // leitura só devolve campos vazios — inofensivo.
+    final clientData = (await _firestore.collection('clients').doc(uid).get()).data() ?? const {};
     await _firestore.collection('providers').doc(uid).set({
       'name': name,
       'email': email,
       if (category != null && category.isNotEmpty) 'category': category,
       if (city != null && city.isNotEmpty) 'city': city,
       if (state != null && state.isNotEmpty) 'state': state,
+      for (final field in const [
+        'whatsapp',
+        'addressZipCode',
+        'addressStreet',
+        'addressNeighborhood',
+        'addressCity',
+        'addressState',
+        'pixKey',
+        'logoUrl',
+      ])
+        if (clientData[field] != null) field: clientData[field],
       // kBypassProviderSubscriptionGate é TEMPORÁRIO — ver
       // lib/core/testing_flags.dart. Com ele ligado, isso já nasce
       // 'active' (sem paywall) só pra testar a busca/listagem antes do

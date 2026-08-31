@@ -8,7 +8,6 @@ import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
 import 'edit_profile_screen.dart';
-import '../../widgets/state_city_fields.dart';
 import '../../widgets/service_category_field.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
@@ -474,9 +473,34 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
   String? _city;
   String? _uf;
   ServiceCategory? _category;
+  bool _loadingAddress = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAddress();
+  }
+
+  /// A área de atuação (cidade/UF que decide em quais buscas o prestador
+  /// aparece) usa sempre a mesma cidade/UF do endereço já cadastrado na
+  /// conta — o Franck notou que pedir de novo aqui, logo depois de quem
+  /// acabou de preencher o endereço em "Editar perfil", era repetição sem
+  /// necessidade. Quem quiser atender numa cidade diferente de onde mora
+  /// muda isso editando o endereço da conta, não aqui.
+  Future<void> _loadAddress() async {
+    final data = await context.read<AuthController>().fetchOwnProfileData();
+    if (!mounted) return;
+    setState(() {
+      _city = data['addressCity'] as String?;
+      _uf = data['addressState'] as String?;
+      _loadingAddress = false;
+    });
+  }
+
+  bool get _hasAddress => (_city ?? '').trim().isNotEmpty && (_uf ?? '').trim().isNotEmpty;
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || !_hasAddress) return;
     final state = (_uf ?? '').trim().toUpperCase();
     final city = (_city ?? '').trim();
     if (kBypassProviderSubscriptionGate) {
@@ -550,36 +574,59 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
                 onChanged: (value) => setState(() => _category = value),
               ),
               const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: StateSelectorField(
-                      key: ValueKey('become-uf-$_uf'),
-                      initialValue: _uf,
-                      validator: (value) =>
-                          (value == null || value.isEmpty) ? 'Selecione' : null,
-                      onChanged: (uf) => setState(() {
-                        _uf = uf;
-                        _city = null;
-                      }),
+              if (_loadingAddress)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 3,
-                    child: CitySelectorField(
-                      key: ValueKey('become-city-$_uf-$_city'),
-                      uf: _uf,
-                      initialValue: _city,
-                      validator: (value) =>
-                          (value == null || value.isEmpty) ? 'Informe a cidade' : null,
-                      onChanged: (city) => setState(() => _city = city),
-                    ),
+                )
+              else if (_hasAddress)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Você vai aparecer nas buscas de $_city/${(_uf ?? '').toUpperCase()} — '
+                          'a mesma cidade do seu endereço. Pra mudar, edite o endereço da sua conta.',
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.error_outline, color: AppColors.danger, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Preencha sua cidade e estado em "Editar perfil" antes de virar '
+                          'prestador — é essa cidade que decide em quais buscas você aparece.',
+                          style: TextStyle(fontSize: 12.5, color: AppColors.danger),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 4),
               const Text(
                 'Na próxima tela você confirma a assinatura mensal — assim que ela for '
@@ -588,7 +635,7 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: _submit,
+                onPressed: (_loadingAddress || !_hasAddress) ? null : _submit,
                 child: const Text('Continuar para assinatura'),
               ),
             ],

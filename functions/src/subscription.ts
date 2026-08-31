@@ -131,10 +131,39 @@ async function aplicarEstadoDaAssinatura(
   }
 
   const now = FieldValue.serverTimestamp();
+  // Ao criar providers/{uid} pela primeira vez, copia os dados
+  // "pessoais" já preenchidos em clients/{uid} — nome, e-mail, WhatsApp,
+  // endereço, chave Pix, logo. Sem isso, esses campos ficavam pra trás:
+  // updateOwnProfile/fetchOwnProfileData passam a ler/gravar em
+  // providers/{uid} assim que a conta vira prestador, e esse documento
+  // novo nascia só com category/city/state, fazendo o resto sumir da
+  // tela (mesmo bug que o Franck notou no caminho de teste via
+  // AuthController.becomeProvider, corrigido lá do mesmo jeito).
+  const dadosDoCliente =
+    dadosNovoProvider && !providerSnap.exists
+      ? (await db.collection('clients').doc(uid).get()).data() ?? {}
+      : {};
+  const camposPessoais = [
+    'name',
+    'email',
+    'whatsapp',
+    'addressZipCode',
+    'addressStreet',
+    'addressNeighborhood',
+    'addressCity',
+    'addressState',
+    'pixKey',
+    'logoUrl',
+  ] as const;
+  const copiaDoCliente: Record<string, unknown> = {};
+  for (const campo of camposPessoais) {
+    if (dadosDoCliente[campo] != null) copiaDoCliente[campo] = dadosDoCliente[campo];
+  }
   await providerRef.set(
     {
       ...(dadosNovoProvider && !providerSnap.exists
         ? {
+            ...copiaDoCliente,
             category: dadosNovoProvider.category,
             city: dadosNovoProvider.city,
             ...(dadosNovoProvider.state ? { state: dadosNovoProvider.state } : {}),
