@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -77,6 +78,11 @@ void main() async {
     debugPrint('[Firebase] usando emuladores locais em $_emulatorHost');
     await FirebaseAuth.instance.useAuthEmulator(_emulatorHost, 9099);
     FirebaseFirestore.instance.useFirestoreEmulator(_emulatorHost, 8080);
+    // Faltava essa linha — sem ela, TODA chamada via httpsCallable (bio
+    // gerada por IA, excluirContaEDados, confirmarAssinaturaPrestador...)
+    // ia direto pro projeto real na nuvem, mesmo com USE_FIREBASE_EMULATOR
+    // ativado, porque só Auth/Firestore estavam apontados pro emulador.
+    FirebaseFunctions.instance.useFunctionsEmulator(_emulatorHost, 5001);
   }
 
   final authController = AuthController(
