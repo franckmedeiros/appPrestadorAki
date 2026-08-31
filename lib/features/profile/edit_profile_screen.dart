@@ -459,6 +459,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const _SectionHeader(icon: Icons.person_outline, title: 'Informações pessoais'),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _nameController,
                   decoration: InputDecoration(
@@ -503,7 +505,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 if (isProvider) ...[
                   const SizedBox(height: 20),
-                  const Text('Área de atuação', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const _SectionHeader(icon: Icons.work_outline, title: 'Área de atuação'),
                   if (_listingStatus == 'pending') ...[
                     const SizedBox(height: 8),
                     const Card(
@@ -563,7 +565,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Dados de pagamento', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const _SectionHeader(icon: Icons.credit_card_outlined, title: 'Dados de pagamento'),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _pixKeyController,
@@ -578,7 +580,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Logo', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const _SectionHeader(icon: Icons.image_outlined, title: 'Logo e descrição'),
                   const SizedBox(height: 8),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -641,7 +643,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const Text('Descrição', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const _SectionHeader(icon: Icons.notes_outlined, title: 'Descrição'),
                   const SizedBox(height: 4),
                   const Text(
                     'Uma "carta de apresentação" curta pro cliente ver no seu perfil público.',
@@ -688,7 +690,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ],
                 const SizedBox(height: 20),
-                const Text('Endereço', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                const _SectionHeader(icon: Icons.location_on_outlined, title: 'Endereço'),
                 const SizedBox(height: 4),
                 const Text(
                   'Fica só na sua conta — não aparece no seu perfil público.',
@@ -700,6 +702,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   decoration: InputDecoration(
                     labelText: 'CEP (opcional)',
                     hintText: '00000-000',
+                    prefixIcon: const Icon(Icons.location_on_outlined),
                     suffixIcon: _lookingUpCep
                         ? const Padding(
                             padding: EdgeInsets.all(14),
@@ -730,12 +733,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 TextFormField(
                   controller: _streetController,
                   focusNode: _streetFocusNode,
-                  decoration: const InputDecoration(labelText: 'Rua e número (opcional)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Rua e número (opcional)',
+                    prefixIcon: Icon(Icons.home_outlined),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _neighborhoodController,
-                  decoration: const InputDecoration(labelText: 'Bairro (opcional)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Bairro (opcional)',
+                    prefixIcon: Icon(Icons.location_city_outlined),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -771,15 +780,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Text(_error!, style: const TextStyle(color: AppColors.danger)),
                 ],
                 const SizedBox(height: 20),
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: _isSaving ? null : _save,
-                  child: _isSaving
+                  icon: _isSaving
                       ? const SizedBox(
-                          height: 20,
-                          width: 20,
+                          height: 18,
+                          width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Salvar alterações'),
+                      : const Icon(Icons.check, size: 18),
+                  label: const Text('Salvar alterações'),
                 ),
               ],
             ),
@@ -790,3 +800,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 }
 
+/// Cabeçalho de seção (selo redondo com ícone + título em negrito) usado
+/// em cada bloco do formulário - visual a partir de um mockup que o
+/// Franck mandou. Só troca a aparência dos títulos que já existiam
+/// (eram um Text simples); nenhuma validação/lógica do formulário muda.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.primary.withValues(alpha: 0.1),
+          ),
+          child: Icon(icon, color: AppColors.primary, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+      ],
+    );
+  }
+}
