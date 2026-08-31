@@ -497,44 +497,79 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
                 decoration: const InputDecoration(labelText: 'Buscar cidade', prefixIcon: Icon(Icons.search)),
                 onChanged: (value) => setState(() => _query = value),
               ),
-              const SizedBox(height: 4),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
+              const SizedBox(height: 12),
+              InkWell(
+                borderRadius: BorderRadius.circular(14),
                 onTap: _locating ? null : _useLocation,
-                leading: _locating
-                    ? const Padding(
-                        padding: EdgeInsets.all(4),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.primary),
+                        child: _locating
+                            ? const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.my_location, color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Usar minha localização atual', style: TextStyle(fontWeight: FontWeight.w700)),
+                            SizedBox(height: 2),
+                            Text(
+                              'Detectamos sua localização automática',
+                              style: TextStyle(fontSize: 12, color: AppColors.muted),
+                            ),
+                          ],
                         ),
-                      )
-                    : const Icon(Icons.my_location, color: AppColors.primary),
-                title: const Text('Usar minha localização atual'),
+                      ),
+                      const Icon(Icons.chevron_right, color: AppColors.primary),
+                    ],
+                  ),
+                ),
               ),
-              const Divider(height: 1),
+              const SizedBox(height: 16),
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => Navigator.of(context).pop(''),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Todas as cidades',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.muted),
+                    ),
+                    const Spacer(),
+                    if (widget.currentCity == null)
+                      const Icon(Icons.check, color: AppColors.primary, size: 18),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
               Expanded(
                 child: ListView.builder(
                   controller: scrollController,
-                  itemCount: filtered.length + 1,
+                  itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Todas as cidades'),
-                        trailing:
-                            widget.currentCity == null ? const Icon(Icons.check, color: AppColors.primary) : null,
-                        onTap: () => Navigator.of(context).pop(''),
-                      );
-                    }
-                    final city = filtered[index - 1];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(city),
-                      trailing:
-                          city == widget.currentCity ? const Icon(Icons.check, color: AppColors.primary) : null,
-                      onTap: () => Navigator.of(context).pop(city),
+                    final city = filtered[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _CityTile(
+                        city: city,
+                        color: _cityTileColors[index % _cityTileColors.length],
+                        selected: city == widget.currentCity,
+                        onTap: () => Navigator.of(context).pop(city),
+                      ),
                     );
                   },
                 ),
@@ -543,6 +578,77 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Paleta de cores dos selos redondos da lista de cidades — mesma ideia
+/// de `_groupTileColors` em `service_category_field.dart` (gira por
+/// índice, só pra dar variedade visual).
+const _cityTileColors = <Color>[
+  Color(0xFFE7502E), // laranja da marca
+  Color(0xFF546E7A), // azul acinzentado
+  Color(0xFF00ACC1), // ciano
+  Color(0xFF8E24AA), // roxo
+  Color(0xFF2E9E5B), // verde
+  Color(0xFF1E88E5), // azul
+];
+
+/// Linha de cidade no seletor — selo redondo com ícone de prédio, nome em
+/// negrito e seta, dentro de um card com borda leve (visual a partir de
+/// um mockup que o Franck mandou). Mesmo comportamento de antes (toca
+/// pra escolher, ✓ se já é a cidade selecionada); não inventa dado que
+/// o app não tem hoje, como estado/UF de cada cidade.
+class _CityTile extends StatelessWidget {
+  const _CityTile({
+    required this.city,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String city;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? AppColors.primary.withValues(alpha: 0.4) : AppColors.muted.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
+              child: Icon(Icons.location_city, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                city,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (selected)
+              const Icon(Icons.check, color: AppColors.primary, size: 20)
+            else
+              const Icon(Icons.chevron_right, color: AppColors.muted),
+          ],
+        ),
+      ),
     );
   }
 }

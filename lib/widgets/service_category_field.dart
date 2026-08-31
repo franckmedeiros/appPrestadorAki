@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_theme.dart';
 import '../core/text_normalize.dart';
 import '../features/marketplace/models/service_category.dart';
 
@@ -220,43 +221,181 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
     return ListView(
       children: [
         if (widget.allowClear)
-          ListTile(
-            leading: const Icon(Icons.apps),
-            title: const Text('Todas as categorias'),
-            selected: widget.selected == null,
-            onTap: () => _pick(null),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _pick(null),
+              child: Row(
+                children: [
+                  const Icon(Icons.grid_view_rounded, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Todas as categorias',
+                    style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary, fontSize: 15),
+                  ),
+                  if (widget.selected == null) ...[
+                    const Spacer(),
+                    const Icon(Icons.check, color: AppColors.primary, size: 18),
+                  ],
+                ],
+              ),
+            ),
           ),
         if (featured.isNotEmpty) ...[
           const Padding(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, 4),
-            child: Text('🔥 Mais procurados', style: TextStyle(fontWeight: FontWeight.w700)),
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Row(
+              children: [
+                Icon(Icons.local_fire_department, color: Colors.deepOrange, size: 18),
+                SizedBox(width: 6),
+                Text('Mais procuradas', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              ],
+            ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 2.6,
               children: [
                 for (final category in featured)
-                  ActionChip(
-                    avatar: Icon(category.icon, size: 18),
-                    label: Text(category.label),
-                    onPressed: () => _pick(category),
-                  ),
+                  _FeaturedCategoryCard(category: category, onTap: () => _pick(category)),
               ],
             ),
           ),
           const Divider(height: 1),
         ],
-        for (final group in groups)
-          ListTile(
-            leading: Text(group.emoji, style: const TextStyle(fontSize: 20)),
-            title: Text(group.label),
-            subtitle: Text('${group.subcategories.length} opções'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => setState(() => _openGroup = group),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 12, 20, 8),
+          child: Text(
+            'Outras categorias',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.muted),
+          ),
+        ),
+        for (final entry in groups.asMap().entries)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            child: _CategoryGroupTile(
+              group: entry.value,
+              color: _groupTileColors[entry.key % _groupTileColors.length],
+              onTap: () => setState(() => _openGroup = entry.value),
+            ),
           ),
       ],
+    );
+  }
+}
+
+/// Paleta de cores usada nos selos redondos de "Outras categorias" —
+/// gira por índice do grupo só pra dar variedade visual, sem significado
+/// funcional (não é ligado à cor de nenhuma marca/categoria específica).
+const _groupTileColors = <Color>[
+  Color(0xFF2E9E5B), // verde
+  Color(0xFF1E88E5), // azul
+  Color(0xFF00ACC1), // ciano
+  Color(0xFF6D4C41), // marrom
+  Color(0xFF8E24AA), // roxo
+  Color(0xFFE7502E), // laranja da marca
+  Color(0xFF3949AB), // índigo
+  Color(0xFF00897B), // teal
+  Color(0xFFD81B60), // rosa
+  Color(0xFF7CB342), // verde claro
+  Color(0xFF546E7A), // azul acinzentado
+  Color(0xFFF9A825), // âmbar
+];
+
+/// Card do grid de "Mais procuradas" — ícone + nome numa caixa com borda
+/// arredondada, no lugar do ActionChip antigo (visual a partir de um
+/// mockup que o Franck mandou).
+class _FeaturedCategoryCard extends StatelessWidget {
+  const _FeaturedCategoryCard({required this.category, required this.onTap});
+
+  final ServiceCategory category;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.muted.withValues(alpha: 0.25)),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(category.icon, color: AppColors.primary, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                category.label,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Linha de "Outras categorias" — selo redondo colorido com o ícone do
+/// grupo, título + contagem de subcategorias e seta, dentro de um card
+/// com borda leve (visual a partir do mesmo mockup do grid acima).
+class _CategoryGroupTile extends StatelessWidget {
+  const _CategoryGroupTile({required this.group, required this.color, required this.onTap});
+
+  final ServiceCategoryGroup group;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.muted.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
+              child: Icon(group.icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(group.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${group.subcategories.length} opções',
+                    style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.muted),
+          ],
+        ),
+      ),
     );
   }
 }

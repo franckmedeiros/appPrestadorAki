@@ -58,6 +58,11 @@ class ServiceCategoryGroup {
   final String label;
   final String emoji;
   final List<ServiceCategory> subcategories;
+
+  /// Ícone usado no avatar do grupo na listagem "Outras categorias" do
+  /// seletor (ver `service_category_field.dart`) — mesmo ícone atribuído
+  /// às subcategorias do grupo, já que ambos vêm do mesmo `groupId`.
+  IconData get icon => _iconForGroup(id);
 }
 
 IconData _iconForGroup(String groupId) => switch (groupId) {
