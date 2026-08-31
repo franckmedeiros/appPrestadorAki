@@ -24,7 +24,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
-import { GoogleGenAI } from '@google/genai';
 import { db } from './lib/admin';
 
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
@@ -110,6 +109,14 @@ export const gerarDescricaoPrestador = onCall({ secrets: [geminiApiKey] }, async
   const { systemInstruction, conteudo } = montarPrompt({ categoria, cidade, estado, rascunho });
 
   try {
+    // Import dinamico (nao no topo do arquivo) de proposito: o SDK do
+    // Gemini arrasta o google-auth-library, que nesta maquina demora
+    // mais de 10s pra carregar (ver 'Cannot determine backend
+    // specification. Timeout after 10000' no deploy) - isso so acontece
+    // durante a descoberta do backend, que carrega TODO import do topo
+    // do arquivo so pra registrar as functions, sem executar nada. Um
+    // import dinamico so roda quando a function e chamada de verdade.
+    const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
