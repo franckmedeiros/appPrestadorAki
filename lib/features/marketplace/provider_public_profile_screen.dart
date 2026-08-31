@@ -160,11 +160,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                               const SizedBox(width: 6),
                               Text(
                                 listing.whatsapp!.trim(),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF25D366),
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: const TextStyle(fontSize: 14, color: AppColors.muted),
                               ),
                             ],
                           ),
