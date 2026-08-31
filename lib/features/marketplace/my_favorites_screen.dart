@@ -110,7 +110,6 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
                     itemBuilder: (context, index) {
                       final listing = favorites[index];
                       return providerListingCard(
-                        context: context,
                         listing: listing,
                         onTap: () => context.push('/prestador/${listing.id}'),
                         isFavorite: true,

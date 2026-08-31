@@ -363,7 +363,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   itemBuilder: (context, index) {
                     final listing = listings[index];
                     return providerListingCard(
-                      context: context,
                       listing: listing,
                       onTap: () async {
                         await context.push('/prestador/${listing.id}');
