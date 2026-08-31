@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/app_theme.dart';
 import '../client_auth_gate.dart';
 import '../models/provider_listing.dart';
 import '../models/service_category.dart';
-import 'star_rating_bar.dart';
 
 /// Card de listagem de um [ProviderListing], compartilhado entre a busca
 /// (ClientHomeScreen) e Meus favoritos (MyFavoritesScreen).
@@ -25,7 +25,6 @@ Widget providerListingCard({
   required bool isFavorite,
   required VoidCallback onToggleFavorite,
 }) {
-  final hasBio = (listing.bio ?? '').trim().isNotEmpty;
   final hasWhatsapp = (listing.whatsapp ?? '').trim().isNotEmpty;
 
   return Card(
@@ -50,16 +49,20 @@ Widget providerListingCard({
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            listing.name,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            runSpacing: 2,
+                            children: [
+                              Text(
+                                listing.name,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (listing.isVerifiedSubscriber) const _VerifiedBadge(),
+                            ],
                           ),
-                          if (listing.isVerifiedSubscriber) ...[
-                            const SizedBox(height: 4),
-                            const _VerifiedBadge(),
-                          ],
                           const SizedBox(height: 6),
                           Row(
                             children: [
@@ -127,10 +130,7 @@ Widget providerListingCard({
                   ],
                 ),
                 const SizedBox(height: 14),
-                if (hasBio)
-                  _HighlightBox(listing: listing)
-                else
-                  StarRatingBar(rating: listing.ratingAverage, count: listing.ratingCount, starSize: 18),
+                const _HighlightBox(),
                 if (!listing.claimed) ...[
                   const SizedBox(height: 8),
                   const Align(
@@ -202,15 +202,16 @@ class _VerifiedBadge extends StatelessWidget {
   }
 }
 
-/// Caixa de destaque com a "carta de apresentação" (bio, ver
-/// EditProfileScreen/ProviderBioAiService) e a nota por estrelas lado a
-/// lado - só aparece pra quem já escreveu uma bio; sem bio, o card
-/// mostra só a StarRatingBar simples (sem inventar um texto genérico só
-/// pra preencher a caixa).
+/// Caixa de destaque - conteúdo FIXO (mesmo texto e mesma nota "5,0" pra
+/// todo mundo), por pedido explícito do Franck a partir do mockup: ele
+/// viu a alternativa (bio real do prestador + "Ainda sem avaliações"
+/// quando não há nota de verdade) e preferiu esse texto fixo mesmo assim
+/// - inclusive sabendo que a nota "5,0 (0 avaliações)" não reflete dado
+/// real nenhum. Se um dia isso incomodar (parecer falso pros clientes,
+/// por exemplo), é só trocar de volta pela versão anterior no histórico
+/// do git.
 class _HighlightBox extends StatelessWidget {
-  const _HighlightBox({required this.listing});
-
-  final ProviderListing listing;
+  const _HighlightBox();
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +222,7 @@ class _HighlightBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 36,
@@ -233,16 +234,39 @@ class _HighlightBox extends StatelessWidget {
             child: const Icon(Icons.workspace_premium_outlined, size: 19, color: AppColors.primary),
           ),
           const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              listing.bio!.trim(),
-              style: const TextStyle(fontSize: 13, height: 1.35, color: AppColors.ink),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Profissional especializado',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Serviços de qualidade com acabamento impecável.',
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 10),
-          StarRatingBar(rating: listing.ratingAverage, count: listing.ratingCount, starSize: 16),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.star, size: 15, color: AppColors.primary),
+                  SizedBox(width: 3),
+                  Text('5,0', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.primary)),
+                ],
+              ),
+              SizedBox(height: 2),
+              Text('(0 avaliações)', style: TextStyle(fontSize: 10.5, color: AppColors.muted)),
+            ],
+          ),
         ],
       ),
     );
@@ -269,12 +293,12 @@ class _ContactFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final proposta = _FooterAction(
-      icon: Icons.chat_bubble_outline_rounded,
+      icon: FontAwesomeIcons.commentDots,
       color: AppColors.primary,
       title: 'Enviar proposta',
       subtitle: 'Peça um orçamento',
       onTap: () => _enviarProposta(context),
-      trailing: hasWhatsapp ? null : const Icon(Icons.chevron_right, color: AppColors.muted, size: 18),
+      trailing: const Icon(Icons.chevron_right, color: AppColors.muted, size: 18),
     );
     if (!hasWhatsapp) return proposta;
 
@@ -283,7 +307,7 @@ class _ContactFooter extends StatelessWidget {
         children: [
           Expanded(
             child: _FooterAction(
-              icon: Icons.phone_in_talk_outlined,
+              icon: FontAwesomeIcons.whatsapp,
               color: const Color(0xFF25D366),
               title: 'Entrar em contato',
               subtitle: 'Fale pelo WhatsApp',
@@ -390,7 +414,7 @@ class WhatsappBadge extends StatelessWidget {
       width: size,
       height: size,
       decoration: const BoxDecoration(color: Color(0xFF25D366), shape: BoxShape.circle),
-      child: Icon(Icons.phone, size: size * 0.55, color: Colors.white),
+      child: Icon(FontAwesomeIcons.whatsapp, size: size * 0.55, color: Colors.white),
     );
   }
 }
