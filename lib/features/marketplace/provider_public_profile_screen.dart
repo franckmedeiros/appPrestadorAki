@@ -8,7 +8,6 @@ import 'favorites_controller.dart';
 import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador;
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
-import 'models/service_category.dart';
 import 'budget_requests_repository.dart';
 import 'provider_directory_repository.dart';
 
