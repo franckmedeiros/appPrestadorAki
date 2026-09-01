@@ -151,7 +151,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        toolbarHeight: 76,
+        toolbarHeight: 64,
         title: Text(_isEditing ? 'Editar compromisso' : 'Novo compromisso'),
         titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
         actions: const [
@@ -161,14 +161,14 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(28),
+          preferredSize: const Size.fromHeight(24),
           child: Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 _isEditing ? 'Atualize os dados do compromisso' : 'Agende uma visita técnica ou serviço',
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(color: Colors.white, fontSize: 11),
               ),
             ),
           ),
@@ -184,7 +184,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
         children: [
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -308,7 +308,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
           // espaço em branco abaixo deles. Assim eles sempre grudam no
           // fundo de verdade, e o formulário rola só na área acima.
           Container(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
+            padding: EdgeInsets.fromLTRB(16, 10, 16, 8 + MediaQuery.of(context).padding.bottom),
             decoration: BoxDecoration(
               color: AppColors.surface,
               boxShadow: [
@@ -330,13 +330,13 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                       : const Icon(Icons.save_outlined, size: 20),
                   label: Text(_isEditing ? 'Salvar alterações' : 'Salvar compromisso'),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 4),
                 OutlinedButton.icon(
                   onPressed: _saving ? null : () => Navigator.of(context).pop(),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.danger,
                     side: const BorderSide(color: AppColors.danger),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.close, size: 20),
@@ -351,11 +351,8 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   }
 }
 
-/// Cartão de campo — ícone num círculo à esquerda, rótulo acima do campo
-/// de verdade, e um texto de ajuda opcional embaixo. Mesmo padrão visual
-/// de CustomerFormScreen._FieldCard (ver comentário lá sobre por que não
-/// virou um widget compartilhado ainda). `compact` deixa o ícone menor
-/// pra caber lado a lado (ver Data/Hora).
+/// Campo compacto — layout vertical para preservar a largura útil em telas
+/// estreitas. Evita que o ícone lateral consuma espaço dos Dropdowns e inputs.
 class _FieldCard extends StatelessWidget {
   const _FieldCard({
     required this.icon,
@@ -373,44 +370,69 @@ class _FieldCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = compact ? 44.0 : 52.0;
+    final padding = compact ? 12.0 : 14.0;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.muted.withValues(alpha: 0.12),
+        ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: iconSize,
-            height: iconSize,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, color: AppColors.primary, size: compact ? 20 : 22),
+          Row(
+            children: [
+              Container(
+                width: compact ? 26 : 30,
+                height: compact ? 26 : 30,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  icon,
+                  color: AppColors.primary,
+                  size: compact ? 15 : 17,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: compact ? 12 : 13,
+                    color: AppColors.ink,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                const SizedBox(height: 8),
-                child,
-                if (helperText != null) ...[
-                  const SizedBox(height: 6),
-                  Text(helperText!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                ],
-              ],
+          SizedBox(height: compact ? 7 : 9),
+          child,
+          if (helperText != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              helperText!,
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 11,
+                height: 1.3,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

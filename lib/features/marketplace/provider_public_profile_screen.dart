@@ -5,7 +5,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
-import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador, WhatsappBadge;
+import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador;
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'models/service_category.dart';
@@ -132,35 +132,48 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
 
   @override
   Widget build(BuildContext context) {
-    final isFavorite = context.watch<FavoritesController>().isFavorite(widget.listingId);
+    final isFavorite =
+        context.watch<FavoritesController>().isFavorite(widget.listingId);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil do profissional')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Perfil do profissional'),
+        elevation: 0,
+      ),
       body: FutureBuilder<ProviderListing?>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
           final listing = snapshot.data;
           if (listing == null) {
-            return const Center(child: Text('Este perfil não existe mais.'));
+            return const Center(
+              child: Text('Este perfil não existe mais.'),
+            );
           }
+
           return Column(
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: AppColors.muted.withValues(alpha: 0.10),
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
+                              color: Colors.black.withValues(alpha: 0.035),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -173,133 +186,138 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _ProfileAvatar(icon: listing.category.icon),
-                                const SizedBox(width: 14),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Wrap(
-                                        crossAxisAlignment: WrapCrossAlignment.center,
-                                        spacing: 8,
-                                        runSpacing: 4,
-                                        children: [
-                                          Text(
-                                            listing.name,
-                                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
-                                          ),
-                                          if (listing.isVerifiedSubscriber) const _VerifiedPill(),
-                                        ],
+                                      Text(
+                                        listing.name,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 17,
+                                          color: AppColors.ink,
+                                        ),
                                       ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.grid_view_rounded, size: 14, color: AppColors.primary),
-                                          const SizedBox(width: 6),
-                                          Flexible(
-                                            child: Text(
-                                              listing.category.label,
-                                              style: const TextStyle(color: AppColors.muted, fontSize: 14),
-                                            ),
-                                          ),
-                                        ],
+                                      if (listing.isVerifiedSubscriber) ...[
+                                        const SizedBox(height: 5),
+                                        const _VerifiedPill(),
+                                      ],
+                                      const SizedBox(height: 8),
+                                      _ProfileMeta(
+                                        icon: Icons.grid_view_rounded,
+                                        text: listing.category.label,
+                                        primary: true,
                                       ),
-                                      const SizedBox(height: 3),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.location_on_outlined, size: 14, color: AppColors.muted),
-                                          const SizedBox(width: 6),
-                                          Flexible(
-                                            child: Text(
-                                              listing.locationLabel,
-                                              style: const TextStyle(color: AppColors.muted, fontSize: 14),
-                                            ),
-                                          ),
-                                        ],
+                                      const SizedBox(height: 4),
+                                      _ProfileMeta(
+                                        icon: Icons.location_on_outlined,
+                                        text: listing.locationLabel,
                                       ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
+
                             if ((listing.whatsapp ?? '').trim().isNotEmpty) ...[
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 14),
                               _ProfileActionRow(
-                                leading: const WhatsappBadge(size: 36),
+                                leading: const _WhatsappContactIcon(),
                                 background: AppColors.background,
                                 title: listing.whatsapp!.trim(),
                                 subtitle: 'Fale pelo WhatsApp',
-                                onTap: () => abrirWhatsappDoPrestador(context, listing.whatsapp!),
+                                onTap: () => abrirWhatsappDoPrestador(
+                                  context,
+                                  listing.whatsapp!,
+                                ),
                               ),
                             ],
+
                             const SizedBox(height: 10),
                             _ProfileActionRow(
                               leading: Icon(
-                                listing.ratingCount > 0 ? Icons.star_rounded : Icons.star_outline_rounded,
+                                listing.ratingCount > 0
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
                                 color: AppColors.primary,
-                                size: 22,
+                                size: 21,
                               ),
-                              background: AppColors.primary.withValues(alpha: 0.06),
+                              background: AppColors.primary
+                                  .withValues(alpha: 0.055),
                               title: listing.ratingCount > 0
                                   ? '${listing.ratingAverage.toStringAsFixed(1).replaceAll('.', ',')} (${listing.ratingCount} avaliações)'
                                   : 'Ainda sem avaliações',
                               subtitle: listing.ratingCount > 0
-                                  ? 'Média das avaliações dos clientes'
+                                  ? 'Veja a reputação deste profissional'
                                   : 'Seja o primeiro a avaliar',
                               onTap: _handleRatingTap,
                             ),
+
                             const SizedBox(height: 14),
-                            const Divider(height: 1),
-                            const SizedBox(height: 14),
-                            const Row(
-                              children: [
-                                Icon(Icons.grid_view_rounded, size: 16, color: AppColors.primary),
-                                SizedBox(width: 6),
-                                Text('Serviços oferecidos', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                              ],
+                            Divider(
+                              height: 1,
+                              color: AppColors.muted.withValues(alpha: 0.16),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
+
+                            const _SectionLabel(
+                              icon: Icons.grid_view_rounded,
+                              title: 'Serviços oferecidos',
+                            ),
+                            const SizedBox(height: 8),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
                               children: [
                                 Chip(
                                   label: Text(listing.category.label),
+                                  visualDensity: VisualDensity.compact,
                                   backgroundColor: AppColors.background,
-                                  side: BorderSide.none,
+                                  side: BorderSide(
+                                    color: AppColors.muted
+                                        .withValues(alpha: 0.10),
+                                  ),
                                 ),
                               ],
                             ),
+
                             if ((listing.bio ?? '').trim().isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              const Divider(height: 1),
                               const SizedBox(height: 14),
-                              const Text('Sobre', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                              const SizedBox(height: 6),
+                              Divider(
+                                height: 1,
+                                color: AppColors.muted
+                                    .withValues(alpha: 0.16),
+                              ),
+                              const SizedBox(height: 12),
+                              const _SectionLabel(
+                                icon: Icons.person_outline_rounded,
+                                title: 'Sobre',
+                              ),
+                              const SizedBox(height: 8),
                               Text(
                                 listing.bio!.trim(),
-                                style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.ink),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.45,
+                                  color: AppColors.ink,
+                                ),
                               ),
                             ],
                           ],
                         ),
                       ),
+
                       if (!listing.claimed) ...[
                         const SizedBox(height: 12),
-                        const Card(
-                          color: Color(0xFFFFF4E5),
-                          child: Padding(
-                            padding: EdgeInsets.all(12),
-                            child: Text(
-                              '⚠️ Este profissional ainda não usa o PrestadorAki. Sua '
-                              'solicitação fica registrada e, se você convidá-lo, ele '
-                              'poderá respondê-la assim que criar a conta.',
-                              style: TextStyle(fontSize: 13),
-                            ),
-                          ),
-                        ),
+                        const _UnclaimedNotice(),
                       ],
+
                       if (_canRate) ...[
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 14),
                         Container(
                           key: _ratingSectionKey,
                           child: _RatingForm(
@@ -307,48 +325,85 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                             isEditing: _myRating != null,
                             submitting: _submittingRating,
                             commentController: _commentController,
-                            onStarsChanged: (value) => setState(() => _pendingStars = value),
+                            onStarsChanged: (value) =>
+                                setState(() => _pendingStars = value),
                             onSubmit: _submitRating,
                           ),
                         ),
                       ],
-                      const SizedBox(height: 12),
                     ],
                   ),
                 ),
               ),
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  child: Row(
-                    children: [
-                      // Só o ícone, sem texto — pedido do Franck: "no
-                      // mercado o pessoal já sabe que é favoritar", igual
-                      // já ficou nos cards da busca/favoritos.
-                      Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.muted.withValues(alpha: 0.4)),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: IconButton(
-                          onPressed: _toggleFavorite,
-                          tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar',
-                          icon: Icon(
-                            isFavorite ? Icons.favorite : Icons.favorite_border,
-                            color: isFavorite ? AppColors.primary : AppColors.muted,
+
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(
+                    top: BorderSide(
+                      color: AppColors.muted.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Material(
+                            color: isFavorite
+                                ? AppColors.primary.withValues(alpha: 0.08)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(14),
+                            child: InkWell(
+                              onTap: _toggleFavorite,
+                              borderRadius: BorderRadius.circular(14),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: isFavorite
+                                        ? AppColors.primary
+                                            .withValues(alpha: 0.35)
+                                        : AppColors.muted
+                                            .withValues(alpha: 0.30),
+                                  ),
+                                ),
+                                child: Icon(
+                                  isFavorite
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  color: isFavorite
+                                      ? AppColors.primary
+                                      : AppColors.muted,
+                                  size: 21,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _requestQuote(listing),
-                          icon: const Icon(Icons.send_rounded, size: 18),
-                          label: const Text('Solicitar orçamento'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _requestQuote(listing),
+                              icon: const Icon(
+                                Icons.send_rounded,
+                                size: 17,
+                              ),
+                              label: const Text(
+                                'Solicitar orçamento',
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -360,9 +415,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
   }
 }
 
-/// Avatar grande do cabeçalho do perfil - mesma linguagem visual do
-/// _CardAvatar do card de listagem, só que maior (72x72) pra esta tela
-/// ter mais espaço de sobra.
+/// Avatar compacto do profissional.
 class _ProfileAvatar extends StatelessWidget {
   const _ProfileAvatar({required this.icon});
 
@@ -371,52 +424,136 @@ class _ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 72,
-      height: 72,
+      width: 64,
+      height: 64,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [AppColors.primary, AppColors.primaryDark],
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Icon(icon, color: Colors.white, size: 34),
+      child: Icon(icon, color: Colors.white, size: 29),
     );
   }
 }
 
-/// Selo "Verificado" em formato de pílula (fundo verde clarinho), pro
-/// cabeçalho do perfil - mesmo texto do selo do card de listagem (ver
-/// _VerifiedBadge), só que redesenhado pra bater com o mockup desta tela.
 class _VerifiedPill extends StatelessWidget {
   const _VerifiedPill();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.12),
+        color: AppColors.success.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.verified, size: 14, color: AppColors.success),
+          Icon(Icons.verified_rounded, size: 13, color: AppColors.success),
           SizedBox(width: 4),
-          Text('Verificado', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(
+            'Verificado',
+            style: TextStyle(
+              color: AppColors.success,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// Linha de ação em caixa arredondada (ícone + título/subtítulo + seta) -
-/// usada pro contato via WhatsApp e pro resumo de avaliação. Esse
-/// contato e essa nota saíram do card de listagem (ver
-/// provider_listing_card.dart, decisão do Franck de simplificar o card)
-/// e se concentraram aqui, com mais espaço pra detalhar cada um.
+class _ProfileMeta extends StatelessWidget {
+  const _ProfileMeta({
+    required this.icon,
+    required this.text,
+    this.primary = false,
+  });
+
+  final IconData icon;
+  final String text;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = primary ? AppColors.primary : AppColors.muted;
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: primary ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({
+    required this.icon,
+    required this.title,
+  });
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.primary),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            color: AppColors.ink,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WhatsappContactIcon extends StatelessWidget {
+  const _WhatsappContactIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 30,
+      height: 30,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Color(0xFF25D366),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.phone_rounded,
+        color: Colors.white,
+        size: 17,
+      ),
+    );
+  }
+}
+
 class _ProfileActionRow extends StatelessWidget {
   const _ProfileActionRow({
     required this.leading,
@@ -434,32 +571,98 @@ class _ProfileActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    return Material(
+      color: background,
       borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: Center(child: leading),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.primary,
+                size: 19,
+              ),
+            ],
+          ),
         ),
-        child: Row(
-          children: [
-            SizedBox(width: 36, height: 36, child: Center(child: leading)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                  Text(subtitle, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                ],
+      ),
+    );
+  }
+}
+
+class _UnclaimedNotice extends StatelessWidget {
+  const _UnclaimedNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFF1C68C).withValues(alpha: 0.65),
+        ),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            color: Color(0xFFB7791F),
+            size: 19,
+          ),
+          SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Este profissional ainda não usa o PrestadorAki. Sua solicitação fica registrada e ele poderá responder quando criar uma conta.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: AppColors.ink,
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

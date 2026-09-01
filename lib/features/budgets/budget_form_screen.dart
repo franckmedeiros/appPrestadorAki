@@ -256,65 +256,71 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   Widget _buildItemRow(int index) {
     final row = _itemRows[index];
     final item = row.toItem();
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.muted.withValues(alpha: 0.10),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: TextField(
-                  controller: row.descriptionController,
-                  decoration: const InputDecoration(hintText: 'Descrição do item'),
-                  onChanged: (_) => setState(() {}),
+                child: Text(
+                  'Item ${index + 1}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.danger.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  onPressed: () => _removeItemRow(index),
-                  icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-                  tooltip: 'Remover item',
+              IconButton(
+                onPressed: () => _removeItemRow(index),
+                tooltip: 'Remover item',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: AppColors.danger,
+                  size: 19,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 4),
+          TextField(
+            controller: row.descriptionController,
+            decoration: const InputDecoration(
+              hintText: 'Descrição do item',
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: _MiniField(
-                  badge: const Text('#', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
-                  label: 'Qtd',
+                child: _CompactMiniField(
+                  label: 'Qtd.',
                   child: TextField(
                     controller: row.quantityController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(),
+                    decoration: const InputDecoration(hintText: '1'),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
-                child: _MiniField(
-                  badge: const Icon(Icons.sell_outlined, size: 16, color: AppColors.primary),
+                flex: 2,
+                child: _CompactMiniField(
                   label: 'Unidade',
                   child: TextField(
                     controller: row.unitController,
@@ -322,11 +328,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
-                child: _MiniField(
-                  badge: const Text('R\$', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12)),
-                  label: 'Preço unitário',
+                flex: 2,
+                child: _CompactMiniField(
+                  label: 'Preço',
                   child: TextField(
                     controller: row.unitPriceController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -342,8 +348,12 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'Total do item: ${formatCentsBRL(item.totalCents)}',
-                style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600),
+                'Total: ${formatCentsBRL(item.totalCents)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.muted,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -351,7 +361,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final items = _currentItems();
@@ -363,198 +372,273 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        toolbarHeight: 76,
+        toolbarHeight: 64,
         title: Text(_isEditing ? 'Editar orçamento' : 'Novo orçamento'),
-        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
+        titleTextStyle: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(28),
+          preferredSize: const Size.fromHeight(22),
           child: Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 7),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 _isEditing
                     ? 'Atualize os dados e os itens do orçamento'
                     : 'Preencha os dados e adicione os itens do orçamento',
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(color: Colors.white, fontSize: 11),
               ),
             ),
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
-                ],
-              ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  FutureBuilder<List<Customer>>(
-                    future: _customersFuture,
-                    builder: (context, snapshot) {
-                      final customers = snapshot.data ?? [];
-                      final hasSelected = _selectedCustomerId == null ||
-                          customers.any((c) => c.id == _selectedCustomerId);
-                      return _FieldRow(
-                        icon: Icons.person_outline,
-                        label: 'Cliente',
-                        helperText: 'Não achou o cliente? Cadastre primeiro na aba Clientes.',
-                        child: DropdownButtonFormField<String>(
-                          initialValue: hasSelected ? _selectedCustomerId : null,
-                          decoration: const InputDecoration(hintText: 'Selecione o cliente'),
-                          items: customers
-                              .map((c) => DropdownMenuItem<String>(value: c.id, child: Text(c.name)))
-                              .toList(),
-                          onChanged: (value) => setState(() => _selectedCustomerId = value),
+                  _SectionCard(
+                    child: Column(
+                      children: [
+                        FutureBuilder<List<Customer>>(
+                          future: _customersFuture,
+                          builder: (context, snapshot) {
+                            final customers = snapshot.data ?? [];
+                            final hasSelected = _selectedCustomerId == null ||
+                                customers.any((c) => c.id == _selectedCustomerId);
+
+                            return _BudgetField(
+                              icon: Icons.person_outline_rounded,
+                              label: 'Cliente',
+                              helperText: 'Não achou o cliente? Cadastre primeiro na aba Clientes.',
+                              child: DropdownButtonFormField<String>(
+                                initialValue: hasSelected ? _selectedCustomerId : null,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  hintText: 'Selecione o cliente',
+                                ),
+                                items: customers
+                                    .map(
+                                      (c) => DropdownMenuItem<String>(
+                                        value: c.id,
+                                        child: Text(
+                                          c.name,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) =>
+                                    setState(() => _selectedCustomerId = value),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _FieldRow(
-                    icon: Icons.location_on_outlined,
-                    label: 'Endereço (opcional, aparece no PDF)',
-                    child: TextField(
-                      controller: _addressController,
-                      decoration: const InputDecoration(hintText: 'Digite o endereço'),
+                        const SizedBox(height: 12),
+                        _BudgetField(
+                          icon: Icons.location_on_outlined,
+                          label: 'Endereço (opcional, aparece no PDF)',
+                          child: TextField(
+                            controller: _addressController,
+                            decoration: const InputDecoration(
+                              hintText: 'Digite o endereço',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _BudgetField(
+                          icon: Icons.calendar_month_outlined,
+                          label: 'Data',
+                          child: TextField(
+                            controller: _dateController,
+                            keyboardType: TextInputType.datetime,
+                            inputFormatters: [_dateMask],
+                            decoration: InputDecoration(
+                              suffixIcon: IconButton(
+                                tooltip: 'Escolher no calendário',
+                                icon: const Icon(
+                                  Icons.edit_calendar_outlined,
+                                  size: 18,
+                                ),
+                                onPressed: _pickDate,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _FieldRow(
-                    icon: Icons.calendar_month_outlined,
-                    label: 'Data',
-                    child: TextField(
-                      controller: _dateController,
-                      keyboardType: TextInputType.datetime,
-                      inputFormatters: [_dateMask],
-                      decoration: InputDecoration(
-                        suffixIcon: IconButton(
-                          tooltip: 'Escolher no calendário',
-                          icon: const Icon(Icons.edit_calendar_outlined, size: 18),
-                          onPressed: _pickDate,
+
+                  const Text(
+                    'Itens',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (var i = 0; i < _itemRows.length; i++) _buildItemRow(i),
+                  _DottedActionButton(
+                    onTap: _addItemRow,
+                    label: 'Adicionar item',
+                  ),
+                  const SizedBox(height: 14),
+
+                  _SectionCard(
+                    child: Column(
+                      children: [
+                        _BudgetField(
+                          icon: Icons.percent_rounded,
+                          label: 'Desconto (opcional, em R\$)',
+                          child: TextField(
+                            controller: _discountController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: '0,00',
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
                         ),
+                        const SizedBox(height: 12),
+                        _BudgetField(
+                          icon: Icons.notes_outlined,
+                          label: 'Observações (opcional)',
+                          child: TextField(
+                            controller: _observationsController,
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              hintText:
+                                  'Adicione observações sobre o orçamento',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.10),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        _totalsRow('Subtotal', formatCentsBRL(subtotalCents)),
+                        if (discountCents > 0) ...[
+                          const SizedBox(height: 4),
+                          _totalsRow(
+                            'Desconto',
+                            formatCentsBRL(discountCents),
+                          ),
+                        ],
+                        const Divider(height: 18),
+                        _totalsRow(
+                          'Total',
+                          formatCentsBRL(totalCents.toInt()),
+                          bold: true,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+
+          SafeArea(
+            top: false,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: AppColors.muted.withValues(alpha: 0.10),
+                  ),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: busy ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_outlined, size: 18),
+                      label: Text(
+                        _isEditing ? 'Salvar alterações' : 'Salvar orçamento',
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text('Itens', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-            const SizedBox(height: 10),
-            for (var i = 0; i < _itemRows.length; i++) _buildItemRow(i),
-            _DottedActionButton(onTap: _addItemRow, label: 'Adicionar item'),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _FieldRow(
-                    icon: Icons.percent_rounded,
-                    label: 'Desconto (opcional, em R\$)',
-                    child: TextField(
-                      controller: _discountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(hintText: '0,00'),
-                      onChanged: (_) => setState(() {}),
-                    ),
+                  TextButton.icon(
+                    onPressed: busy ? null : _generatePdf,
+                    icon: _generatingPdf
+                        ? const SizedBox(
+                            height: 15,
+                            width: 15,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.picture_as_pdf_outlined,
+                            size: 17,
+                          ),
+                    label: const Text('Gerar e compartilhar PDF'),
                   ),
-                  const SizedBox(height: 16),
-                  _FieldRow(
-                    icon: Icons.description_outlined,
-                    label: 'Observações (opcional)',
-                    child: TextField(
-                      controller: _observationsController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(hintText: 'Adicione observações sobre o orçamento'),
+                  TextButton.icon(
+                    onPressed:
+                        busy ? null : () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      minimumSize: const Size(0, 30),
                     ),
+                    icon: const Icon(Icons.close, size: 16),
+                    label: const Text('Cancelar'),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  _totalsRow('Subtotal', formatCentsBRL(subtotalCents)),
-                  if (discountCents > 0) ...[
-                    const SizedBox(height: 4),
-                    _totalsRow('Desconto', formatCentsBRL(discountCents)),
-                  ],
-                  const Divider(height: 20),
-                  _totalsRow('Total', formatCentsBRL(totalCents.toInt()), bold: true),
-                ],
-              ),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ],
-            const SizedBox(height: 18),
-            ElevatedButton.icon(
-              onPressed: busy ? null : _save,
-              icon: _saving
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.save_outlined, size: 20),
-              label: const Text('Salvar orçamento'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: busy ? null : _generatePdf,
-              icon: _generatingPdf
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.picture_as_pdf_outlined, size: 20),
-              label: const Text('Gerar e compartilhar PDF'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: busy ? null : () => Navigator.of(context).pop(),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.danger,
-                side: const BorderSide(color: AppColors.danger),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.close, size: 20),
-              label: const Text('Cancelar'),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
-
   Widget _totalsRow(String label, String value, {bool bold = false}) {
     final style = TextStyle(
       fontSize: bold ? 18 : 14,
@@ -571,14 +655,35 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   }
 }
 
-/// Linha de campo — ícone num círculo à esquerda, rótulo acima do campo
-/// de verdade, e um texto de ajuda opcional embaixo. Igual ao _FieldCard
-/// de CustomerFormScreen/AppointmentFormScreen, só que SEM o Container
-/// próprio (aqui várias linhas dividem um único cartão externo — ver o
-/// mockup, que agrupa Cliente/Endereço/Data e Desconto/Observações cada
-/// um dentro de um cartão só, em vez de um cartão por campo).
-class _FieldRow extends StatelessWidget {
-  const _FieldRow({required this.icon, required this.label, required this.child, this.helperText});
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.muted.withValues(alpha: 0.10),
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _BudgetField extends StatelessWidget {
+  const _BudgetField({
+    required this.icon,
+    required this.label,
+    required this.child,
+    this.helperText,
+  });
 
   final IconData icon;
   final String label;
@@ -587,47 +692,48 @@ class _FieldRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Icon(icon, color: AppColors.primary, size: 20),
+        Row(
+          children: [
+            Icon(icon, size: 16, color: AppColors.primary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: AppColors.ink,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-              const SizedBox(height: 8),
-              child,
-              if (helperText != null) ...[
-                const SizedBox(height: 6),
-                Text(helperText!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-              ],
-            ],
+        const SizedBox(height: 7),
+        child,
+        if (helperText != null) ...[
+          const SizedBox(height: 5),
+          Text(
+            helperText!,
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 10,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
 }
 
-/// Campo miúdo (Qtd/Unidade/Preço unitário de um item) — rótulo acima,
-/// e um selo pequeno (ícone ou texto curto tipo "#"/"R\$") à esquerda do
-/// campo em vez de um círculo grande, já que os três dividem a largura
-/// do cartão do item.
-class _MiniField extends StatelessWidget {
-  const _MiniField({required this.badge, required this.label, required this.child});
+class _CompactMiniField extends StatelessWidget {
+  const _CompactMiniField({
+    required this.label,
+    required this.child,
+  });
 
-  final Widget badge;
   final String label;
   final Widget child;
 
@@ -636,24 +742,16 @@ class _MiniField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              alignment: Alignment.center,
-              child: badge,
-            ),
-            const SizedBox(width: 6),
-            Expanded(child: child),
-          ],
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            color: AppColors.muted,
+            fontWeight: FontWeight.w600,
+          ),
         ),
+        const SizedBox(height: 5),
+        child,
       ],
     );
   }
@@ -680,7 +778,7 @@ class _DottedActionButton extends StatelessWidget {
         painter: _DashedBorderPainter(color: AppColors.primary, radius: 14),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 11),
           alignment: Alignment.center,
           child: Row(
             mainAxisSize: MainAxisSize.min,
