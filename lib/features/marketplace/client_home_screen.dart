@@ -9,7 +9,6 @@ import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/text_normalize.dart';
-import '../../core/notification_service.dart';
 import '../../widgets/biometric_offer_card.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/service_category_field.dart';
@@ -66,13 +65,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     // logada, ver ensureLoaded) garante que o coração de cada card já
     // nasce certo, sem precisar de nenhum estado próprio desta tela.
     context.read<FavoritesController>().ensureLoaded();
-    // Só faz sentido pedir permissão de notificação e guardar o token
-    // depois de logado — ClientHomeScreen também é aberta livre por
-    // convidados (ver app_router.dart), então isso não roda pra quem
-    // ainda não tem conta.
-    if (context.read<AuthController>().status == AuthStatus.authenticated) {
-      NotificationService.instance.init();
-    }
     _future = _search();
     _citiesFuture = context.read<ProviderDirectoryRepository>().listCities();
     // Igual o iFood: tenta preencher a cidade sozinho assim que a tela

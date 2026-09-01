@@ -43,9 +43,13 @@ class NotificationService {
 
   bool _started = false;
 
-  /// Chamado uma vez, assim que o usuário está logado (ver
-  /// ClientHomeScreen). Seguro de chamar mais de uma vez — só faz efeito
-  /// na primeira.
+  /// Chamado toda vez que o UnifiedShell (a casca única do app,
+  /// alcançada por qualquer conta logada, prestador ou não) reconstrói —
+  /// antes só rodava dentro de ClientHomeScreen (aba "Buscar"), e um
+  /// prestador que nunca abrisse essa aba nunca tinha o token FCM salvo,
+  /// então nunca recebia o push (com som) de "novo pedido de orçamento",
+  /// só a entrada na central de notificações. Seguro de chamar mais de
+  /// uma vez — só faz efeito na primeira.
   Future<void> init() async {
     if (_started) return;
     _started = true;

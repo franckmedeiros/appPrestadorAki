@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/auth_controller.dart';
+import '../core/notification_service.dart';
 import 'app_shell_scaffold.dart';
 
 /// Casca única do app depois da conta unificada (decisão combinada com o
@@ -41,7 +42,22 @@ class UnifiedShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isProvider = context.watch<AuthController>().isProvider;
+    final auth = context.watch<AuthController>();
+    final isProvider = auth.isProvider;
+    // Antes isso só rodava dentro de ClientHomeScreen (aba "Buscar") —
+    // então um prestador que abrisse o app direto no Dashboard e nunca
+    // tocasse em "Buscar" nunca tinha o token FCM salvo, e por isso nunca
+    // recebia o push de "novo pedido de orçamento" com som nenhum (só a
+    // entrada na central de notificações, gravada à parte no Firestore
+    // pela Cloud Function, aparecia). Aqui em UnifiedShell roda pra
+    // QUALQUER aba, já que toda conta logada passa por essa casca — e
+    // `NotificationService.init()` já é seguro de chamar toda hora que
+    // o shell reconstrói (só faz efeito na primeira, ver `_started`).
+    // Convidado sem conta (a aba "Buscar" é livre pra visitante) não
+    // tem UID nenhum pra salvar token, então segue sem pedir permissão.
+    if (auth.status == AuthStatus.authenticated) {
+      NotificationService.instance.init();
+    }
     final items = isProvider
         ? const [_searchItem, _favoritesItem, _requestsItem, _dashboardItem, _profileItem]
         : const [_searchItem, _favoritesItem, _requestsItem, _profileItem];
