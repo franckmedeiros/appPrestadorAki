@@ -64,6 +64,7 @@ class Appointment {
     this.customerName,
     this.addressText,
     this.observations,
+    this.budgetId,
   });
 
   factory Appointment.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -78,6 +79,7 @@ class Appointment {
       customerName: data['customerName'] as String?,
       addressText: data['addressText'] as String?,
       observations: data['observations'] as String?,
+      budgetId: data['budgetId'] as String?,
     );
   }
 
@@ -95,4 +97,10 @@ class Appointment {
   final String? customerName;
   final String? addressText;
   final String? observations;
+
+  /// Id do orçamento (ver `Budget`/`BudgetsRepository.acceptFinal`) que
+  /// deu origem a este compromisso, quando ele foi lançado
+  /// automaticamente no aceite final do prestador. Nulo pra compromissos
+  /// criados manualmente na Agenda.
+  final String? budgetId;
 }

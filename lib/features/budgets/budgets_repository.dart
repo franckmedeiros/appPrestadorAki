@@ -1,19 +1,39 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/api_exception.dart';
+import '../agenda/appointments_repository.dart';
+import '../agenda/models/appointment.dart';
 import 'models/budget.dart';
+
+/// Lançada por `BudgetsRepository.acceptFinal` quando já existe outro
+/// compromisso na agenda no mesmo dia/horário — a tela trata esse caso à
+/// parte (pedir outro horário em vez de só mostrar um erro genérico), ver
+/// pedido do Franck: "Bloquear e pedir outro horário".
+class BudgetScheduleConflictException extends ApiException {
+  BudgetScheduleConflictException()
+      : super(0, 'Já existe um compromisso agendado nesse dia/horário. Escolha outro.');
+}
 
 /// Repositório do módulo formal de Orçamentos, direto no Firestore em
 /// `providers/{uid}/budgets` — mesmo padrão de CustomersRepository/
 /// AppointmentsRepository (CRUD simples, sem Cloud Function, isolamento
-/// entre prestadores garantido pelo firestore.rules).
+/// entre prestadores garantido pelo firestore.rules), com a exceção dos
+/// métodos de transição de status abaixo (`sendToClient`/
+/// `rejectAsProvider`/`acceptFinal`), que fazem parte do fluxo de pedido
+/// de orçamento vindo do marketplace (ver `Budget.isFromClientRequest`).
 class BudgetsRepository {
-  BudgetsRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  BudgetsRepository({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    AppointmentsRepository? appointmentsRepository,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance,
+        _appointments = appointmentsRepository ??
+            AppointmentsRepository(firestore: firestore, auth: auth);
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final AppointmentsRepository _appointments;
 
   CollectionReference<Map<String, dynamic>> get _collection => _firestore
       .collection('providers')
@@ -60,6 +80,93 @@ class BudgetsRepository {
       await _collection.doc(id).delete();
     } on FirebaseException catch (e) {
       throw ApiException(0, e.message ?? 'Não foi possível excluir o orçamento.');
+    }
+  }
+
+  /// Orçamentos que vieram de um pedido de cliente pelo marketplace e
+  /// ainda não foram enviados (`status == pendente`) — usado pra destacar
+  /// esses itens na tela de Orçamentos (ver pedido do Franck: "ficar como
+  /// pendente para fazer/enviar o orçamento").
+  Stream<List<Budget>> watchPending() {
+    return _collection
+        .where('status', isEqualTo: BudgetStatus.pendente.wireValue)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(Budget.fromFirestore).toList());
+  }
+
+  /// Prestador termina de preencher itens/preço de um orçamento pendente
+  /// (vindo de um pedido de cliente) e manda pro cliente — transiciona
+  /// pendente -> enviado. `budget` deve trazer os itens/preço já
+  /// preenchidos (mesmo objeto montado pelo formulário de edição).
+  Future<void> sendToClient(Budget budget) async {
+    try {
+      await _collection.doc(budget.id).set({
+        ...budget.toMap(),
+        'status': BudgetStatus.enviado.wireValue,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível enviar o orçamento.');
+    }
+  }
+
+  /// Prestador recusa/cancela um pedido de orçamento — o prestador pode
+  /// não aceitar o serviço por vários motivos (pedido do Franck). Válido
+  /// a partir de `pendente` ou `enviado`.
+  Future<void> rejectAsProvider(String id) async {
+    try {
+      await _collection.doc(id).set({
+        'status': BudgetStatus.recusado.wireValue,
+        'rejectedBy': 'prestador',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível recusar o orçamento.');
+    }
+  }
+
+  /// Aceite final do prestador, depois que o cliente já aprovou o
+  /// orçamento (`status == aprovado`) — lança automaticamente o serviço
+  /// na agenda, verificando antes se já não tem outro compromisso pro
+  /// mesmo dia/horário (pedido do Franck: "verificando se tem serviço já
+  /// agendado para aquele dia/hora" / "Bloquear e pedir outro horário").
+  /// A data/hora do serviço só é definida agora, neste passo — é o que o
+  /// Franck escolheu quando perguntado ("No aceite final do prestador").
+  Future<void> acceptFinal(
+    Budget budget, {
+    required DateTime serviceScheduledAt,
+    int serviceDurationMinutes = 60,
+  }) async {
+    try {
+      final conflict = await _appointments.hasConflict(
+        scheduledAt: serviceScheduledAt,
+        durationMinutes: serviceDurationMinutes,
+      );
+      if (conflict) throw BudgetScheduleConflictException();
+
+      final appointment = await _appointments.create(
+        customerId: budget.customerId,
+        customerName: budget.customerName,
+        type: AppointmentType.servico,
+        scheduledAt: serviceScheduledAt,
+        durationMinutes: serviceDurationMinutes,
+        addressText: budget.addressText,
+        observations: budget.requestDescription,
+        budgetId: budget.id,
+      );
+
+      await _collection.doc(budget.id).set({
+        'status': BudgetStatus.aceito.wireValue,
+        'serviceScheduledAt': Timestamp.fromDate(serviceScheduledAt),
+        'serviceDurationMinutes': serviceDurationMinutes,
+        'appointmentId': appointment.id,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } on BudgetScheduleConflictException {
+      rethrow;
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível confirmar o orçamento.');
     }
   }
 }

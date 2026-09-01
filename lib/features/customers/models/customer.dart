@@ -9,6 +9,7 @@ class Customer {
     this.email,
     this.addressCity,
     this.addressState,
+    this.clientUid,
   });
 
   factory Customer.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -21,6 +22,7 @@ class Customer {
       email: data['email'] as String?,
       addressCity: data['addressCity'] as String?,
       addressState: data['addressState'] as String?,
+      clientUid: data['clientUid'] as String?,
     );
   }
 
@@ -31,6 +33,12 @@ class Customer {
   final String? email;
   final String? addressCity;
   final String? addressState;
+
+  /// uid da conta de cliente do app que originou este cadastro, quando o
+  /// cliente foi criado automaticamente a partir de um pedido de
+  /// orçamento pelo marketplace (ver `CustomersRepository.findOrCreateForClient`).
+  /// Nulo pra clientes cadastrados manualmente (fora do app).
+  final String? clientUid;
 
   String get locationLabel {
     if (addressCity == null) return '';

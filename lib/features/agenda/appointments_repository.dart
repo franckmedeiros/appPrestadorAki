@@ -61,6 +61,7 @@ class AppointmentsRepository {
     int durationMinutes = 60,
     String? addressText,
     String? observations,
+    String? budgetId,
   }) async {
     try {
       final now = FieldValue.serverTimestamp();
@@ -72,6 +73,7 @@ class AppointmentsRepository {
         'durationMinutes': durationMinutes,
         if (addressText != null && addressText.isNotEmpty) 'addressText': addressText,
         if (observations != null && observations.isNotEmpty) 'observations': observations,
+        if (budgetId != null) 'budgetId': budgetId,
         'status': AppointmentStatus.agendado.wireValue,
         'createdAt': now,
       });
@@ -80,6 +82,34 @@ class AppointmentsRepository {
     } on FirebaseException catch (e) {
       throw ApiException(0, e.message ?? 'Não foi possível salvar o compromisso.');
     }
+  }
+
+  /// Verifica se já existe algum compromisso não cancelado que se
+  /// sobrepõe à janela entre `scheduledAt` e `scheduledAt + durationMinutes` —
+  /// usado no aceite final de um orçamento (ver
+  /// `BudgetsRepository.acceptFinal`) pra bloquear e pedir outro horário
+  /// em vez de lançar dois serviços em cima um do outro na agenda.
+  ///
+  /// Busca só os compromissos do próprio dia (a agenda de hoje não tem
+  /// compromisso cruzando meia-noite), o suficiente pra cobrir qualquer
+  /// sobreposição possível dentro do dia.
+  Future<bool> hasConflict({
+    required DateTime scheduledAt,
+    required int durationMinutes,
+    String? excludeAppointmentId,
+  }) async {
+    final dayStart = DateTime(scheduledAt.year, scheduledAt.month, scheduledAt.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+    final windowEnd = scheduledAt.add(Duration(minutes: durationMinutes));
+    final existing = await list(from: dayStart, to: dayEnd);
+    for (final appt in existing) {
+      if (appt.id == excludeAppointmentId) continue;
+      if (appt.status == AppointmentStatus.cancelado) continue;
+      final apptEnd = appt.scheduledAt.add(Duration(minutes: appt.durationMinutes));
+      final overlaps = scheduledAt.isBefore(apptEnd) && appt.scheduledAt.isBefore(windowEnd);
+      if (overlaps) return true;
+    }
+    return false;
   }
 
   /// Atualiza um compromisso já existente — usado por

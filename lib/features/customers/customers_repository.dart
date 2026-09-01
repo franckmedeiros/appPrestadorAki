@@ -70,6 +70,7 @@ class CustomersRepository {
     String? email,
     String? addressCity,
     String? addressState,
+    String? clientUid,
   }) async {
     try {
       final now = FieldValue.serverTimestamp();
@@ -80,6 +81,7 @@ class CustomersRepository {
         if (email != null && email.isNotEmpty) 'email': email,
         if (addressCity != null && addressCity.isNotEmpty) 'addressCity': addressCity,
         if (addressState != null && addressState.isNotEmpty) 'addressState': addressState,
+        if (clientUid != null) 'clientUid': clientUid,
         'createdAt': now,
         'updatedAt': now,
       });
@@ -88,6 +90,28 @@ class CustomersRepository {
     } on FirebaseException catch (e) {
       throw ApiException(0, e.message ?? 'Não foi possível salvar o cliente.');
     }
+  }
+
+  /// Busca um cliente já cadastrado a partir do uid da conta de cliente do
+  /// app (`clientUid`) ou, se não existir ainda, cria um novo — usado
+  /// quando chega um pedido de orçamento pelo marketplace (ver
+  /// `Budget.clientUid`/`BudgetsRepository`): o prestador não precisa
+  /// cadastrar manualmente um cliente que já veio pelo app. Cadastro
+  /// manual continua existindo à parte, para clientes fora do app.
+  Future<Customer> findOrCreateForClient({
+    required String clientUid,
+    required String name,
+  }) async {
+    try {
+      final existing =
+          await _collection.where('clientUid', isEqualTo: clientUid).limit(1).get();
+      if (existing.docs.isNotEmpty) {
+        return Customer.fromFirestore(existing.docs.first);
+      }
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível buscar o cliente.');
+    }
+    return create(name: name, clientUid: clientUid);
   }
 
   /// Atualiza um cliente já existente — usado por `CustomerFormScreen` em
