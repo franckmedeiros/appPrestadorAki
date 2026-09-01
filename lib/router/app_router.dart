@@ -58,10 +58,12 @@ GoRouter buildAppRouter(AuthController authController) {
       final isSplash = location == '/splash';
       final isUnlock = location == '/unlock';
       final isAuthScreen = _authScreens.contains(location);
-      // Sempre a busca — não existe mais "home do prestador" separada da
-      // "home do cliente" (conta unificada); quem também é prestador
-      // encontra o Dashboard como mais uma aba, não como ponto de entrada.
-      const home = '/buscar';
+      // Pra quem também é prestador (`isProvider`), a home é o Dashboard
+      // — pedido do Franck: abrir o app já cai direto lá, em vez de
+      // precisar tocar na aba. Cliente sem essa capacidade continua
+      // caindo na busca, como sempre (`isProvider` é sempre `false` pra
+      // quem não está autenticado, então o convidado nunca é afetado).
+      final home = isProvider ? '/dashboard' : '/buscar';
 
       switch (status) {
         case AuthStatus.unknown:
