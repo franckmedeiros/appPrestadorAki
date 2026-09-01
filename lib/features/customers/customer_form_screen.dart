@@ -148,7 +148,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 children: [
                   Expanded(
                     child: _FieldCard(
-                      icon: const Icon(Icons.location_on_outlined, color: AppColors.primary, size: 20),
+                      icon: const Icon(Icons.location_on_outlined, color: AppColors.primary, size: 14),
                       label: 'UF',
                       required: true,
                       compact: true,
@@ -167,7 +167,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _FieldCard(
-                      icon: const Icon(Icons.location_city_outlined, color: AppColors.primary, size: 20),
+                      icon: const Icon(Icons.location_city_outlined, color: AppColors.primary, size: 14),
                       label: 'Cidade',
                       required: true,
                       compact: true,
@@ -249,9 +249,32 @@ class _FieldCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = compact ? 44.0 : 52.0;
+    final labelRow = Row(
+      children: [
+        Flexible(
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (required)
+          const Text(' *', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+      ],
+    );
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        child,
+        if (helperText != null) ...[
+          const SizedBox(height: 6),
+          Text(helperText!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+        ],
+      ],
+    );
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(compact ? 14 : 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
@@ -259,42 +282,62 @@ class _FieldCard extends StatelessWidget {
           BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: iconSize,
-            height: iconSize,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: icon,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+      // No modo compacto (UF/Cidade, dividindo a largura da tela ao meio)
+      // o ícone vira um selo pequeno do lado do rótulo, empilhado ACIMA
+      // do campo, em vez de ficar do lado — um círculo de 52/44px ao
+      // lado do campo, como no modo normal, sobrava pouquíssima largura
+      // pra caixa de verdade nessa metade de tela e truncava tudo (bug
+      // relatado pelo Franck: "S..."/"E..." em vez do texto).
+      child: compact
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                    if (required)
-                      const Text(' *', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: icon,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: labelRow),
                   ],
                 ),
                 const SizedBox(height: 8),
-                child,
-                if (helperText != null) ...[
-                  const SizedBox(height: 6),
-                  Text(helperText!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                ],
+                content,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: icon,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      labelRow,
+                      const SizedBox(height: 8),
+                      content,
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
