@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/date_text_utils.dart';
 import '../../widgets/app_list_card.dart';
 import 'client_auth_gate.dart';
 import 'models/service_category.dart';
@@ -110,6 +111,17 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
+                            // Pedido do Franck: mostrar a data do pedido no
+                            // card (a lista já vem ordenada da mais recente
+                            // pra mais antiga — ver
+                            // ServiceRequestsRepository.watchForClient —,
+                            // mas sem a data não dava pra confirmar isso
+                            // olhando só pro card).
+                            Text(
+                              formatDateDdMmYyyy(request.createdAt),
+                              style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                            ),
+                            const SizedBox(height: 2),
                             Text(request.status.label,
                                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                             if (request.quoteAmountCents != null)
