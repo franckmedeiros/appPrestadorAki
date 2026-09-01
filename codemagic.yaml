@@ -37,12 +37,17 @@ workflows:
     # então só deve rodar quando você mandar manualmente (Codemagic >
     # Start new build > escolher "ios-release").
     integrations:
-      # Mesma integração já usada pro app Resenha (Team settings >
-      # Integrations > Apple Developer Portal) — uma chave de API do App
-      # Store Connect normalmente enxerga TODOS os apps do seu time, não
-      # só um, então não precisa criar uma chave nova só pro
+      # A chave antiga (integração "Resenha", mesma usada pelo app
+      # Resenha) foi revogada no fim de agosto/2026 e um build manual
+      # falhou com 401 NOT_AUTHORIZED por causa disso. No lugar dela foi
+      # conectada uma chave nova em Team settings > Integrations > Apple
+      # Developer Portal, só que sob o nome "OPOutsourcing" (o nome da
+      # conta de desenvolvedor Apple, puxado automaticamente) em vez de
+      # "Resenha" — por isso o nome aqui precisou mudar também. Uma
+      # chave de API do App Store Connect normalmente enxerga TODOS os
+      # apps do time, não só um, então não precisa de chave separada pro
       # PrestadorAki.
-      app_store_connect: Resenha
+      app_store_connect: OPOutsourcing
 
     environment:
       flutter: stable
