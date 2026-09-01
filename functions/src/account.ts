@@ -38,11 +38,14 @@ import { db } from './lib/admin';
 
 /**
  * Apaga em lotes todos os documentos que casam com uma query — usado pra
- * `serviceRequests`, que é uma coleção de nível raiz, fora de `/providers`
- * e `/clients`, então não é coberta pelo `db.recursiveDelete` acima. Em
- * lotes de 400 só por segurança (o limite de um batch do Firestore é 500
- * operações), embora na prática o número de solicitações de uma única
- * conta deva ficar bem abaixo disso.
+ * limpar os orçamentos que esta conta pediu, na capacidade de CLIENTE,
+ * dentro da subcoleção `budgets` de OUTROS prestadores (ver
+ * `collectionGroup('budgets')` abaixo) — não é coberto pelo
+ * `db.recursiveDelete(providers/{uid})` acima, que só apaga o que está
+ * DEBAIXO do próprio uid, não o que esta conta criou na árvore de outra
+ * conta. Em lotes de 400 só por segurança (o limite de um batch do
+ * Firestore é 500 operações), embora na prática o número de pedidos de
+ * uma única conta deva ficar bem abaixo disso.
  */
 async function apagarQuery(query: FirebaseFirestore.Query): Promise<void> {
   const snapshot = await query.get();
@@ -74,11 +77,12 @@ export const excluirContaEDados = onCall(async (request) => {
     // trás — foi exatamente o problema que o Franck percebeu ao testar
     // excluir e recriar a conta.
     await db.recursiveDelete(db.collection('providerDirectory').doc(uid));
-    // Pedidos de orçamento do marketplace (coleção raiz `serviceRequests`,
-    // ver ServiceRequestsRepository) em que essa conta era o cliente OU
-    // o prestador.
-    await apagarQuery(db.collection('serviceRequests').where('clientUid', '==', uid));
-    await apagarQuery(db.collection('serviceRequests').where('providerUid', '==', uid));
+    // Orçamentos que esta conta pediu, na capacidade de CLIENTE, na
+    // subcoleção de OUTROS prestadores (ver Budget.clientUid/
+    // BudgetRequestsRepository) — os que esta conta criou como
+    // PRESTADOR, na própria subcoleção, já foram embora junto com
+    // `db.recursiveDelete(providers/{uid})` acima.
+    await apagarQuery(db.collectionGroup('budgets').where('clientUid', '==', uid));
   } catch (error) {
     logger.error('Falha ao apagar dados do Firestore na exclusão de conta', { uid, error });
     throw new HttpsError('internal', 'Não foi possível apagar seus dados. Tente novamente.');

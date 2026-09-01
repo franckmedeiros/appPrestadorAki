@@ -45,15 +45,51 @@ service cloud.firestore {
       // Orçamentos (módulo formal, ligado a Clientes — ver
       // lib/features/budgets/): versão simples implementada em
       // 2026-08, direto do app (BudgetsRepository), sem numeração
-      // sequencial/versionamento/job automático — o desenho documentado
-      // abaixo (Cloud Functions, aprovação, `jobs` automático) era um
-      // plano mais ambicioso que nunca chegou a ser construído. Fica a
-      // nota histórica caso esse fluxo mais completo (orçamento
-      // formalmente enviado, cliente aprova/recusa, job nasce sozinho)
-      // vire prioridade de verdade; até lá, é CRUD direto do prestador
-      // dono, igual `customers`/`appointments` acima.
+      // sequencial/versionamento/job automático (o desenho mais
+      // ambicioso com Cloud Functions/`jobs` em functions/src/budgets.ts
+      // nunca chegou a ser ligado ao app — fica como código morto).
+      //
+      // Desde então (pedido do Franck) um orçamento também pode nascer de
+      // um pedido de cliente pelo marketplace (ver `Budget.clientUid`/
+      // `BudgetStatus`) — por isso, além do dono (`isOwner`), um cliente
+      // autenticado também pode criar/atualizar um documento aqui, de
+      // forma bem restrita:
+      //   - `create`: só um orçamento `pendente`, com o próprio uid como
+      //     `clientUid`, sem itens/preço nem desconto (o prestador é quem
+      //     preenche isso depois, ao enviar) e só com os campos abaixo.
+      //   - `update`: só a partir de `enviado` (o prestador já respondeu),
+      //     só pra `aprovado`/`recusado`, e só mexendo em `status`/
+      //     `rejectedBy`/`updatedAt` — preço/itens continuam intocáveis
+      //     pelo cliente.
+      // O aceite final (`aprovado` -> `aceito`, que cria o compromisso na
+      // agenda) só o prestador faz, então cai direto em `isOwner` — sem
+      // regra adicional.
       match /budgets/{budgetId} {
-        allow read, write: if isOwner(providerId);
+        allow read: if isOwner(providerId) ||
+          (request.auth != null && request.auth.uid == resource.data.get('clientUid', null));
+
+        allow create: if isOwner(providerId) ||
+          (request.auth != null &&
+           request.auth.uid == request.resource.data.clientUid &&
+           request.resource.data.status == 'pendente' &&
+           request.resource.data.items == [] &&
+           request.resource.data.discountCents == 0 &&
+           request.resource.data.keys().hasOnly([
+             'clientUid', 'providerDirectoryId', 'providerName', 'category',
+             'customerName', 'requestDescription', 'preferredDate',
+             'addressText', 'date', 'items', 'discountCents', 'status',
+             'createdAt', 'updatedAt'
+           ]));
+
+        allow update: if isOwner(providerId) ||
+          (request.auth != null &&
+           request.auth.uid == resource.data.get('clientUid', null) &&
+           resource.data.status == 'enviado' &&
+           request.resource.data.status in ['aprovado', 'recusado'] &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'rejectedBy', 'updatedAt']));
+
+        allow delete: if isOwner(providerId);
 
         match /versions/{versionId} {
           allow read: if isOwner(providerId);
@@ -140,9 +176,10 @@ service cloud.firestore {
       // por cliente por prestador. Leitura pública (fazem parte do perfil
       // que qualquer um pode ver); escrita só pelo próprio cliente dono da
       // avaliação. A checagem de "só quem contratou pode avaliar" fica no
-      // app (ver ServiceRequestsRepository.hasAcceptedRequestWith) — mesma
-      // ressalva de "simplificação honesta" que já existe pra
-      // serviceRequests logo abaixo.
+      // app (ver BudgetRequestsRepository.hasAcceptedBudgetWith) — uma
+      // simplificação honesta: nada aqui impede um cliente de forçar a
+      // chamada direto sem nunca ter contratado (ver a mesma ressalva em
+      // ProviderDirectoryRepository.rate).
       match /ratings/{clientUid} {
         allow read: if true;
         allow create, update: if request.auth != null &&
@@ -154,25 +191,13 @@ service cloud.firestore {
       }
     }
 
-    // Pedidos de orçamento do marketplace (cliente → prestador do
-    // diretório). Leitura e atualização são permitidas pras duas partes
-    // envolvidas no pedido.
-    //
-    // Simplificação honesta: não há validação de transição de status aqui
-    // (ex.: nada impede o cliente de marcar "aceito" um pedido que o
-    // prestador nunca respondeu, ou o prestador de reabrir um pedido já
-    // recusado) — fica a cargo do próprio app por enquanto. Se abuso
-    // aparecer na prática, isso precisa virar regra de verdade (checando
-    // `resource.data.status` antes/depois) ou uma Cloud Function, do
-    // mesmo jeito que os Orçamentos formais já são.
-    match /serviceRequests/{requestId} {
-      allow read, update: if request.auth != null &&
-        (request.auth.uid == resource.data.clientUid ||
-         request.auth.uid == resource.data.providerUid);
-      allow create: if request.auth != null &&
-        request.auth.uid == request.resource.data.clientUid;
-      allow delete: if false;
-    }
+    // Não existe mais uma coleção `serviceRequests` separada — pedido do
+    // Franck: o pedido do cliente já nasce como um orçamento (ver o bloco
+    // `budgets` acima, dentro de `providers/{providerId}`). As mesmas
+    // regras de lá também valem pra uma consulta `collectionGroup('budgets')`
+    // (usada por `BudgetRequestsRepository.watchMine` pra juntar os
+    // pedidos do cliente em vários prestadores) — o Firestore casa as
+    // regras pelo id da (sub)coleção, não importa a profundidade.
 
     // Nenhuma outra coleção é acessível pelo cliente. `publicBudgetTokens`
     // (usada para resolver o link público de orçamento) só é lida/escrita

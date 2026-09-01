@@ -1,22 +1,33 @@
 /**
  * Central de notificações do marketplace (sininho — ver
  * lib/widgets/notification_bell.dart) + push de verdade via FCM. Duas
- * pontas do fluxo de `serviceRequests` (ver DATA_MODEL.md):
+ * pontas do fluxo de pedido de orçamento (ver DATA_MODEL.md e
+ * lib/features/budgets/models/budget.dart — `BudgetStatus`):
  *
- *  - onServiceRequestCreated: dispara ao CRIAR um pedido de orçamento —
- *    avisa o PRESTADOR, só quando o perfil já era reivindicado no
- *    momento do pedido (ou seja, já existe `providerUid` — perfil "não
- *    reivindicado" não tem conta nenhuma pra avisar).
+ *  - onBudgetRequestCreated: dispara ao CRIAR um orçamento com
+ *    `status == 'pendente'` E `clientUid` preenchido (ou seja, veio de um
+ *    pedido de cliente pelo marketplace, não de um orçamento manual do
+ *    prestador) — avisa o PRESTADOR dono da subcoleção.
  *
- *  - onServiceRequestResponded: dispara quando o campo `status` muda pra
- *    'orcamento_enviado', 'aceito' ou 'recusado' — avisa o CLIENTE que
- *    fez o pedido original.
+ *  - onBudgetStatusChanged: dispara quando o campo `status` muda — avisa
+ *    quem precisa agir na etapa seguinte (ver `BudgetStatus`): o cliente
+ *    quando o prestador envia ou aceita, o prestador quando o cliente
+ *    aprova ou recusa, o cliente quando o próprio prestador recusa.
  *
- * Toda notificação é gravada em `clients/{uid}/notifications` (mesmo uid
- * que recebe o push, guardado em `clients/{uid}.fcmToken` — ver
- * NotificationService no Flutter) — é o que alimenta o sininho dentro do
- * app mesmo depois que o push já sumiu da barra do sistema. Mesmo padrão
- * já usado no app Resenha (functions/index.js de lá).
+ * Antes disso essas duas pontas observavam uma coleção à parte,
+ * `serviceRequests` — o Franck pediu pra tirar essa etapa do meio: o
+ * pedido do cliente já nasce como um orçamento (ver commit que trouxe
+ * essa mudança). Só a origem do gatilho mudou; o formato da notificação
+ * continua o mesmo de antes.
+ *
+ * Toda notificação é gravada em `clients/{uid}/notifications` — MESMO
+ * pra quem está sendo avisado na capacidade de PRESTADOR (conta
+ * unificada, ver AuthController no app: todo uid tem um documento em
+ * `clients/{uid}` independente de também ter um em `providers/{uid}`) —
+ * é o mesmo uid que recebe o push, guardado em `clients/{uid}.fcmToken`
+ * (ver NotificationService no Flutter), e é o que alimenta o sininho
+ * dentro do app mesmo depois que o push já sumiu da barra do sistema.
+ * Mesmo padrão já usado no app Resenha (functions/index.js de lá).
  *
  * Roda com privilégio de administrador (Admin SDK) — ignora
  * firestore.rules.
@@ -36,16 +47,17 @@ interface NotificationInput {
   type: string;
   title: string;
   body: string;
-  serviceRequestId?: string;
+  budgetId?: string;
 }
 
 /**
- * Grava o item na central de notificações do destinatário e, se ele tiver
- * um token FCM salvo, manda o push também. Nunca lança erro pra fora —
- * notificação é um "extra" sobre a operação principal (criar/atualizar o
- * pedido de orçamento), que não pode falhar por causa disso.
+ * Grava o item na central de notificações do destinatário (`uid` — pode
+ * ser o cliente ou o prestador, ver comentário do topo do arquivo) e, se
+ * ele tiver um token FCM salvo, manda o push também. Nunca lança erro pra
+ * fora — notificação é um "extra" sobre a operação principal (criar/
+ * atualizar o orçamento), que não pode falhar por causa disso.
  */
-async function notifyClient(uid: string, input: NotificationInput): Promise<void> {
+async function notify(uid: string, input: NotificationInput): Promise<void> {
   if (!uid) return;
 
   try {
@@ -53,7 +65,7 @@ async function notifyClient(uid: string, input: NotificationInput): Promise<void
       type: input.type,
       title: input.title,
       body: input.body,
-      serviceRequestId: input.serviceRequestId ?? null,
+      budgetId: input.budgetId ?? null,
       read: false,
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -70,7 +82,7 @@ async function notifyClient(uid: string, input: NotificationInput): Promise<void
       notification: { title: input.title, body: input.body },
       data: {
         type: input.type,
-        ...(input.serviceRequestId ? { serviceRequestId: input.serviceRequestId } : {}),
+        ...(input.budgetId ? { budgetId: input.budgetId } : {}),
       },
       android: { notification: { channelId: NOTIFICATION_CHANNEL_ID } },
     });
@@ -81,31 +93,30 @@ async function notifyClient(uid: string, input: NotificationInput): Promise<void
   }
 }
 
-export const onServiceRequestCreated = onDocumentCreated(
-  'serviceRequests/{requestId}',
+export const onBudgetRequestCreated = onDocumentCreated(
+  'providers/{providerId}/budgets/{budgetId}',
   async (event) => {
-    const request = event.data?.data();
-    if (!request) return;
+    const budget = event.data?.data();
+    if (!budget) return;
+    // Só pedidos vindos de um cliente pelo marketplace — um orçamento
+    // manual do prestador não tem `status`/`clientUid` nenhum.
+    if (budget.status !== 'pendente' || !budget.clientUid) return;
 
-    const providerUid = request.providerUid as string | undefined;
-    if (!providerUid) return; // Perfil ainda não reivindicado — ninguém pra avisar dentro do app.
+    const providerId = event.params.providerId as string;
+    const clientName = (budget.customerName as string | undefined) || 'Um cliente';
+    const category = (budget.category as string | undefined) || 'um serviço';
 
-    const clientName = (request.clientName as string | undefined) || 'Um cliente';
-    const category = (request.category as string | undefined) || 'um serviço';
-
-    await notifyClient(providerUid, {
+    await notify(providerId, {
       type: 'novo_pedido',
       title: 'Novo pedido de orçamento',
       body: `${clientName} pediu um orçamento de ${category}.`,
-      serviceRequestId: event.params.requestId,
+      budgetId: event.params.budgetId as string,
     });
   },
 );
 
-const RESPONSE_STATUSES = new Set(['orcamento_enviado', 'aceito', 'recusado']);
-
-export const onServiceRequestResponded = onDocumentUpdated(
-  'serviceRequests/{requestId}',
+export const onBudgetStatusChanged = onDocumentUpdated(
+  'providers/{providerId}/budgets/{budgetId}',
   async (event) => {
     const before = event.data?.before?.data();
     const after = event.data?.after?.data();
@@ -113,24 +124,67 @@ export const onServiceRequestResponded = onDocumentUpdated(
 
     const beforeStatus = before.status as string | undefined;
     const afterStatus = after.status as string | undefined;
-    if (beforeStatus === afterStatus) return;
-    if (!afterStatus || !RESPONSE_STATUSES.has(afterStatus)) return;
-
+    if (!afterStatus || beforeStatus === afterStatus) return;
+    // Orçamento manual (sem `clientUid`) não tem cliente do app pra
+    // avisar — só os que vieram de um pedido pelo marketplace chegam
+    // aqui de verdade.
     const clientUid = after.clientUid as string | undefined;
     if (!clientUid) return;
 
+    const providerId = event.params.providerId as string;
+    const budgetId = event.params.budgetId as string;
     const providerName = (after.providerName as string | undefined) || 'O prestador';
-    const messages: Record<string, string> = {
-      orcamento_enviado: `${providerName} enviou um orçamento pro seu pedido.`,
-      aceito: `${providerName} aceitou seu pedido.`,
-      recusado: `${providerName} recusou seu pedido.`,
-    };
+    const customerName = (after.customerName as string | undefined) || 'O cliente';
 
-    await notifyClient(clientUid, {
-      type: 'resposta_pedido',
-      title: 'Resposta ao seu pedido',
-      body: messages[afterStatus] ?? `Seu pedido mudou de status: ${afterStatus}.`,
-      serviceRequestId: event.params.requestId,
-    });
+    switch (afterStatus) {
+      case 'enviado':
+        await notify(clientUid, {
+          type: 'resposta_pedido',
+          title: 'Orçamento enviado',
+          body: `${providerName} enviou um orçamento pro seu pedido.`,
+          budgetId,
+        });
+        return;
+      case 'aceito':
+        await notify(clientUid, {
+          type: 'resposta_pedido',
+          title: 'Serviço confirmado',
+          body: `${providerName} confirmou e agendou seu serviço.`,
+          budgetId,
+        });
+        return;
+      case 'aprovado':
+        // Cliente aprovou — falta o prestador dar o aceite final (ver
+        // BudgetsRepository.acceptFinal), por isso quem precisa agir
+        // agora é o PRESTADOR.
+        await notify(providerId, {
+          type: 'resposta_pedido',
+          title: 'Orçamento aprovado',
+          body: `${customerName} aprovou o orçamento — confirme pra agendar o serviço.`,
+          budgetId,
+        });
+        return;
+      case 'recusado':
+        // Quem recusou já sabe (foi ação da própria pessoa) — avisa só o
+        // OUTRO lado (ver Budget.rejectedBy).
+        if (after.rejectedBy === 'cliente') {
+          await notify(providerId, {
+            type: 'resposta_pedido',
+            title: 'Orçamento recusado',
+            body: `${customerName} recusou o orçamento.`,
+            budgetId,
+          });
+        } else {
+          await notify(clientUid, {
+            type: 'resposta_pedido',
+            title: 'Orçamento recusado',
+            body: `${providerName} recusou seu pedido.`,
+            budgetId,
+          });
+        }
+        return;
+      default:
+        return;
+    }
   },
 );

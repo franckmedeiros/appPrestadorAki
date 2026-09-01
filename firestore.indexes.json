@@ -1,28 +1,19 @@
 {
   "indexes": [
     {
-      "collectionGroup": "serviceRequests",
-      "queryScope": "COLLECTION",
+      "collectionGroup": "budgets",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "clientUid", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {
-      "collectionGroup": "serviceRequests",
+      "collectionGroup": "budgets",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "providerUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "serviceRequests",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "clientUid", "order": "ASCENDING" },
-        { "fieldPath": "providerDirectoryId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     }
   ],
