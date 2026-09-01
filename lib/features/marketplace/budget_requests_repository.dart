@@ -52,6 +52,7 @@ class BudgetRequestsRepository {
         'items': const [],
         'discountCents': 0,
         'clientUid': _auth.currentUser!.uid,
+        'providerUid': providerUid,
         'providerDirectoryId': provider.id,
         'providerName': provider.name,
         'category': provider.category.wireValue,

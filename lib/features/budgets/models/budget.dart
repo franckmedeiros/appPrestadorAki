@@ -107,6 +107,7 @@ class Budget {
     this.observations,
     this.status,
     this.clientUid,
+    this.providerUid,
     this.providerDirectoryId,
     this.providerName,
     this.category,
@@ -135,6 +136,7 @@ class Budget {
       observations: data['observations'] as String?,
       status: budgetStatusFromWire(data['status'] as String?),
       clientUid: data['clientUid'] as String?,
+      providerUid: data['providerUid'] as String?,
       providerDirectoryId: data['providerDirectoryId'] as String?,
       providerName: data['providerName'] as String?,
       category: data['category'] as String?,
@@ -161,6 +163,19 @@ class Budget {
   /// pelo marketplace (ver classe acima).
   final BudgetStatus? status;
   final String? clientUid;
+
+  /// Uid do prestador dono deste orçamento — gravado explicitamente como
+  /// CAMPO (em vez de só inferido do próprio caminho do documento,
+  /// `providers/{uid}/budgets/...`) porque o Firestore recusa consultas
+  /// em `collectionGroup` quando a regra de segurança mistura uma
+  /// variável do caminho (`isOwner(providerId)`) com uma condição sobre
+  /// campo do documento (`clientUid`) dentro de um OR — mesmo sendo
+  /// logicamente seguro, ele não consegue provar isso pra uma
+  /// collectionGroup query e nega a consulta inteira (documentado pelo
+  /// próprio Firebase). Por isso `firestore.rules` usa este campo (em vez
+  /// de `isOwner`) na regra de `list`, e tanto `BudgetsRepository` quanto
+  /// `BudgetRequestsRepository` sempre gravam ele.
+  final String? providerUid;
   final String? providerDirectoryId;
   final String? providerName;
   final String? category;
@@ -201,6 +216,7 @@ class Budget {
         if (observations != null && observations!.isNotEmpty) 'observations': observations,
         if (status != null) 'status': status!.wireValue,
         if (clientUid != null) 'clientUid': clientUid,
+        if (providerUid != null) 'providerUid': providerUid,
         if (providerDirectoryId != null) 'providerDirectoryId': providerDirectoryId,
         if (providerName != null) 'providerName': providerName,
         if (category != null) 'category': category,
@@ -235,6 +251,7 @@ class Budget {
         observations: observations ?? this.observations,
         status: status ?? this.status,
         clientUid: clientUid,
+        providerUid: providerUid,
         providerDirectoryId: providerDirectoryId,
         providerName: providerName,
         category: category,

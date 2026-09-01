@@ -97,6 +97,29 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
+                // Antes o erro era engolido (`snapshot.data ?? []` direto)
+                // e a tela mostrava "nenhum pedido" mesmo quando a
+                // consulta falhava de verdade (ex.: índice composto do
+                // collectionGroup ainda não pronto, ou regra negando) —
+                // ficava impossível saber a diferença de "vazio" pra
+                // "quebrado". Agora mostra o erro de verdade.
+                if (snapshot.hasError) {
+                  return ListView(
+                    children: [
+                      const SizedBox(height: 80),
+                      const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          'Não foi possível carregar seus orçamentos.\n${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  );
+                }
                 final budgets = snapshot.data ?? [];
                 if (budgets.isEmpty) {
                   return ListView(

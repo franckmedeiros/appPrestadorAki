@@ -65,17 +65,46 @@ service cloud.firestore {
       // agenda) só o prestador faz, então cai direto em `isOwner` — sem
       // regra adicional.
       match /budgets/{budgetId} {
-        allow read: if isOwner(providerId) ||
+        // Um único documento de cada vez (abrir um orçamento específico)
+        // — aqui `isOwner(providerId)` é perfeitamente seguro combinado
+        // com OR, porque o Firestore já sabe exatamente qual documento
+        // está sendo pedido (o caminho inteiro já veio resolvido no
+        // request, não precisa provar nada pra um conjunto de resultados
+        // em aberto).
+        allow get: if isOwner(providerId) ||
           (request.auth != null && request.auth.uid == resource.data.get('clientUid', null));
+
+        // Consultas (`list`) — inclusive a `collectionGroup('budgets')`
+        // que o CLIENTE usa em "Meus orçamentos" pra ver pedidos em
+        // QUALQUER prestador (ver BudgetRequestsRepository.watchMine).
+        // Isso NÃO pode usar `isOwner(providerId)` aqui: o Firestore
+        // recusa a `collectionGroup` inteira quando a regra mistura uma
+        // variável do CAMINHO do documento (`providerId`, que varia por
+        // prestador) com uma condição sobre CAMPO do documento
+        // (`clientUid`) dentro de um OR — mesmo sendo logicamente seguro
+        // (o filtro `where('clientUid', ...)` da query já garante que só
+        // vem documento do próprio cliente), ele não consegue provar isso
+        // pra uma query em aberto e nega a consulta inteira com
+        // PERMISSION_DENIED (limitação documentada do próprio Firebase).
+        // Por isso usamos `providerUid` — o MESMO uid do prestador, só
+        // que gravado como campo do documento — em vez de `isOwner`: aí
+        // as duas metades do OR são só sobre campos, e o Firestore
+        // consegue validar a query (ver `Budget.providerUid`/
+        // `BudgetsRepository.create`/`BudgetRequestsRepository.create`,
+        // que sempre gravam esse campo).
+        allow list: if request.auth != null &&
+          (request.auth.uid == resource.data.get('providerUid', null) ||
+           request.auth.uid == resource.data.get('clientUid', null));
 
         allow create: if isOwner(providerId) ||
           (request.auth != null &&
            request.auth.uid == request.resource.data.clientUid &&
+           request.resource.data.providerUid == providerId &&
            request.resource.data.status == 'pendente' &&
            request.resource.data.items == [] &&
            request.resource.data.discountCents == 0 &&
            request.resource.data.keys().hasOnly([
-             'clientUid', 'providerDirectoryId', 'providerName', 'category',
+             'clientUid', 'providerUid', 'providerDirectoryId', 'providerName', 'category',
              'customerName', 'requestDescription', 'preferredDate',
              'addressText', 'date', 'items', 'discountCents', 'status',
              'createdAt', 'updatedAt'

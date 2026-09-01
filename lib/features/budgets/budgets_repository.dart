@@ -54,6 +54,7 @@ class BudgetsRepository {
       final now = FieldValue.serverTimestamp();
       final doc = await _collection.add({
         ...budget.toMap(),
+        'providerUid': _auth.currentUser!.uid,
         'createdAt': now,
         'updatedAt': now,
       });
@@ -68,6 +69,7 @@ class BudgetsRepository {
     try {
       await _collection.doc(budget.id).set({
         ...budget.toMap(),
+        'providerUid': _auth.currentUser!.uid,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } on FirebaseException catch (e) {
@@ -103,6 +105,7 @@ class BudgetsRepository {
     try {
       await _collection.doc(budget.id).set({
         ...budget.toMap(),
+        'providerUid': _auth.currentUser!.uid,
         'status': BudgetStatus.enviado.wireValue,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -117,6 +120,7 @@ class BudgetsRepository {
   Future<void> rejectAsProvider(String id) async {
     try {
       await _collection.doc(id).set({
+        'providerUid': _auth.currentUser!.uid,
         'status': BudgetStatus.recusado.wireValue,
         'rejectedBy': 'prestador',
         'updatedAt': FieldValue.serverTimestamp(),
@@ -157,6 +161,7 @@ class BudgetsRepository {
       );
 
       await _collection.doc(budget.id).set({
+        'providerUid': _auth.currentUser!.uid,
         'status': BudgetStatus.aceito.wireValue,
         'serviceScheduledAt': Timestamp.fromDate(serviceScheduledAt),
         'serviceDurationMinutes': serviceDurationMinutes,
