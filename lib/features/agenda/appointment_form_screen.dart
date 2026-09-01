@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
+import '../../core/app_theme.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../customers/customers_repository.dart';
@@ -10,7 +11,11 @@ import 'models/appointment.dart';
 
 /// Formulário de compromisso — cria um novo (`appointment == null`) ou
 /// edita um já existente (`appointment` preenchido, ver `AgendaScreen`,
-/// que agora abre isso ao tocar num compromisso da lista).
+/// que agora abre isso ao tocar num compromisso da lista). Visual em
+/// cards com ícone, a partir de um mockup que o Franck mandou (mesmo
+/// sistema visual do CustomerFormScreen - ver _FieldCard lá, redesenhado
+/// aqui localmente porque os dois formulários não compartilham um
+/// arquivo comum de widgets de formulário ainda).
 class AppointmentFormScreen extends StatefulWidget {
   const AppointmentFormScreen({super.key, this.appointment});
 
@@ -144,9 +149,33 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Editar compromisso' : 'Novo compromisso')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        toolbarHeight: 76,
+        title: Text(_isEditing ? 'Editar compromisso' : 'Novo compromisso'),
+        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Icon(Icons.calendar_month_outlined, color: Colors.white),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(28),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _isEditing ? 'Atualize os dados do compromisso' : 'Agende uma visita técnica ou serviço',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -159,97 +188,199 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
                 // ainda não tenha carregado ou ele tenha sido removido.
                 final hasSelected =
                     _selectedCustomerId == null || customers.any((c) => c.id == _selectedCustomerId);
-                return DropdownButtonFormField<String>(
-                  initialValue: hasSelected ? _selectedCustomerId : null,
-                  decoration: const InputDecoration(labelText: 'Cliente (opcional)'),
-                  items: [
-                    const DropdownMenuItem<String>(value: null, child: Text('Sem cliente vinculado')),
-                    ...customers.map(
-                      (c) => DropdownMenuItem<String>(value: c.id, child: Text(c.name)),
-                    ),
-                  ],
-                  onChanged: (value) => setState(() => _selectedCustomerId = value),
+                return _FieldCard(
+                  icon: Icons.person_outline,
+                  label: 'Cliente (opcional)',
+                  helperText: 'Selecione um cliente para este compromisso (opcional)',
+                  child: DropdownButtonFormField<String>(
+                    initialValue: hasSelected ? _selectedCustomerId : null,
+                    decoration: const InputDecoration(),
+                    items: [
+                      const DropdownMenuItem<String>(value: null, child: Text('Sem cliente vinculado')),
+                      ...customers.map(
+                        (c) => DropdownMenuItem<String>(value: c.id, child: Text(c.name)),
+                      ),
+                    ],
+                    onChanged: (value) => setState(() => _selectedCustomerId = value),
+                  ),
                 );
               },
             ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<AppointmentType>(
-              initialValue: _type,
-              decoration: const InputDecoration(labelText: 'Tipo'),
-              items: AppointmentType.values
-                  .map((t) => DropdownMenuItem(value: t, child: Text(t.label)))
-                  .toList(),
-              onChanged: (value) => setState(() => _type = value ?? _type),
+            const SizedBox(height: 14),
+            _FieldCard(
+              icon: Icons.medical_services_outlined,
+              label: 'Tipo',
+              child: DropdownButtonFormField<AppointmentType>(
+                initialValue: _type,
+                decoration: const InputDecoration(),
+                items: AppointmentType.values
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t.label)))
+                    .toList(),
+                onChanged: (value) => setState(() => _type = value ?? _type),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: _dateController,
-                    keyboardType: TextInputType.datetime,
-                    inputFormatters: [_dateMask],
-                    decoration: InputDecoration(
-                      labelText: 'Data',
-                      hintText: 'DD/MM/AAAA',
-                      suffixIcon: IconButton(
-                        tooltip: 'Escolher no calendário',
-                        icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                        onPressed: _pickDate,
+                  child: _FieldCard(
+                    icon: Icons.calendar_month_outlined,
+                    label: 'Data',
+                    compact: true,
+                    child: TextFormField(
+                      controller: _dateController,
+                      keyboardType: TextInputType.datetime,
+                      inputFormatters: [_dateMask],
+                      decoration: InputDecoration(
+                        hintText: 'DD/MM/AAAA',
+                        suffixIcon: IconButton(
+                          tooltip: 'Escolher no calendário',
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                          onPressed: _pickDate,
+                        ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: _timeController,
-                    keyboardType: TextInputType.datetime,
-                    inputFormatters: [_timeMask],
-                    decoration: InputDecoration(
-                      labelText: 'Hora',
-                      hintText: 'HH:MM',
-                      suffixIcon: IconButton(
-                        tooltip: 'Escolher no relógio',
-                        icon: const Icon(Icons.schedule_outlined, size: 18),
-                        onPressed: _pickTime,
+                  child: _FieldCard(
+                    icon: Icons.schedule_outlined,
+                    label: 'Hora',
+                    compact: true,
+                    child: TextFormField(
+                      controller: _timeController,
+                      keyboardType: TextInputType.datetime,
+                      inputFormatters: [_timeMask],
+                      decoration: InputDecoration(
+                        hintText: 'HH:MM',
+                        suffixIcon: IconButton(
+                          tooltip: 'Escolher no relógio',
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                          onPressed: _pickTime,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _addressController,
-              decoration: const InputDecoration(labelText: 'Endereço (opcional)'),
+            const SizedBox(height: 14),
+            _FieldCard(
+              icon: Icons.location_on_outlined,
+              label: 'Endereço (opcional)',
+              child: TextFormField(
+                controller: _addressController,
+                decoration: const InputDecoration(hintText: 'Digite o endereço'),
+              ),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _observationsController,
-              decoration: const InputDecoration(labelText: 'Observações (opcional)'),
-              maxLines: 3,
+            const SizedBox(height: 14),
+            _FieldCard(
+              icon: Icons.description_outlined,
+              label: 'Observações (opcional)',
+              child: TextFormField(
+                controller: _observationsController,
+                decoration: const InputDecoration(hintText: 'Adicione observações sobre o compromisso'),
+                maxLines: 3,
+              ),
             ),
             if (_error != null) ...[
               const SizedBox(height: 8),
               Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
-            const SizedBox(height: 20),
-            ElevatedButton(
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
               onPressed: _saving ? null : _save,
-              child: _saving
+              icon: _saving
                   ? const SizedBox(
-                      height: 20,
-                      width: 20,
+                      height: 18,
+                      width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : Text(_isEditing ? 'Salvar alterações' : 'Salvar compromisso'),
+                  : const Icon(Icons.save_outlined, size: 20),
+              label: Text(_isEditing ? 'Salvar alterações' : 'Salvar compromisso'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _saving ? null : () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+                side: const BorderSide(color: AppColors.danger),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.close, size: 20),
+              label: const Text('Cancelar'),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Cartão de campo — ícone num círculo à esquerda, rótulo acima do campo
+/// de verdade, e um texto de ajuda opcional embaixo. Mesmo padrão visual
+/// de CustomerFormScreen._FieldCard (ver comentário lá sobre por que não
+/// virou um widget compartilhado ainda). `compact` deixa o ícone menor
+/// pra caber lado a lado (ver Data/Hora).
+class _FieldCard extends StatelessWidget {
+  const _FieldCard({
+    required this.icon,
+    required this.label,
+    required this.child,
+    this.helperText,
+    this.compact = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final Widget child;
+  final String? helperText;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = compact ? 44.0 : 52.0;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: iconSize,
+            height: iconSize,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, color: AppColors.primary, size: compact ? 20 : 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 8),
+                child,
+                if (helperText != null) ...[
+                  const SizedBox(height: 6),
+                  Text(helperText!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

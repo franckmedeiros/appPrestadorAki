@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
+import '../../core/app_theme.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/state_city_fields.dart';
 import 'customers_repository.dart';
@@ -8,7 +10,9 @@ import 'models/customer.dart';
 
 /// Formulário de cliente — cria um novo (`customer == null`) ou edita um
 /// já existente (`customer` preenchido, ver `CustomersListScreen`, que
-/// agora abre isso ao tocar num card da lista).
+/// agora abre isso ao tocar num card da lista). Visual em cards com ícone
+/// (nome/telefone/UF/cidade) + cartão de dica, a partir de um mockup que
+/// o Franck mandou.
 class CustomerFormScreen extends StatefulWidget {
   const CustomerFormScreen({super.key, this.customer});
 
@@ -77,50 +81,104 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Editar cliente' : 'Novo cliente')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        toolbarHeight: 76,
+        title: Text(_isEditing ? 'Editar cliente' : 'Novo cliente'),
+        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Icon(Icons.person_add_alt_1_outlined, color: Colors.white),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(28),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _isEditing
+                    ? 'Atualize os dados do cliente'
+                    : 'Adicione os dados para cadastrar um novo cliente',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nome completo'),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty) ? 'Informe o nome' : null,
+              _FieldCard(
+                icon: Icons.person_outline,
+                label: 'Nome completo',
+                required: true,
+                child: TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(hintText: 'Digite o nome completo do cliente'),
+                  validator: (value) =>
+                      (value == null || value.trim().isEmpty) ? 'Informe o nome' : null,
+                ),
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [_phoneMask],
-                decoration: const InputDecoration(labelText: 'Telefone / WhatsApp'),
+              const SizedBox(height: 14),
+              _FieldCard(
+                icon: FontAwesomeIcons.whatsapp,
+                label: 'Telefone / WhatsApp',
+                required: true,
+                helperText: 'Informe um número válido para contato.',
+                child: TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [_phoneMask],
+                  decoration: const InputDecoration(
+                    hintText: '(00) 00000-0000',
+                    prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    flex: 2,
-                    child: StateSelectorField(
-                      key: ValueKey('customer-uf-$_uf'),
-                      initialValue: _uf,
-                      onChanged: (uf) => setState(() {
-                        _uf = uf;
-                        _city = null;
-                      }),
+                    child: _FieldCard(
+                      icon: Icons.location_on_outlined,
+                      label: 'UF',
+                      required: true,
+                      compact: true,
+                      child: StateSelectorField(
+                        key: ValueKey('customer-uf-$_uf'),
+                        initialValue: _uf,
+                        showLabel: false,
+                        hint: 'Selecione o estado',
+                        onChanged: (uf) => setState(() {
+                          _uf = uf;
+                          _city = null;
+                        }),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    flex: 3,
-                    child: CitySelectorField(
-                      key: ValueKey('customer-city-$_uf-$_city'),
-                      uf: _uf,
-                      initialValue: _city,
-                      onChanged: (city) => setState(() => _city = city),
+                    child: _FieldCard(
+                      icon: Icons.location_city_outlined,
+                      label: 'Cidade',
+                      required: true,
+                      compact: true,
+                      child: CitySelectorField(
+                        key: ValueKey('customer-city-$_uf-$_city'),
+                        uf: _uf,
+                        initialValue: _city,
+                        showLabel: false,
+                        hint: 'Selecione a cidade',
+                        onChanged: (city) => setState(() => _city = city),
+                      ),
                     ),
                   ),
                 ],
@@ -129,20 +187,209 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 const SizedBox(height: 8),
                 Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
               ],
-              const SizedBox(height: 20),
-              ElevatedButton(
+              const SizedBox(height: 14),
+              const _TipCard(
+                title: 'Dica',
+                message:
+                    'Manter os dados do cliente atualizados facilita a comunicação e os '
+                    'atendimentos futuros.',
+              ),
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
                 onPressed: _saving ? null : _save,
-                child: _saving
+                icon: _saving
                     ? const SizedBox(
-                        height: 20,
-                        width: 20,
+                        height: 18,
+                        width: 18,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : Text(_isEditing ? 'Salvar alterações' : 'Salvar cliente'),
+                    : const Icon(Icons.save_outlined, size: 20),
+                label: Text(_isEditing ? 'Salvar alterações' : 'Salvar cliente'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _saving ? null : () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  side: const BorderSide(color: AppColors.danger),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.close, size: 20),
+                label: const Text('Cancelar'),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Cartão de campo — ícone num círculo à esquerda, rótulo (com * quando
+/// obrigatório) acima do campo de verdade, e um texto de ajuda opcional
+/// embaixo. `compact` deixa o ícone menor pra caber lado a lado (ver UF/
+/// Cidade), já que o cartão inteiro fica com metade da largura da tela.
+class _FieldCard extends StatelessWidget {
+  const _FieldCard({
+    required this.icon,
+    required this.label,
+    required this.child,
+    this.required = false,
+    this.helperText,
+    this.compact = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final Widget child;
+  final bool required;
+  final String? helperText;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = compact ? 44.0 : 52.0;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: iconSize,
+            height: iconSize,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, color: AppColors.primary, size: compact ? 20 : 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                    if (required)
+                      const Text(' *', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                child,
+                if (helperText != null) ...[
+                  const SizedBox(height: 6),
+                  Text(helperText!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Cartão de dica - fundo laranja bem clarinho, ícone de "i" circulado,
+/// título e mensagem, com uma decoração ilustrativa simples em ícones à
+/// direita (mesma ideia da decoração do cartão de saudação do Dashboard -
+/// ver DashboardScreen._GreetingDecoration -, redesenhada aqui porque o
+/// motivo visual é outro, mas o app não tem asset de ilustração de
+/// verdade em nenhum dos dois casos).
+class _TipCard extends StatelessWidget {
+  const _TipCard({required this.title, required this.message});
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary, width: 1.4),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.info_outline, color: AppColors.primary, size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text(message, style: const TextStyle(color: AppColors.ink, fontSize: 12.5, height: 1.35)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const _TipDecoration(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Decoração ilustrativa simples (ficha de cliente + selo de check) só
+/// pra dar um toque visual ao cartão de dica, no lugar da ilustração de
+/// verdade do mockup - não temos esse asset no app.
+class _TipDecoration extends StatelessWidget {
+  const _TipDecoration();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: 0,
+            top: 2,
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.all(6),
+              child: const Icon(Icons.badge_outlined, size: 16, color: AppColors.primary),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
+              child: const Icon(Icons.check, size: 12, color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }

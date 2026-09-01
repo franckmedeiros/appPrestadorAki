@@ -14,6 +14,7 @@ class _SelectorBox extends StatelessWidget {
     required this.errorText,
     required this.enabled,
     required this.onTap,
+    this.showLabel = true,
   });
 
   final String label;
@@ -23,6 +24,13 @@ class _SelectorBox extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onTap;
 
+  /// `false` tira o label de dentro da caixa (o `InputDecorator` não
+  /// reserva mais aquele espaço de label flutuante) - pra quando quem
+  /// chama já mostra o próprio label por fora, num layout customizado
+  /// (ver CustomerFormScreen, que desenhou o rótulo com ícone acima da
+  /// caixa em vez de usar o label padrão de dentro do campo).
+  final bool showLabel;
+
   @override
   Widget build(BuildContext context) {
     final hasValue = valueText != null && valueText!.isNotEmpty;
@@ -31,7 +39,7 @@ class _SelectorBox extends StatelessWidget {
       onTap: onTap,
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: label,
+          labelText: showLabel ? label : null,
           errorText: errorText,
           suffixIcon: const Icon(Icons.arrow_drop_down),
           enabled: enabled,
@@ -68,6 +76,8 @@ class StateSelectorField extends FormField<String> {
     bool enabled = true,
     required ValueChanged<String?> onChanged,
     String label = 'UF',
+    bool showLabel = true,
+    String hint = 'Selecione',
   }) : super(
           key: key,
           initialValue: initialValue,
@@ -75,7 +85,8 @@ class StateSelectorField extends FormField<String> {
           enabled: enabled,
           builder: (field) => _SelectorBox(
             label: label,
-            hint: 'Selecione',
+            showLabel: showLabel,
+            hint: hint,
             // Usa `initialValue` (o valor que o dono da tela está
             // controlando agora), não `field.value` — este só se atualiza
             // via `field.didChange`, chamado pelo onTap abaixo, então uma
@@ -171,6 +182,8 @@ class CitySelectorField extends FormField<String> {
     FormFieldValidator<String>? validator,
     required ValueChanged<String?> onChanged,
     String label = 'Cidade',
+    bool showLabel = true,
+    String hint = 'Selecione',
   }) : super(
           key: key,
           initialValue: initialValue,
@@ -178,7 +191,8 @@ class CitySelectorField extends FormField<String> {
           enabled: uf != null && uf.isNotEmpty,
           builder: (field) => _SelectorBox(
             label: label,
-            hint: field.widget.enabled ? 'Selecione' : 'Escolha o estado primeiro',
+            showLabel: showLabel,
+            hint: field.widget.enabled ? hint : 'Escolha o estado primeiro',
             // Mesmo motivo do StateSelectorField acima: `initialValue`, não
             // `field.value`, pra refletir uma mudança externa (CEP) na
             // hora, sem depender de `field.didChange` ter sido chamado.
