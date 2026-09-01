@@ -65,6 +65,12 @@ class _ItemRowControllers {
 /// IncomingRequestsScreen). Cria um novo (`budget == null`) ou edita um
 /// já existente. Gera o PDF no layout combinado com o Franck a partir
 /// dos MESMOS dados do formulário — não precisa salvar antes pra gerar.
+///
+/// Visual em cards com ícone, a partir de um mockup que o Franck mandou.
+/// O mockup só mostrava "Salvar orçamento" e "Cancelar", mas "Gerar e
+/// compartilhar PDF" é uma funcionalidade de verdade que já existia
+/// (não dava pra simplesmente tirar) - virou um terceiro botão
+/// secundário entre os outros dois, em vez de sumir.
 class BudgetFormScreen extends StatefulWidget {
   const BudgetFormScreen({super.key, this.budget});
 
@@ -250,71 +256,98 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   Widget _buildItemRow(int index) {
     final row = _itemRows[index];
     final item = row.toItem();
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: row.descriptionController,
-                    decoration: const InputDecoration(labelText: 'Descrição do item'),
-                    onChanged: (_) => setState(() {}),
-                  ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: row.descriptionController,
+                  decoration: const InputDecoration(hintText: 'Descrição do item'),
+                  onChanged: (_) => setState(() {}),
                 ),
-                IconButton(
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: IconButton(
                   onPressed: () => _removeItemRow(index),
                   icon: const Icon(Icons.delete_outline, color: AppColors.danger),
                   tooltip: 'Remover item',
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _MiniField(
+                  badge: const Text('#', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+                  label: 'Qtd',
                   child: TextField(
                     controller: row.quantityController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Qtd'),
+                    decoration: const InputDecoration(),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MiniField(
+                  badge: const Icon(Icons.sell_outlined, size: 16, color: AppColors.primary),
+                  label: 'Unidade',
                   child: TextField(
                     controller: row.unitController,
-                    decoration: const InputDecoration(labelText: 'Unidade', hintText: 'serviço, m², ...'),
+                    decoration: const InputDecoration(hintText: 'Serviço'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MiniField(
+                  badge: const Text('R\$', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                  label: 'Preço unitário',
                   child: TextField(
                     controller: row.unitPriceController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Preço unitário (R\$)'),
+                    decoration: const InputDecoration(hintText: '0,00'),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
-              ],
-            ),
-            if (item != null) ...[
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'Total do item: ${formatCentsBRL(item.totalCents)}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600),
-                ),
               ),
             ],
+          ),
+          if (item != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Total do item: ${formatCentsBRL(item.totalCents)}',
+                style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600),
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -328,80 +361,141 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     final busy = _saving || _generatingPdf;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Editar orçamento' : 'Novo orçamento')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        toolbarHeight: 76,
+        title: Text(_isEditing ? 'Editar orçamento' : 'Novo orçamento'),
+        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(28),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _isEditing
+                    ? 'Atualize os dados e os itens do orçamento'
+                    : 'Preencha os dados e adicione os itens do orçamento',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            FutureBuilder<List<Customer>>(
-              future: _customersFuture,
-              builder: (context, snapshot) {
-                final customers = snapshot.data ?? [];
-                final hasSelected =
-                    _selectedCustomerId == null || customers.any((c) => c.id == _selectedCustomerId);
-                return DropdownButtonFormField<String>(
-                  initialValue: hasSelected ? _selectedCustomerId : null,
-                  decoration: const InputDecoration(labelText: 'Cliente'),
-                  items: customers
-                      .map((c) => DropdownMenuItem<String>(value: c.id, child: Text(c.name)))
-                      .toList(),
-                  onChanged: (value) => setState(() => _selectedCustomerId = value),
-                );
-              },
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Não achou o cliente? Cadastre primeiro na aba Clientes.',
-              style: TextStyle(fontSize: 12, color: AppColors.muted),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _addressController,
-              decoration: const InputDecoration(labelText: 'Endereço (opcional, aparece no PDF)'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _dateController,
-              keyboardType: TextInputType.datetime,
-              inputFormatters: [_dateMask],
-              decoration: InputDecoration(
-                labelText: 'Data',
-                suffixIcon: IconButton(
-                  tooltip: 'Escolher no calendário',
-                  icon: const Icon(Icons.edit_calendar_outlined, size: 18),
-                  onPressed: _pickDate,
-                ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FutureBuilder<List<Customer>>(
+                    future: _customersFuture,
+                    builder: (context, snapshot) {
+                      final customers = snapshot.data ?? [];
+                      final hasSelected = _selectedCustomerId == null ||
+                          customers.any((c) => c.id == _selectedCustomerId);
+                      return _FieldRow(
+                        icon: Icons.person_outline,
+                        label: 'Cliente',
+                        helperText: 'Não achou o cliente? Cadastre primeiro na aba Clientes.',
+                        child: DropdownButtonFormField<String>(
+                          initialValue: hasSelected ? _selectedCustomerId : null,
+                          decoration: const InputDecoration(hintText: 'Selecione o cliente'),
+                          items: customers
+                              .map((c) => DropdownMenuItem<String>(value: c.id, child: Text(c.name)))
+                              .toList(),
+                          onChanged: (value) => setState(() => _selectedCustomerId = value),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _FieldRow(
+                    icon: Icons.location_on_outlined,
+                    label: 'Endereço (opcional, aparece no PDF)',
+                    child: TextField(
+                      controller: _addressController,
+                      decoration: const InputDecoration(hintText: 'Digite o endereço'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _FieldRow(
+                    icon: Icons.calendar_month_outlined,
+                    label: 'Data',
+                    child: TextField(
+                      controller: _dateController,
+                      keyboardType: TextInputType.datetime,
+                      inputFormatters: [_dateMask],
+                      decoration: InputDecoration(
+                        suffixIcon: IconButton(
+                          tooltip: 'Escolher no calendário',
+                          icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                          onPressed: _pickDate,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
-            Text('Itens', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
+            const Text('Itens', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 10),
             for (var i = 0; i < _itemRows.length; i++) _buildItemRow(i),
-            OutlinedButton.icon(
-              onPressed: _addItemRow,
-              icon: const Icon(Icons.add),
-              label: const Text('Adicionar item'),
+            _DottedActionButton(onTap: _addItemRow, label: 'Adicionar item'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3)),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _FieldRow(
+                    icon: Icons.percent_rounded,
+                    label: 'Desconto (opcional, em R\$)',
+                    child: TextField(
+                      controller: _discountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(hintText: '0,00'),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _FieldRow(
+                    icon: Icons.description_outlined,
+                    label: 'Observações (opcional)',
+                    child: TextField(
+                      controller: _observationsController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(hintText: 'Adicione observações sobre o orçamento'),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _discountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Desconto (opcional, em R\$)'),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _observationsController,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Observações (opcional)'),
-            ),
-            const SizedBox(height: 20),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.muted.withValues(alpha: 0.3)),
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 children: [
@@ -419,24 +513,41 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
               const SizedBox(height: 12),
               Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
-            const SizedBox(height: 20),
-            OutlinedButton(
-              onPressed: busy ? null : _save,
-              child: _saving
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Salvar orçamento'),
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 18),
             ElevatedButton.icon(
-              onPressed: busy ? null : _generatePdf,
-              icon: _generatingPdf
+              onPressed: busy ? null : _save,
+              icon: _saving
                   ? const SizedBox(
                       height: 18,
                       width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.picture_as_pdf_outlined),
+                  : const Icon(Icons.save_outlined, size: 20),
+              label: const Text('Salvar orçamento'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: busy ? null : _generatePdf,
+              icon: _generatingPdf
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.picture_as_pdf_outlined, size: 20),
               label: const Text('Gerar e compartilhar PDF'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: busy ? null : () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+                side: const BorderSide(color: AppColors.danger),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.close, size: 20),
+              label: const Text('Cancelar'),
             ),
           ],
         ),
@@ -446,8 +557,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
   Widget _totalsRow(String label, String value, {bool bold = false}) {
     final style = TextStyle(
-      fontSize: bold ? 16 : 14,
+      fontSize: bold ? 18 : 14,
       fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+      color: bold ? AppColors.primary : AppColors.ink,
     );
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -457,4 +569,160 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       ],
     );
   }
+}
+
+/// Linha de campo — ícone num círculo à esquerda, rótulo acima do campo
+/// de verdade, e um texto de ajuda opcional embaixo. Igual ao _FieldCard
+/// de CustomerFormScreen/AppointmentFormScreen, só que SEM o Container
+/// próprio (aqui várias linhas dividem um único cartão externo — ver o
+/// mockup, que agrupa Cliente/Endereço/Data e Desconto/Observações cada
+/// um dentro de um cartão só, em vez de um cartão por campo).
+class _FieldRow extends StatelessWidget {
+  const _FieldRow({required this.icon, required this.label, required this.child, this.helperText});
+
+  final IconData icon;
+  final String label;
+  final Widget child;
+  final String? helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, color: AppColors.primary, size: 20),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              const SizedBox(height: 8),
+              child,
+              if (helperText != null) ...[
+                const SizedBox(height: 6),
+                Text(helperText!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Campo miúdo (Qtd/Unidade/Preço unitário de um item) — rótulo acima,
+/// e um selo pequeno (ícone ou texto curto tipo "#"/"R\$") à esquerda do
+/// campo em vez de um círculo grande, já que os três dividem a largura
+/// do cartão do item.
+class _MiniField extends StatelessWidget {
+  const _MiniField({required this.badge, required this.label, required this.child});
+
+  final Widget badge;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              alignment: Alignment.center,
+              child: badge,
+            ),
+            const SizedBox(width: 6),
+            Expanded(child: child),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Botão "Adicionar item" com borda pontilhada, igual ao mockup. O
+/// Flutter não tem uma borda tracejada pronta sem depender de outro
+/// pacote só pra isso — em vez de adicionar uma dependência nova pra um
+/// detalhe puramente decorativo, a borda vira uma linha tracejada
+/// desenhada à mão com CustomPainter (mais barato que trazer um pacote
+/// inteiro pra um traço).
+class _DottedActionButton extends StatelessWidget {
+  const _DottedActionButton({required this.onTap, required this.label});
+
+  final VoidCallback onTap;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: CustomPaint(
+        painter: _DashedBorderPainter(color: AppColors.primary, radius: 14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(label, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  _DashedBorderPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final rrect = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius));
+    final path = Path()..addRRect(rrect);
+    const dashWidth = 6.0;
+    const dashSpace = 4.0;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = distance + dashWidth;
+        canvas.drawPath(metric.extractPath(distance, next.clamp(0, metric.length)), paint);
+        distance = next + dashSpace;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
