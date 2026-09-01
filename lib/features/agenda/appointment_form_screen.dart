@@ -175,6 +175,12 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
         ),
       ),
       body: Column(
+        // `stretch`: sem isso, o Column usa o alinhamento padrão (centro)
+        // no eixo horizontal, e tanto o SingleChildScrollView quanto a
+        // barra de botões abaixo encolhem pro tamanho do próprio conteúdo
+        // em vez de ocupar a largura da tela — foi isso que deixou a tela
+        // toda pequena e flutuando no meio, em vez de preencher direito.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: SingleChildScrollView(
@@ -311,6 +317,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 ElevatedButton.icon(
                   onPressed: _saving ? null : _save,
