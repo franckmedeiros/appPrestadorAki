@@ -337,7 +337,16 @@ class AuthController extends ChangeNotifier {
   /// "Editar perfil" pra pré-preencher o formulário (inclusive
   /// `listingStatus`, pro prestador).
   Future<Map<String, dynamic>> fetchOwnProfileData() async {
-    final user = _auth.currentUser!;
+    // `currentUser` (não `!`): visto piscar null por um instante no
+    // Android logo depois de abrir o app, enquanto o FirebaseAuth ainda
+    // está restaurando a sessão persistida (mais lento ali que no iOS)
+    // - o forçado (`!`) derrubava essa chamada com "Null check operator
+    // used on a null value" bem nesse instante, e quem chamava
+    // (EditProfileScreen._loadOwnData) não tinha try/catch, então a tela
+    // ficava travada carregando pra sempre. Mapa vazio aqui é seguro: o
+    // formulário só fica com os campos em branco, igual a uma conta nova.
+    final user = _auth.currentUser;
+    if (user == null) return const <String, dynamic>{};
     final doc = await _firestore.collection(_ownCollection).doc(user.uid).get();
     return doc.data() ?? const <String, dynamic>{};
   }

@@ -93,30 +93,45 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadOwnData() async {
-    final data = await context.read<AuthController>().fetchOwnProfileData();
+    try {
+      final data = await context.read<AuthController>().fetchOwnProfileData();
+      if (!mounted) return;
+      _cepController.text = data['addressZipCode'] as String? ?? '';
+      _streetController.text = data['addressStreet'] as String? ?? '';
+      _neighborhoodController.text = data['addressNeighborhood'] as String? ?? '';
+      _addressCity = data['addressCity'] as String?;
+      _addressUf = data['addressState'] as String?;
+      _whatsappController.text = data['whatsapp'] as String? ?? '';
+      _pixKeyController.text = data['pixKey'] as String? ?? '';
+      _logoUrl = data['logoUrl'] as String? ?? '';
+      _bioController.text = data['bio'] as String? ?? '';
+      _listingStatus = data['listingStatus'] as String?;
+      // A área de atuação vem de providers/{uid} (sempre existe, mesmo
+      // 'pending' — ver functions/src/subscription.ts), não só do
+      // `widget.currentListing` (que só reflete o diretório PÚBLICO, vazio
+      // pra quem ainda não foi ativado). Só sobrescreve o que já veio do
+      // `currentListing` no initState se providers/{uid} de fato tiver o
+      // campo — evita apagar um valor bom com um branco à toa.
+      final category = data['category'] as String?;
+      final city = data['city'] as String?;
+      final state = data['state'] as String?;
+      if (category != null) _category = serviceCategoryFromWire(category);
+      if (city != null && city.isNotEmpty) _areaCity = city;
+      if (state != null && state.isNotEmpty) _areaUf = state;
+    } catch (e) {
+      // Sem isso, uma falha aqui (rede instável, Firestore fora do ar por
+      // um instante etc. — visto acontecer no Android) deixava `_loading`
+      // travado em `true` pra sempre, porque o `setState` que desliga o
+      // spinner só rodava depois dessas linhas, nunca dentro de um
+      // catch. A tela ficava girando o círculo de carregamento pra
+      // sempre, sem erro nenhum aparecer. Agora ela sempre chega no
+      // formulário — só os campos que dependiam de `providers/{uid}`
+      // (endereço, WhatsApp, chave Pix, bio) podem aparecer em branco.
+      if (!mounted) return;
+      _error = 'Não foi possível carregar todos os seus dados agora. '
+          'Alguns campos podem estar em branco — feche e abra essa tela de novo pra tentar carregar de novo.';
+    }
     if (!mounted) return;
-    _cepController.text = data['addressZipCode'] as String? ?? '';
-    _streetController.text = data['addressStreet'] as String? ?? '';
-    _neighborhoodController.text = data['addressNeighborhood'] as String? ?? '';
-    _addressCity = data['addressCity'] as String?;
-    _addressUf = data['addressState'] as String?;
-    _whatsappController.text = data['whatsapp'] as String? ?? '';
-    _pixKeyController.text = data['pixKey'] as String? ?? '';
-    _logoUrl = data['logoUrl'] as String? ?? '';
-    _bioController.text = data['bio'] as String? ?? '';
-    _listingStatus = data['listingStatus'] as String?;
-    // A área de atuação vem de providers/{uid} (sempre existe, mesmo
-    // 'pending' — ver functions/src/subscription.ts), não só do
-    // `widget.currentListing` (que só reflete o diretório PÚBLICO, vazio
-    // pra quem ainda não foi ativado). Só sobrescreve o que já veio do
-    // `currentListing` no initState se providers/{uid} de fato tiver o
-    // campo — evita apagar um valor bom com um branco à toa.
-    final category = data['category'] as String?;
-    final city = data['city'] as String?;
-    final state = data['state'] as String?;
-    if (category != null) _category = serviceCategoryFromWire(category);
-    if (city != null && city.isNotEmpty) _areaCity = city;
-    if (state != null && state.isNotEmpty) _areaUf = state;
     setState(() => _loading = false);
   }
 
