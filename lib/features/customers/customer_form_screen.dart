@@ -116,7 +116,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _FieldCard(
-                icon: Icons.person_outline,
+                icon: const Icon(Icons.person_outline, color: AppColors.primary, size: 22),
                 label: 'Nome completo',
                 required: true,
                 child: TextFormField(
@@ -128,7 +128,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
               ),
               const SizedBox(height: 14),
               _FieldCard(
-                icon: FontAwesomeIcons.whatsapp,
+                icon: const FaIcon(FontAwesomeIcons.whatsapp, color: AppColors.primary, size: 22),
                 label: 'Telefone / WhatsApp',
                 required: true,
                 helperText: 'Informe um número válido para contato.',
@@ -148,7 +148,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 children: [
                   Expanded(
                     child: _FieldCard(
-                      icon: Icons.location_on_outlined,
+                      icon: const Icon(Icons.location_on_outlined, color: AppColors.primary, size: 20),
                       label: 'UF',
                       required: true,
                       compact: true,
@@ -167,7 +167,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _FieldCard(
-                      icon: Icons.location_city_outlined,
+                      icon: const Icon(Icons.location_city_outlined, color: AppColors.primary, size: 20),
                       label: 'Cidade',
                       required: true,
                       compact: true,
@@ -240,7 +240,7 @@ class _FieldCard extends StatelessWidget {
     this.compact = false,
   });
 
-  final IconData icon;
+  final Widget icon;
   final String label;
   final Widget child;
   final bool required;
@@ -270,7 +270,7 @@ class _FieldCard extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: Icon(icon, color: AppColors.primary, size: compact ? 20 : 22),
+            child: icon,
           ),
           const SizedBox(width: 14),
           Expanded(
