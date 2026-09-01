@@ -64,6 +64,11 @@ class ProviderDirectoryRepository {
       // mesma filosofia já usada na ordenação/filtro de `visible` abaixo.
       final normalizedCity = (city != null && city.isNotEmpty) ? normalizeForSearch(city) : null;
       final snapshot = await query.get();
+      // Um prestador logado também pode abrir "Encontre um profissional"
+      // pelo lado cliente (a mesma conta pode ter as duas capacidades) —
+      // nesse caso ele nunca deve aparecer na própria busca. `ownUid` vem
+      // null pra visitante sem sessão, então não filtra nada nesse caso.
+      final ownUid = _auth.currentUser?.uid;
       // Filtro de `visible` feito aqui no app, não no Firestore, pela
       // mesma razão da ordenação abaixo: um `where('visible', ...)`
       // combinado com os filtros de igualdade acima pediria mais um
@@ -71,6 +76,7 @@ class ProviderDirectoryRepository {
       // combinam com `isEqualTo: true` de qualquer jeito.
       final listings = snapshot.docs
           .where((doc) => doc.data()['visible'] != false)
+          .where((doc) => doc.id != ownUid)
           .map(ProviderListing.fromFirestore)
           .where((listing) =>
               normalizedCity == null || normalizeForSearch(listing.city) == normalizedCity)
