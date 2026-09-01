@@ -2,12 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Tipos de notificação gravados pelas Cloud Functions (ver
 /// functions/src/notifications.ts) — só decide o ícone certo na lista, o
-/// texto (title/body) já vem pronto do backend.
-enum AppNotificationType { newServiceRequest, serviceRequestResponded, other }
+/// texto (title/body) já vem pronto do backend. Os valores de fio
+/// ('novo_pedido'/'resposta_pedido') continuam os mesmos de antes — só a
+/// origem mudou, de gatilhos em `serviceRequests` para gatilhos em
+/// `providers/{uid}/budgets` (ver `Budget`/`BudgetStatus`).
+enum AppNotificationType { newBudgetRequest, budgetRequestResponded, other }
 
 AppNotificationType appNotificationTypeFromWire(String? value) => switch (value) {
-      'novo_pedido' => AppNotificationType.newServiceRequest,
-      'resposta_pedido' => AppNotificationType.serviceRequestResponded,
+      'novo_pedido' => AppNotificationType.newBudgetRequest,
+      'resposta_pedido' => AppNotificationType.budgetRequestResponded,
       _ => AppNotificationType.other,
     };
 
@@ -23,7 +26,7 @@ class AppNotification {
     required this.type,
     required this.title,
     required this.body,
-    this.serviceRequestId,
+    this.budgetId,
     required this.read,
     this.createdAt,
   });
@@ -35,7 +38,7 @@ class AppNotification {
       type: appNotificationTypeFromWire(data['type'] as String?),
       title: data['title'] as String? ?? '',
       body: data['body'] as String? ?? '',
-      serviceRequestId: data['serviceRequestId'] as String?,
+      budgetId: data['budgetId'] as String?,
       read: data['read'] as bool? ?? false,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );
@@ -45,7 +48,7 @@ class AppNotification {
   final AppNotificationType type;
   final String title;
   final String body;
-  final String? serviceRequestId;
+  final String? budgetId;
   final bool read;
   final DateTime? createdAt;
 }

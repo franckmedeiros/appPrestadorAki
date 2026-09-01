@@ -20,7 +20,7 @@ import 'features/customers/customers_repository.dart';
 import 'features/marketplace/favorites_controller.dart';
 import 'features/marketplace/favorites_repository.dart';
 import 'features/marketplace/provider_directory_repository.dart';
-import 'features/marketplace/service_requests_repository.dart';
+import 'features/marketplace/budget_requests_repository.dart';
 import 'features/notifications/notifications_repository.dart';
 import 'features/marketplace/models/service_category.dart';
 import 'firebase_options.dart';
@@ -62,7 +62,7 @@ void main() async {
 
   // Catálogo de categorias/subcategorias de serviço: precisa estar
   // pronto de forma síncrona antes de qualquer tela abrir, porque
-  // ProviderListing/ServiceRequest.fromFirestore chamam
+  // ProviderListing.fromFirestore e a leitura de Budget.category chamam
   // serviceCategoryFromWire(...) de forma síncrona ao converter
   // documentos vindos do Firestore. Mesmo raciocínio do
   // Firebase.initializeApp logo acima.
@@ -125,7 +125,7 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
         Provider(create: (context) => AppointmentsRepository()),
         Provider(create: (context) => BudgetsRepository()),
         Provider(create: (context) => ProviderDirectoryRepository()),
-        Provider(create: (context) => ServiceRequestsRepository()),
+        Provider(create: (context) => BudgetRequestsRepository()),
         Provider(create: (context) => FavoritesRepository()),
         Provider(create: (context) => NotificationsRepository()),
         ChangeNotifierProvider(

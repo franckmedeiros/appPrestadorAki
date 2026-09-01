@@ -10,9 +10,17 @@ import '../../core/date_text_utils.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../customers/customers_repository.dart';
 import '../customers/models/customer.dart';
+import '../marketplace/models/service_category.dart';
 import 'budget_pdf.dart';
 import 'budgets_repository.dart';
 import 'models/budget.dart';
+
+/// Rótulo de quem recusou (ver `Budget.rejectedBy`) pronto pra exibir.
+String _rejectedByLabel(String? rejectedBy) => switch (rejectedBy) {
+      'cliente' => 'O cliente recusou este orçamento.',
+      'prestador' => 'Você recusou este pedido.',
+      _ => 'Este orçamento foi recusado.',
+    };
 
 /// Controllers de uma linha de item — cada linha vira um `BudgetItem` na
 /// hora de salvar/gerar o PDF (ver `toItem()`). Ficam num objeto próprio
@@ -60,11 +68,14 @@ class _ItemRowControllers {
   }
 }
 
-/// Formulário de orçamento (módulo formal, ligado a Clientes cadastrados
-/// — diferente do "Enviar orçamento" simples do marketplace, ver
-/// IncomingRequestsScreen). Cria um novo (`budget == null`) ou edita um
-/// já existente. Gera o PDF no layout combinado com o Franck a partir
-/// dos MESMOS dados do formulário — não precisa salvar antes pra gerar.
+/// Formulário de orçamento (módulo formal, ligado a Clientes cadastrados).
+/// Cria um novo (`budget == null`) ou edita um já existente — inclusive um
+/// que nasceu de um pedido de cliente pelo marketplace (ver
+/// `Budget.isFromClientRequest`/`BudgetStatus`), caso em que a tela também
+/// cuida do envio pro cliente, da recusa e do aceite final (ver
+/// `_buildActions`/`_buildReadOnlySummary`). Gera o PDF no layout combinado
+/// com o Franck a partir dos MESMOS dados do formulário — não precisa
+/// salvar antes pra gerar.
 ///
 /// Visual em cards com ícone, a partir de um mockup que o Franck mandou.
 /// O mockup só mostrava "Salvar orçamento" e "Cancelar", mas "Gerar e
@@ -99,6 +110,26 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
   bool get _isEditing => widget.budget != null;
 
+  /// Se este orçamento nasceu de um pedido de cliente pelo marketplace
+  /// (em vez de criado manualmente pelo prestador) — ver
+  /// `Budget.isFromClientRequest`. Controla tanto os botões quanto se o
+  /// formulário de itens/preço fica editável ou vira um resumo.
+  bool get _isClientRequest => widget.budget?.isFromClientRequest ?? false;
+
+  BudgetStatus? get _status => widget.budget?.status;
+
+  /// Só dá pra editar itens/preço enquanto o orçamento ainda não foi
+  /// enviado pro cliente — depois disso (enviado/aprovado/aceito/
+  /// recusado) a tela vira um resumo (ver `_buildReadOnlyBody`).
+  bool get _isReadOnlyStatus =>
+      _status != null && _status != BudgetStatus.pendente;
+
+  late TimeOfDay _serviceTime = widget.budget?.serviceScheduledAt != null
+      ? TimeOfDay.fromDateTime(widget.budget!.serviceScheduledAt!)
+      : const TimeOfDay(hour: 9, minute: 0);
+
+  bool _linkingCustomer = false;
+
   bool _saving = false;
   bool _generatingPdf = false;
   String? _error;
@@ -108,6 +139,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     super.initState();
     _customersFuture = context.read<CustomersRepository>().list();
     _selectedCustomerId = widget.budget?.customerId;
+    if (_isClientRequest && _selectedCustomerId == null) {
+      _linkClientCustomer();
+    }
     final items = widget.budget?.items;
     _itemRows = (items != null && items.isNotEmpty)
         ? items
@@ -154,6 +188,39 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       lastDate: DateTime(current.year + 2),
     );
     if (picked != null) setState(() => _dateController.text = formatDateDdMmYyyy(picked));
+  }
+
+  Future<void> _pickServiceTime() async {
+    final picked = await showTimePicker(context: context, initialTime: _serviceTime);
+    if (picked != null) setState(() => _serviceTime = picked);
+  }
+
+  /// Cria (ou encontra) automaticamente o cadastro de Cliente a partir do
+  /// pedido do marketplace, sem precisar cadastro manual — pedido do
+  /// Franck: "já pode ser criado o cliente automaticamente para o
+  /// prestador, sem a necessidade de inserir manualmente". Se falhar, o
+  /// prestador ainda consegue escolher/cadastrar manualmente na hora de
+  /// enviar o orçamento.
+  Future<void> _linkClientCustomer() async {
+    final budget = widget.budget;
+    if (budget == null || budget.clientUid == null) return;
+    setState(() => _linkingCustomer = true);
+    try {
+      final customer = await context.read<CustomersRepository>().findOrCreateForClient(
+            clientUid: budget.clientUid!,
+            name: budget.customerName,
+          );
+      if (!mounted) return;
+      setState(() {
+        _selectedCustomerId = customer.id;
+        _customersFuture = context.read<CustomersRepository>().list();
+      });
+    } catch (_) {
+      // Sem problema — o campo Cliente continua disponível pra escolher
+      // ou cadastrar manualmente.
+    } finally {
+      if (mounted) setState(() => _linkingCustomer = false);
+    }
   }
 
   /// Monta o `Budget` a partir do estado atual do formulário — usado
@@ -211,7 +278,13 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       // quando `_isEditing` — só falta escolher qual método do
       // repositório usar (update ignora o id passado em `create`, e
       // vice-versa não faria sentido).
-      if (_isEditing) {
+      if (_status == BudgetStatus.pendente) {
+        // Termina de preencher os itens/preço de um pedido de cliente e
+        // manda pro cliente — pendente -> enviado (pedido do Franck: "vai
+        // precisar terminar de preencher os dados para enviar o
+        // orçamento para o cliente").
+        await repository.sendToClient(budget);
+      } else if (_isEditing) {
         await repository.update(budget);
       } else {
         await repository.create(budget);
@@ -221,6 +294,82 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       setState(() => _error = e.message);
     } catch (_) {
       setState(() => _error = 'Não foi possível salvar o orçamento.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Prestador recusa/cancela um pedido de orçamento vindo do
+  /// marketplace — pedido do Franck: "precisa ter é uma opção de
+  /// cancelar/rejeitar o orçamento, porque o prestador pode não aceitar
+  /// o serviço por vários motivos". Válido em `pendente` (ainda nem
+  /// respondeu) ou `enviado` (desiste depois de já ter mandado o valor).
+  Future<void> _rejectAsProvider() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Recusar este pedido?'),
+        content: const Text(
+          'O cliente vai ser avisado que você não vai atender esse pedido de orçamento.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Voltar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Recusar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await context.read<BudgetsRepository>().rejectAsProvider(widget.budget!.id);
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = 'Não foi possível recusar o pedido.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Aceite final do prestador, depois que o cliente já aprovou — lança
+  /// automaticamente o serviço na agenda (ver
+  /// `BudgetsRepository.acceptFinal`), bloqueando se já houver outro
+  /// compromisso pro mesmo dia/horário.
+  Future<void> _acceptFinal() async {
+    final date = tryParseDateDdMmYyyy(_dateController.text.trim());
+    if (date == null) {
+      setState(() => _error = 'Data inválida.');
+      return;
+    }
+    final scheduledAt =
+        DateTime(date.year, date.month, date.day, _serviceTime.hour, _serviceTime.minute);
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await context.read<BudgetsRepository>().acceptFinal(
+            widget.budget!,
+            serviceScheduledAt: scheduledAt,
+          );
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = 'Não foi possível confirmar o orçamento.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -398,11 +547,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       body: Column(
         children: [
           Expanded(
-            child: SingleChildScrollView(
+            child: _isReadOnlyStatus
+                ? _buildReadOnlySummary(widget.budget!)
+                : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_isClientRequest) ...[
+                    _buildPendingBanner(widget.budget!),
+                    const SizedBox(height: 12),
+                  ],
                   _SectionCard(
                     child: Column(
                       children: [
@@ -586,58 +741,149 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: busy ? null : _save,
-                      icon: _saving
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.save_outlined, size: 18),
-                      label: Text(
-                        _isEditing ? 'Salvar alterações' : 'Salvar orçamento',
-                      ),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: busy ? null : _generatePdf,
-                    icon: _generatingPdf
-                        ? const SizedBox(
-                            height: 15,
-                            width: 15,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(
-                            Icons.picture_as_pdf_outlined,
-                            size: 17,
-                          ),
-                    label: const Text('Gerar e compartilhar PDF'),
-                  ),
-                  TextButton.icon(
-                    onPressed:
-                        busy ? null : () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                      minimumSize: const Size(0, 30),
-                    ),
-                    icon: const Icon(Icons.close, size: 16),
-                    label: const Text('Cancelar'),
-                  ),
-                ],
+                children: _buildActions(busy),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Botões do rodapé — variam conforme o status do orçamento (ver
+  /// `BudgetStatus`). Um orçamento manual (`_status == null`) ou ainda
+  /// pendente de envio usa o formulário completo de itens/preço (mesmos
+  /// botões de sempre, + as ações específicas do pedido). A partir de
+  /// `enviado` a tela vira um resumo (`_buildReadOnlySummary`) e os
+  /// botões mudam de acordo com o que falta fazer.
+  List<Widget> _buildActions(bool busy) {
+    final status = _status;
+
+    if (status == null || status == BudgetStatus.pendente) {
+      return [
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: busy ? null : _save,
+            icon: _saving
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(
+                    status == BudgetStatus.pendente ? Icons.send_outlined : Icons.save_outlined,
+                    size: 18,
+                  ),
+            label: Text(
+              status == BudgetStatus.pendente
+                  ? 'Enviar orçamento pro cliente'
+                  : (_isEditing ? 'Salvar alterações' : 'Salvar orçamento'),
+            ),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: busy ? null : _generatePdf,
+          icon: _generatingPdf
+              ? const SizedBox(
+                  height: 15,
+                  width: 15,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(
+                  Icons.picture_as_pdf_outlined,
+                  size: 17,
+                ),
+          label: const Text('Gerar e compartilhar PDF'),
+        ),
+        if (status == BudgetStatus.pendente)
+          TextButton.icon(
+            onPressed: busy ? null : _rejectAsProvider,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.danger,
+              minimumSize: const Size(0, 30),
+            ),
+            icon: const Icon(Icons.block_outlined, size: 16),
+            label: const Text('Recusar pedido'),
+          )
+        else
+          TextButton.icon(
+            onPressed: busy ? null : () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.danger,
+              minimumSize: const Size(0, 30),
+            ),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancelar'),
+          ),
+      ];
+    }
+
+    if (status == BudgetStatus.enviado) {
+      return [
+        SizedBox(
+          width: double.infinity,
+          height: 44,
+          child: OutlinedButton.icon(
+            onPressed: busy ? null : _rejectAsProvider,
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+            icon: busy
+                ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.block_outlined, size: 17),
+            label: const Text('Cancelar orçamento'),
+          ),
+        ),
+        TextButton(
+          onPressed: busy ? null : () => Navigator.of(context).pop(),
+          child: const Text('Fechar'),
+        ),
+      ];
+    }
+
+    if (status == BudgetStatus.aprovado) {
+      return [
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: busy ? null : _acceptFinal,
+            icon: _saving
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.event_available_outlined, size: 18),
+            label: const Text('Confirmar e agendar na agenda'),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: busy ? null : _rejectAsProvider,
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.danger,
+            minimumSize: const Size(0, 30),
+          ),
+          icon: const Icon(Icons.block_outlined, size: 16),
+          label: const Text('Recusar mesmo assim'),
+        ),
+      ];
+    }
+
+    // aceito / recusado — estado final, só fechar.
+    return [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Fechar'),
+      ),
+    ];
   }
   Widget _totalsRow(String label, String value, {bool bold = false}) {
     final style = TextStyle(
@@ -651,6 +897,234 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         Text(label, style: style),
         Text(value, style: style),
       ],
+    );
+  }
+
+  Color _statusColor(BudgetStatus status) => switch (status) {
+        BudgetStatus.pendente => AppColors.primary,
+        BudgetStatus.enviado => Colors.orange,
+        BudgetStatus.aprovado => Colors.blue,
+        BudgetStatus.aceito => Colors.green,
+        BudgetStatus.recusado => AppColors.danger,
+      };
+
+  Widget _statusChip(BudgetStatus status) {
+    final color = _statusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status.label,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+      ),
+    );
+  }
+
+  /// Banner mostrado no topo do formulário completo (itens editáveis)
+  /// quando o orçamento ainda está `pendente` — resume o pedido que o
+  /// cliente mandou pelo marketplace, já que esses dados (categoria,
+  /// descrição, data preferida) não têm campo próprio no formulário.
+  Widget _buildPendingBanner(Budget budget) {
+    final category = budget.category != null ? serviceCategoryFromWire(budget.category!) : null;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.mark_email_unread_outlined, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                category != null ? 'Pedido de orçamento — ${category.label}' : 'Pedido de orçamento',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+              ),
+              const Spacer(),
+              if (_linkingCustomer)
+                const SizedBox(
+                  height: 14,
+                  width: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          if ((budget.requestDescription ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(budget.requestDescription!, style: const TextStyle(fontSize: 13, color: AppColors.ink)),
+          ],
+          if ((budget.preferredDate ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('Data preferida do cliente: ${budget.preferredDate}',
+                style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Resumo (sem edição de itens/preço) mostrado a partir do status
+  /// `enviado` em diante — o orçamento já foi mandado pro cliente, então
+  /// o formulário completo de itens deixa de fazer sentido; o que muda
+  /// daqui pra frente é só o status e (em `aprovado`) o horário do
+  /// serviço pro aceite final.
+  Widget _buildReadOnlySummary(Budget budget) {
+    final status = budget.status!;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [_statusChip(status)]),
+          const SizedBox(height: 12),
+          if (status == BudgetStatus.recusado) ...[
+            Text(_rejectedByLabel(budget.rejectedBy),
+                style: const TextStyle(fontSize: 13, color: AppColors.ink)),
+            const SizedBox(height: 12),
+          ],
+          if (status == BudgetStatus.enviado) ...[
+            const Text('Aguardando o cliente aprovar ou recusar.',
+                style: TextStyle(fontSize: 13, color: AppColors.ink)),
+            const SizedBox(height: 12),
+          ],
+          if (status == BudgetStatus.aceito && budget.serviceScheduledAt != null) ...[
+            Text(
+              'Serviço agendado para ${formatDateDdMmYyyy(budget.serviceScheduledAt!)} às '
+              '${TimeOfDay.fromDateTime(budget.serviceScheduledAt!).format(context)}.',
+              style: const TextStyle(fontSize: 13, color: AppColors.ink),
+            ),
+            const SizedBox(height: 12),
+          ],
+          _SectionCard(
+            child: Column(
+              children: [
+                _BudgetField(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Cliente',
+                  child: Text(budget.customerName, style: const TextStyle(fontSize: 14)),
+                ),
+                if ((budget.addressText ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _BudgetField(
+                    icon: Icons.location_on_outlined,
+                    label: 'Endereço',
+                    child: Text(budget.addressText!, style: const TextStyle(fontSize: 14)),
+                  ),
+                ],
+                if (status == BudgetStatus.aprovado) ...[
+                  const SizedBox(height: 12),
+                  _BudgetField(
+                    icon: Icons.calendar_month_outlined,
+                    label: 'Data do serviço',
+                    child: TextField(
+                      controller: _dateController,
+                      keyboardType: TextInputType.datetime,
+                      inputFormatters: [_dateMask],
+                      decoration: InputDecoration(
+                        suffixIcon: IconButton(
+                          tooltip: 'Escolher no calendário',
+                          icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                          onPressed: _pickDate,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _BudgetField(
+                    icon: Icons.access_time_rounded,
+                    label: 'Horário do serviço',
+                    helperText: 'Verificamos conflito de horário na agenda ao confirmar.',
+                    child: OutlinedButton(
+                      onPressed: _pickServiceTime,
+                      child: Text(_serviceTime.format(context)),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 12),
+                  _BudgetField(
+                    icon: Icons.calendar_month_outlined,
+                    label: 'Data',
+                    child: Text(formatDateDdMmYyyy(budget.date), style: const TextStyle(fontSize: 14)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text('Itens', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.ink)),
+          const SizedBox(height: 8),
+          for (final item in budget.items)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.muted.withValues(alpha: 0.10)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.description, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text(item.quantityLabel,
+                            style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                      ],
+                    ),
+                  ),
+                  Text(formatCentsBRL(item.totalCents),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.10)),
+            ),
+            child: Column(
+              children: [
+                _totalsRow('Subtotal', formatCentsBRL(budget.subtotalCents)),
+                if (budget.discountCents > 0) ...[
+                  const SizedBox(height: 4),
+                  _totalsRow('Desconto', formatCentsBRL(budget.discountCents)),
+                ],
+                const Divider(height: 18),
+                _totalsRow('Total', formatCentsBRL(budget.totalCents), bold: true),
+              ],
+            ),
+          ),
+          if ((budget.observations ?? '').isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _SectionCard(
+              child: _BudgetField(
+                icon: Icons.notes_outlined,
+                label: 'Observações',
+                child: Text(budget.observations!, style: const TextStyle(fontSize: 14)),
+              ),
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 13),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

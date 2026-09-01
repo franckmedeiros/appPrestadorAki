@@ -95,8 +95,8 @@ ServiceCategory serviceCategoryFromWire(String value) => ServiceCategoryCatalog.
 /// [load] deve ser chamado uma única vez em `main()`, com `await`, antes de
 /// `runApp` — exatamente como já é feito com `Firebase.initializeApp`. Isso
 /// garante que o catálogo já esteja pronto de forma síncrona quando
-/// `fromFirestore` (em `ProviderListing`/`ServiceRequest`) chamar
-/// [serviceCategoryFromWire] ao converter documentos do Firestore.
+/// `fromFirestore` (em `ProviderListing`) ou a leitura de `Budget.category`
+/// chamarem [serviceCategoryFromWire] ao converter documentos do Firestore.
 class ServiceCategoryCatalog {
   ServiceCategoryCatalog._();
 

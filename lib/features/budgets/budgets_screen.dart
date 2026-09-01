@@ -9,10 +9,14 @@ import '../../widgets/app_list_card.dart';
 import 'budgets_repository.dart';
 import 'models/budget.dart';
 
-/// Lista de orçamentos do módulo formal (ligado a Clientes cadastrados —
-/// diferente do "Pedidos" do marketplace). Mais recente primeiro (ver
-/// BudgetsRepository.watchAll); tocar num card abre pra editar, o botão
-/// flutuante cria um novo.
+/// Lista de orçamentos do módulo formal — inclui tanto os criados
+/// manualmente pelo prestador quanto os que nasceram de um pedido de
+/// cliente pelo marketplace (ver `Budget.isFromClientRequest`/
+/// `BudgetStatus`); esses últimos aparecem sempre no topo, com um selo de
+/// status, até saírem de `pendente` (pedido do Franck: "ficar como
+/// pendente para fazer/enviar o orçamento"). Mais recente primeiro dentro
+/// de cada grupo (ver BudgetsRepository.watchAll); tocar num card abre
+/// pra editar/tramitar, o botão flutuante cria um novo manualmente.
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
 
@@ -28,6 +32,14 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   Future<void> _openBudget(Budget? budget) => context.push('/orcamentos/editar', extra: budget);
+
+  Color _statusColor(BudgetStatus status) => switch (status) {
+        BudgetStatus.pendente => AppColors.primary,
+        BudgetStatus.enviado => Colors.orange,
+        BudgetStatus.aprovado => Colors.blue,
+        BudgetStatus.aceito => Colors.green,
+        BudgetStatus.recusado => AppColors.danger,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +67,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               ],
             );
           }
-          final budgets = snapshot.data ?? [];
+          final budgets = [...(snapshot.data ?? const <Budget>[])];
           if (budgets.isEmpty) {
             return ListView(
               children: const [
@@ -70,20 +82,64 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               ],
             );
           }
+          // Pedidos ainda pendentes de envio sempre no topo — são os que
+          // precisam de ação do prestador (ver comentário da classe).
+          budgets.sort((a, b) {
+            final aPending = a.status == BudgetStatus.pendente ? 0 : 1;
+            final bPending = b.status == BudgetStatus.pendente ? 0 : 1;
+            if (aPending != bPending) return aPending.compareTo(bPending);
+            return b.date.compareTo(a.date);
+          });
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: budgets.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final budget = budgets[index];
+              final status = budget.status;
               return AppListCard(
-                leading: AppListCard.iconAvatar(Icons.description_outlined),
-                title: budget.customerName,
-                subtitle: formatDateLong(budget.date),
-                trailing: Text(
-                  formatCentsBRL(budget.totalCents),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                leading: AppListCard.iconAvatar(
+                  status == BudgetStatus.pendente
+                      ? Icons.mark_email_unread_outlined
+                      : Icons.description_outlined,
                 ),
+                title: budget.customerName,
+                subtitle: status == BudgetStatus.pendente && (budget.requestDescription ?? '').isNotEmpty
+                    ? budget.requestDescription
+                    : formatDateLong(budget.date),
+                trailing: status == null
+                    ? Text(
+                        formatCentsBRL(budget.totalCents),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _statusColor(status).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              status.label,
+                              style: TextStyle(
+                                color: _statusColor(status),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                          if (status != BudgetStatus.pendente && budget.totalCents > 0) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              formatCentsBRL(budget.totalCents),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ],
+                        ],
+                      ),
                 onTap: () => _openBudget(budget),
               );
             },

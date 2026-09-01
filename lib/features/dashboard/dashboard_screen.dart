@@ -11,23 +11,22 @@ import '../../widgets/decorative_header.dart';
 import '../../widgets/notification_bell.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
-import '../marketplace/models/service_request.dart';
-import '../marketplace/service_requests_repository.dart';
+import '../budgets/budgets_repository.dart';
 
 /// Aba "Dashboard" — só existe pra quem tem a capacidade de prestador
 /// (ver UnifiedShell/AuthController.isProvider). Um resumo do dia +
 /// atalhos pras telas que antes eram abas próprias (Clientes/Agenda/
-/// Orçamentos/Pedidos), que agora só existem a partir daqui. Visual
-/// desenhado a partir de um mockup que o Franck mandou (cabeçalho
-/// decorativo, cartão de saudação flutuante, cards de atalho com
-/// subtítulo e seta).
+/// Orçamentos), que agora só existem a partir daqui. Visual desenhado a
+/// partir de um mockup que o Franck mandou (cabeçalho decorativo, cartão
+/// de saudação flutuante, cards de atalho com subtítulo e seta).
 ///
 /// "Compromissos de hoje" mostra a agenda do dia de verdade (mesmo
 /// repositório da aba Agenda, já ordenado por data/hora). O selo no
-/// atalho "Orçamentos" conta os pedidos do marketplace
-/// (ServiceRequestsRepository) com status "aguardando_prestador" —
-/// pedidos que o cliente fez pelo botão "Solicitar orçamento" e que este
-/// prestador ainda não respondeu.
+/// atalho "Orçamentos" conta os pedidos de cliente pelo marketplace que
+/// ainda estão "pendente" (ver `BudgetsRepository.watchPending`) — o
+/// antigo atalho "Pedidos" foi removido: esses pedidos já nascem como
+/// orçamento (ver `Budget`/`BudgetStatus`), não existe mais um "Pedido"
+/// separado no meio do caminho.
 String _firstName(String displayNameOrEmail) {
   if (displayNameOrEmail.contains('@')) return displayNameOrEmail;
   final parts = displayNameOrEmail.trim().split(RegExp(r'\s+'));
@@ -72,13 +71,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<int> _loadPendingRequests() async {
     // "Orçamentos abertos" = pedidos que o cliente fez (botão "Solicitar
-    // orçamento" na busca) e que ainda não foram respondidos por este
-    // prestador. Usa o mesmo repositório da tela de Pedidos
-    // (incoming_requests_screen.dart) — sem endpoint próprio, é filtro em
-    // memória mesmo, a lista de pedidos de um prestador não costuma ser
-    // grande o bastante pra justificar um endpoint agregado.
-    final requests = await context.read<ServiceRequestsRepository>().listForProvider();
-    return requests.where((r) => r.status == ServiceRequestStatus.aguardandoPrestador).length;
+    // orçamento" na busca) e que este prestador ainda não terminou de
+    // preencher/enviar (status `pendente` — ver `BudgetStatus`).
+    final pending = await context.read<BudgetsRepository>().watchPending().first;
+    return pending.length;
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -251,12 +247,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             onTap: () => context.push('/orcamentos'),
                             badgeCount: snapshot.data,
                           ),
-                        ),
-                        _ShortcutCard(
-                          icon: Icons.inbox_outlined,
-                          label: 'Pedidos',
-                          subtitle: 'Acompanhe seus pedidos',
-                          onTap: () => context.push('/pedidos'),
                         ),
                       ],
                     ),

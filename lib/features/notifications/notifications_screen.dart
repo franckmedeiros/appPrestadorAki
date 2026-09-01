@@ -80,8 +80,8 @@ class _NotificationTile extends StatelessWidget {
   final VoidCallback onTap;
 
   IconData get _icon => switch (notification.type) {
-        AppNotificationType.newServiceRequest => Icons.request_quote_outlined,
-        AppNotificationType.serviceRequestResponded => Icons.reply_outlined,
+        AppNotificationType.newBudgetRequest => Icons.request_quote_outlined,
+        AppNotificationType.budgetRequestResponded => Icons.reply_outlined,
         AppNotificationType.other => Icons.notifications_outlined,
       };
 

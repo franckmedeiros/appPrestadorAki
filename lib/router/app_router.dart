@@ -14,7 +14,6 @@ import '../features/budgets/budgets_screen.dart';
 import '../features/budgets/models/budget.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/marketplace/client_home_screen.dart';
-import '../features/marketplace/incoming_requests_screen.dart';
 import '../features/marketplace/models/provider_listing.dart';
 import '../features/marketplace/my_favorites_screen.dart';
 import '../features/marketplace/my_requests_screen.dart';
@@ -46,7 +45,6 @@ const _providerOnlyRoutes = {
   '/agenda/editar',
   '/orcamentos',
   '/orcamentos/editar',
-  '/pedidos',
 };
 
 GoRouter buildAppRouter(AuthController authController) {
@@ -122,7 +120,6 @@ GoRouter buildAppRouter(AuthController authController) {
         path: '/orcamentos/editar',
         builder: (context, state) => BudgetFormScreen(budget: state.extra as Budget?),
       ),
-      GoRoute(path: '/pedidos', builder: (context, state) => const IncomingRequestsScreen()),
       // Central de notificações (sininho) — aberta pros dois lados da
       // conta (cliente e prestador usam o mesmo uid, ver DATA_MODEL.md),
       // por isso não entra em `_providerOnlyRoutes`.

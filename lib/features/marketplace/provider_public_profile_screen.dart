@@ -9,8 +9,8 @@ import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador;
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'models/service_category.dart';
+import 'budget_requests_repository.dart';
 import 'provider_directory_repository.dart';
-import 'service_requests_repository.dart';
 
 /// Perfil público de um prestador do marketplace — visto pelo cliente,
 /// seja um perfil "reivindicado" (com conta no PrestadorAki) ou "não
@@ -33,9 +33,9 @@ class ProviderPublicProfileScreen extends StatefulWidget {
 class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScreen> {
   late Future<ProviderListing?> _future;
 
-  // Gamificação por estrelas: só um cliente com pelo menos um pedido
+  // Gamificação por estrelas: só um cliente com pelo menos um orçamento
   // aceito com ESSE prestador pode avaliar (ver
-  // ServiceRequestsRepository.hasAcceptedRequestWith) — evita nota de
+  // BudgetRequestsRepository.hasAcceptedBudgetWith) — evita nota de
   // quem nunca contratou. `_myRating` != null vira edição em vez de uma
   // segunda avaliação (ver ProviderDirectoryRepository.rate).
   bool _canRate = false;
@@ -63,7 +63,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
     final auth = context.read<AuthController>();
     if (auth.status != AuthStatus.authenticated) return;
     final canRate =
-        await context.read<ServiceRequestsRepository>().hasAcceptedRequestWith(widget.listingId);
+        await context.read<BudgetRequestsRepository>().hasAcceptedBudgetWith(widget.listingId);
     final myRating = await context.read<ProviderDirectoryRepository>().getMyRating(widget.listingId);
     if (!mounted) return;
     setState(() {

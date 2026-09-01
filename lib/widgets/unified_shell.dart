@@ -28,8 +28,11 @@ class UnifiedShell extends StatelessWidget {
       AppNavItem(icon: Icons.search_outlined, selectedIcon: Icons.search, label: 'Buscar');
   static const _favoritesItem =
       AppNavItem(icon: Icons.favorite_border, selectedIcon: Icons.favorite, label: 'Favoritos');
+  // "Meus orçamentos" (não só "Orçamentos") pra não confundir com o
+  // atalho "Orçamentos" do Dashboard do prestador — mesma conta pode ver
+  // os dois (ver comentário da classe sobre a conta unificada).
   static const _requestsItem = AppNavItem(
-      icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt, label: 'Solicitações');
+      icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt, label: 'Meus orçamentos');
   static const _dashboardItem = AppNavItem(
       icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Dashboard');
   static const _profileItem =

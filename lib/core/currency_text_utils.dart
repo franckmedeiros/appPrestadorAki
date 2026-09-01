@@ -1,5 +1,5 @@
 /// Formatação/leitura de valores em reais — mesmo padrão usado em vários
-/// lugares do app (ex.: IncomingRequestsScreen: `double.tryParse` trocando
+/// lugares do app (`double.tryParse` trocando
 /// vírgula por ponto), só que centralizado aqui porque o módulo de
 /// Orçamentos precisa formatar em vários pontos (cada item, subtotal,
 /// desconto, total) no formato brasileiro de verdade (vírgula decimal),
@@ -27,7 +27,7 @@ String _withThousandsSeparator(int value) {
 
 /// Lê um texto digitado (vírgula ou ponto como separador decimal) e
 /// devolve o valor em centavos — `null` se não for um número válido.
-/// Mesma tolerância já usada em IncomingRequestsScreen._respondWithQuote.
+/// Mesma tolerância usada em outros formulários com valor em reais.
 int? tryParseCentsFromText(String text) {
   final value = double.tryParse(text.trim().replaceAll(',', '.'));
   if (value == null) return null;

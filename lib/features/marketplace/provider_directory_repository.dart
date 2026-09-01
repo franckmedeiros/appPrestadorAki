@@ -180,15 +180,16 @@ class ProviderDirectoryRepository {
   /// transação, pra nunca ficar com a média fora de sincronia mesmo se
   /// dois clientes avaliarem ao mesmo tempo.
   ///
-  /// Nota honesta: a checagem de "só quem teve um pedido aceito com esse
-  /// prestador pode avaliar" é feita na tela (ver
-  /// ServiceRequestsRepository.hasAcceptedRequestWith), não aqui nem no
+  /// Nota honesta: a checagem de "só quem teve um orçamento aceito com
+  /// esse prestador pode avaliar" é feita na tela (ver
+  /// BudgetRequestsRepository.hasAcceptedBudgetWith), não aqui nem no
   /// firestore.rules — um cliente que forçar a chamada direto ainda
   /// conseguiria avaliar sem nunca ter contratado. Fechar essa brecha de
   /// verdade exigiria uma Cloud Function (o projeto já teve percalço pra
   /// manter as Functions publicadas — ver README) ou uma regra bem mais
-  /// elaborada lendo `serviceRequests` a partir do firestore.rules; fica
-  /// como próximo passo se abuso aparecer na prática.
+  /// elaborada lendo os orçamentos via `collectionGroup` a partir do
+  /// firestore.rules; fica como próximo passo se abuso aparecer na
+  /// prática.
   Future<void> rate(String listingId, {required int stars, String? comment}) async {
     if (stars < 1 || stars > 5) {
       throw ApiException(0, 'A nota precisa ser de 1 a 5 estrelas.');

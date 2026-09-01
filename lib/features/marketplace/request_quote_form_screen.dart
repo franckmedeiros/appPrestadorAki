@@ -5,9 +5,9 @@ import '../../core/api_exception.dart';
 import '../../core/auth_controller.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/mask_text_input_formatter.dart';
+import 'budget_requests_repository.dart';
 import 'client_auth_gate.dart';
 import 'models/provider_listing.dart';
-import 'service_requests_repository.dart';
 
 /// Formulário de "solicitar orçamento" — o primeiro contato do cliente com
 /// um prestador do diretório. Recebe o `ProviderListing` já carregado via
@@ -108,18 +108,19 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
       _error = null;
     });
     try {
-      final preferredDate = tryParseDateDdMmYyyy(_dateController.text.trim());
       final clientName = context.read<AuthController>().displayName;
-      await context.read<ServiceRequestsRepository>().create(
+      // `create` retorna `null` quando o prestador ainda não tem conta no
+      // app (listagem "não reivindicada") — não tem onde gravar o pedido
+      // nesse caso; a tela cai no mesmo fluxo de convite manual de sempre
+      // (ver `widget.listing.claimed` no `build`, abaixo).
+      await context.read<BudgetRequestsRepository>().create(
             clientName: clientName,
             provider: widget.listing,
             description: _descriptionController.text.trim(),
             addressText: _addressController.text.trim(),
-            preferredDate: preferredDate == null
+            preferredDate: _dateController.text.trim().isEmpty
                 ? null
-                : '${preferredDate.year.toString().padLeft(4, '0')}-'
-                    '${preferredDate.month.toString().padLeft(2, '0')}-'
-                    '${preferredDate.day.toString().padLeft(2, '0')}',
+                : _dateController.text.trim(),
           );
       if (mounted) setState(() => _sent = true);
     } on ApiException catch (e) {
