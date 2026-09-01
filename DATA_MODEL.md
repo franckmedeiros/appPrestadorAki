@@ -153,29 +153,69 @@ de GPS em si, cálculo de ETA/distância e a página pública de rastreamento
 ## `providers/{uid}/budgets/{budgetId}`
 
 ```
-customerId, customerName
-technicalVisitId?
-number              number  — sequencial por prestador (providers.nextBudgetNumber)
-status              enum (rascunho | enviado | visualizado | aguardando_aprovacao |
-                          aprovado | recusado | alteracao_solicitada | expirado | cancelado)
-issueDate, validUntil?
-items               array<{ description, quantity, unit, unitPriceCents, totalCents, sortOrder }>
-subtotalCents, discountCents, additionCents, totalCents
-executionDeadline?, paymentTerms?, notes?
-publicToken         string  — gerado na criação (usado no link público)
-sentAt?, viewedAt?, decidedAt?, decidedByIp?
+customerId?, customerName
+addressText?
+date                Timestamp — data do orçamento/serviço
+items               array<{ description, quantity, unit, unitPriceCents }>
+discountCents, observations?
+status?             enum (pendente | enviado | aprovado | aceito | recusado)
+clientUid?, providerDirectoryId?, providerName?, category?
+requestDescription?, preferredDate?
+rejectedBy?         'prestador' | 'cliente'
+serviceScheduledAt?, serviceDurationMinutes?, appointmentId?
 createdAt, updatedAt
 ```
 
-`items` fica embutido como array no próprio documento (não uma
-subcoleção) — sempre é lido/escrito junto com o orçamento, e a lista é
-pequena o bastante pra nunca chegar perto do limite de 1MB por documento.
+CRUD direto do app (`BudgetsRepository`/`BudgetRequestsRepository`), sem
+Cloud Function — versão simples implementada em 2026-08. `items` fica
+embutido como array no próprio documento (não uma subcoleção): sempre é
+lido/escrito junto com o orçamento, e a lista é pequena o bastante pra
+nunca chegar perto do limite de 1MB por documento.
 
-Criação, atualização (com versionamento), envio e decisão (aprovar/
-recusar) só acontecem via Cloud Functions callable — ver
-`functions/src/budgets.ts`. O app nunca escreve num `budget` diretamente.
+Um orçamento criado manualmente pelo prestador (cliente já cadastrado,
+fora do marketplace) não tem `status` nenhum — os campos de `status` em
+diante só existem pra orçamentos que nasceram de um pedido de cliente
+pelo marketplace (pedido do Franck, 2026-09: eliminar o "Pedido" como
+etapa separada, o pedido do cliente já nasce direto como orçamento
+`pendente`). O fluxo desses:
 
-### `providers/{uid}/budgets/{budgetId}/versions/{versionId}`
+```
+pendente  → cliente pediu (RequestQuoteFormScreen/BudgetRequestsRepository.create,
+            escreve na subcoleção do prestador escolhido). Cliente auto-
+            cadastrado como Customer (CustomersRepository.findOrCreateForClient).
+enviado   → prestador terminou de preencher itens/preço e mandou pro
+            cliente (BudgetsRepository.sendToClient).
+aprovado  → cliente aprovou (BudgetRequestsRepository.approve) — falta o
+            aceite final do prestador.
+aceito    → prestador deu o aceite final (BudgetsRepository.acceptFinal):
+            SÓ AQUI a data/hora do serviço é definida, com checagem de
+            conflito na agenda (AppointmentsRepository.hasConflict,
+            bloqueia e pede outro horário) — e o compromisso já nasce
+            sozinho em providers/{uid}/appointments.
+recusado  → prestador ou cliente recusou (ver `rejectedBy`) — fluxo
+            encerrado, pode acontecer a partir de pendente/enviado
+            (prestador) ou enviado (cliente).
+```
+
+`firestore.rules` autoriza um cliente autenticado a criar (só `pendente`,
+só com o próprio uid, sem itens/preço) e atualizar (só de `enviado` pra
+`aprovado`/`recusado`, só mexendo em `status`/`rejectedBy`) um documento
+na subcoleção de OUTRO prestador — é a mesma coleção, só que escrita por
+uma conta diferente da dona. Uma consulta `collectionGroup('budgets')`
+filtrando por `clientUid` (usada por `BudgetRequestsRepository.watchMine`,
+"Meus orçamentos") junta os pedidos de um cliente em vários prestadores.
+
+**Nota histórica**: existe um desenho bem mais ambicioso em
+`functions/src/budgets.ts` — Cloud Functions callable, numeração
+sequencial, versionamento (`versions`/`changeRequests` abaixo), aprovação
+por link público (`publicBudgetTokens`) e criação automática de um `job`
+(`providers/{uid}/jobs/{jobId}`). Esse desenho nunca foi ligado ao app
+(nenhuma tela chama essas Functions) — é código morto, mantido só porque
+ainda pode servir de referência se um fluxo mais formal (contrato, link
+público pra cliente sem conta) virar prioridade de verdade. As
+subcoleções abaixo e a coleção `jobs` só existem nesse desenho legado.
+
+### `providers/{uid}/budgets/{budgetId}/versions/{versionId}` (código morto — ver nota acima)
 
 ```
 versionNumber
@@ -185,29 +225,22 @@ changeReason?
 createdAt
 ```
 
-Só escrito pela Cloud Function `updateBudget` quando o orçamento já tinha
-sido enviado (mesma regra que existia no Postgres: "gera nova versão se já
-enviado").
-
-### `providers/{uid}/budgets/{budgetId}/changeRequests/{requestId}`
+### `providers/{uid}/budgets/{budgetId}/changeRequests/{requestId}` (código morto)
 
 `message`, `createdAt`, `resolvedAt?` — só escrito pela Cloud Function
-`requestBudgetChange`.
+`requestBudgetChange`, que nunca é chamada pelo app.
 
-## `publicBudgetTokens/{token}` (coleção no topo, fora de `/providers`)
+## `publicBudgetTokens/{token}` (coleção no topo, fora de `/providers`) — código morto
 
 ```
 providerId
 budgetId
 ```
 
-Ponteiro simples token → (providerId, budgetId). Nunca acessado pelo app
-nem por regra do Firestore — só as Cloud Functions HTTPS (`getPublicBudget`,
-`publicApproveBudget`) leem essa coleção via Admin SDK, que ignora
-`firestore.rules`. Isso evita ter que "vazar" uma regra pública em cima da
-coleção de orçamentos de verdade.
+Ponteiro simples token → (providerId, budgetId), parte do desenho legado
+de `functions/src/budgets.ts` (ver nota acima) — nunca acessado pelo app.
 
-## `providers/{uid}/jobs/{jobId}`
+## `providers/{uid}/jobs/{jobId}` (código morto — ver nota acima)
 
 ```
 customerId, customerName
@@ -222,18 +255,11 @@ notes?
 createdAt, updatedAt
 ```
 
-Só nasce automaticamente via Cloud Function `approveBudget`/
-`publicApproveBudget` (regra: `allow create: if false` no Firestore). O
-prestador só lê e atualiza o status de execução — endpoints próprios de
-Jobs (iniciar/chegar/concluir, como em TechnicalVisits) ainda não existem;
-é a mesma lacuna que já existia na versão Postgres.
-
-**Ressalva honesta, carregada da versão anterior**: como um orçamento não
-tem data/hora de execução própria, o job criado automaticamente usa a data
-da visita técnica vinculada quando existe; se não existir, usa um
-placeholder (data de hoje, horário "09:00") que o prestador precisa
-confirmar/reagendar manualmente. Isso é uma lacuna do contrato original,
-não algo que a migração pra Firebase resolveu ou piorou.
+Só nasceria automaticamente via Cloud Function `approveBudget`/
+`publicApproveBudget` — nunca chamadas pelo app; o fluxo de verdade que
+lança um compromisso na agenda automaticamente é o `aceito` do `budgets`
+acima, que cria um `providers/{uid}/appointments/{appointmentId}`, não um
+`job`.
 
 ## Marketplace (cliente ↔ prestador) — pivot de produto
 
@@ -395,26 +421,16 @@ compra pra aquele token é ignorada (ainda não tem o que fazer com ela; a
 própria confirmação, quando chegar, já busca o estado atual na API na
 hora). Mesmo padrão do `comprasVerificadas` do app Resenha.
 
-### `serviceRequests/{requestId}` (coleção no topo, fora de `/providers`)
+### Não existe mais uma coleção `serviceRequests` separada
 
-O pedido de orçamento do cliente pra um prestador do diretório — o
-primeiro contato do fluxo do marketplace, deliberadamente mais simples que
-o módulo formal de Orçamentos acima (que é pra prestador × cliente já
-cadastrado manualmente, com numeração e versionamento via Cloud Function).
-
-```
-clientUid, clientName
-providerDirectoryId       — aponta pro providerDirectory
-providerUid?              — só se o perfil já era reivindicado no momento do pedido
-providerName, category
-description, addressText, preferredDate?
-status                    enum (aguardando_prestador | orcamento_enviado | aceito | recusado)
-quoteAmountCents?, quoteMessage?
-createdAt                 Timestamp
-```
-
-CRUD direto do app (sem Cloud Function) — ver a ressalva sobre validação
-de transição de status em `firestore.rules`. **Lacuna consciente**: aceitar
-um orçamento aqui não cria nada automaticamente (nem `job`, nem cliente
-cadastrado do prestador) — fechar esse laço de verdade é o próximo passo
-depois que esse fluxo básico for validado em uso real.
+Até 2026-09 o primeiro contato do fluxo do marketplace (cliente →
+prestador do diretório) vivia numa coleção própria, `serviceRequests`,
+que só depois virava um orçamento de verdade quando o prestador
+respondia. Pedido do Franck: tirar essa etapa do meio — o pedido do
+cliente já nasce direto como um orçamento `pendente` em
+`providers/{uid}/budgets` (ver a seção `budgets` acima, que documenta o
+fluxo completo `pendente → enviado → aprovado → aceito`/`recusado`).
+`serviceRequests` foi apagada (dados de teste incluídos, a pedido do
+Franck) e o código que a usava (`ServiceRequest`,
+`ServiceRequestsRepository`, `IncomingRequestsScreen`, rota `/pedidos`)
+foi removido.

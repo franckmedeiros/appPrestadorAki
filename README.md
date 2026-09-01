@@ -159,8 +159,8 @@ combinação, pagamento) aconteceria fora do app, e o PrestadorAki viraria
 só uma lista telefônica gratuita. Por isso:
 
 - Nenhuma tela mostra telefone/WhatsApp de um prestador — o contato
-  acontece através de "Solicitar orçamento" (`serviceRequests`), nunca de
-  um número exposto.
+  acontece através de "Solicitar orçamento", que vira um orçamento
+  (`Budget`, ver mais abaixo), nunca de um número exposto.
 - Perfis "não reivindicados" (carga inicial) guardam só nome, categoria e
   cidade — nunca um contato direto que a pessoa não deu permissão de usar
   no PrestadorAki. Isso não é só cautela de produto: usar um dado de
@@ -209,18 +209,33 @@ mesma tela de sempre, só que agora é exclusiva desse fluxo (tem um link
 - Cadastro (`RegisterScreen`) é sempre de cliente — virar prestador
   acontece depois, em "Meu perfil", passando pela assinatura mensal (ver
   seção "Assinatura mensal do prestador" mais abaixo).
-- Lado prestador: aba "Pedidos" (`IncomingRequestsScreen`) — recebe os
-  pedidos do marketplace e responde com um valor + mensagem simples (bem
-  mais simples que o módulo formal de Orçamentos, que continua existindo
-  separado, para clientes já cadastrados manualmente).
+- ~~Lado prestador: aba "Pedidos" (`IncomingRequestsScreen`) — recebe os
+  pedidos do marketplace e responde com um valor + mensagem simples~~ —
+  removido (ver "Atualização (pedido vira orçamento direto)" abaixo): o
+  pedido do cliente já nasce como um orçamento no módulo formal de
+  Orçamentos, não existe mais uma aba/tela separada pra isso.
 - `firestore.rules` e `firestore.indexes.json` atualizados com as novas
-  coleções (`clients`, `providerDirectory`, `serviceRequests`) —
-  `providerDirectory` agora tem **leitura pública** (`allow read: if
-  true`), de propósito, pra busca funcionar sem sessão nenhuma. Depois de
-  puxar essas mudanças, rode de novo, na raiz do projeto:
+  coleções (`clients`, `providerDirectory`, `budgets` acessível também
+  pelo cliente que pediu) — `providerDirectory` tem **leitura pública**
+  (`allow read: if true`), de propósito, pra busca funcionar sem sessão
+  nenhuma. Depois de puxar essas mudanças, rode de novo, na raiz do
+  projeto:
   ```
-  firebase deploy --only firestore:rules,firestore:indexes
+  firebase deploy --only firestore:rules,firestore:indexes,functions
   ```
+
+**Atualização (pedido vira orçamento direto)**: mudança combinada com o
+Franck em 2026-09 — não existe mais um "Pedido" como etapa separada do
+Orçamento. Quando o cliente pede um orçamento pelo marketplace, ele já
+nasce como um orçamento `pendente` (mesmo módulo formal de Orçamentos, só
+que com um `status` — ver `Budget`/`BudgetStatus` e a seção "Marketplace"
+do `DATA_MODEL.md`), o cliente é cadastrado automaticamente como Customer
+do prestador (cadastro manual continua existindo, pra cliente fora do
+app), e o fluxo tramita `pendente → enviado → aprovado → aceito`/
+`recusado` entre prestador e cliente. No aceite final o prestador escolhe
+a data/hora do serviço e o compromisso já nasce sozinho na Agenda, com
+checagem de conflito de horário. A antiga coleção `serviceRequests` e a
+aba "Pedidos" foram removidas.
 
 **Atualização (conta unificada)**: a lacuna que existia aqui (conta só
 podia ser OU cliente OU prestador) foi resolvida — toda conta autenticada
@@ -237,9 +252,12 @@ funciona hoje (gate por assinatura, não mais de graça).
   vez no cadastro)~~ — já existe (`UserProfileScreen`/`EditProfileScreen`,
   aba "Perfil" nos dois lados do app), incluindo editar nome/categoria/
   cidade/UF, ativar biometria e sair da conta.
-- Aceitar um orçamento do marketplace não fecha o laço sozinho ainda (não
-  cria job nem cadastra o cliente automaticamente pro prestador) — isso
-  fica pra quando o fluxo básico estiver validado em uso real.
+- ~~Aceitar um orçamento do marketplace não fecha o laço sozinho ainda
+  (não cria job nem cadastra o cliente automaticamente pro prestador)~~ —
+  já fecha: o aceite final do prestador cria o compromisso na agenda
+  sozinho (com checagem de conflito de horário) e o cliente é cadastrado
+  automaticamente (ver "Atualização (pedido vira orçamento direto)"
+  acima).
 - ~~A curadoria/carga inicial de prestadores por região não foi feita~~ —
   já existe um script pra isso (`scripts/seed_provider_directory.js`, ver
   `scripts/README.md`). A curadoria em si — decidir quais prestadores
