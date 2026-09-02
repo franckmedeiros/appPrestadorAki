@@ -107,6 +107,7 @@ class Budget {
     this.observations,
     this.status,
     this.clientUid,
+    this.clientPhone,
     this.providerUid,
     this.providerDirectoryId,
     this.providerName,
@@ -136,6 +137,7 @@ class Budget {
       observations: data['observations'] as String?,
       status: budgetStatusFromWire(data['status'] as String?),
       clientUid: data['clientUid'] as String?,
+      clientPhone: data['clientPhone'] as String?,
       providerUid: data['providerUid'] as String?,
       providerDirectoryId: data['providerDirectoryId'] as String?,
       providerName: data['providerName'] as String?,
@@ -163,6 +165,14 @@ class Budget {
   /// pelo marketplace (ver classe acima).
   final BudgetStatus? status;
   final String? clientUid;
+
+  /// Telefone do cliente no momento do pedido (cópia/"snapshot", mesma
+  /// razão de `customerName`/`addressText` — ver comentário da classe) —
+  /// usado só pra casar por telefone com um cadastro de cliente já
+  /// existente do prestador (ver
+  /// `CustomersRepository.findOrCreateForClient`), nunca reexibido como
+  /// se fosse o telefone atual da conta.
+  final String? clientPhone;
 
   /// Uid do prestador dono deste orçamento — gravado explicitamente como
   /// CAMPO (em vez de só inferido do próprio caminho do documento,
@@ -216,6 +226,7 @@ class Budget {
         if (observations != null && observations!.isNotEmpty) 'observations': observations,
         if (status != null) 'status': status!.wireValue,
         if (clientUid != null) 'clientUid': clientUid,
+        if (clientPhone != null) 'clientPhone': clientPhone,
         if (providerUid != null) 'providerUid': providerUid,
         if (providerDirectoryId != null) 'providerDirectoryId': providerDirectoryId,
         if (providerName != null) 'providerName': providerName,
@@ -251,6 +262,7 @@ class Budget {
         observations: observations ?? this.observations,
         status: status ?? this.status,
         clientUid: clientUid,
+        clientPhone: clientPhone,
         providerUid: providerUid,
         providerDirectoryId: providerDirectoryId,
         providerName: providerName,

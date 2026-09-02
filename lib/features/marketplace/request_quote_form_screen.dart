@@ -37,6 +37,13 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
   String? _error;
   bool _sent = false;
 
+  // Telefone da própria conta (`clients/{uid}.whatsapp`, gravado
+  // obrigatoriamente no cadastro — ver AuthController.register) — vai
+  // junto no pedido (`Budget.clientPhone`) pra permitir o prestador casar
+  // esse cliente por telefone com um cadastro já existente (ver
+  // CustomersRepository.findOrCreateForClient), em vez de só pelo nome.
+  String? _ownPhone;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +57,7 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
   Future<void> _prefillAddress() async {
     try {
       final data = await context.read<AuthController>().fetchOwnProfileData();
+      _ownPhone = data['whatsapp'] as String?;
       final address = _formatProfileAddress(data);
       if (address.isNotEmpty && mounted && _addressController.text.isEmpty) {
         setState(() => _addressController.text = address);
@@ -121,6 +129,7 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
             preferredDate: _dateController.text.trim().isEmpty
                 ? null
                 : _dateController.text.trim(),
+            clientPhone: _ownPhone,
           );
       if (mounted) setState(() => _sent = true);
     } on ApiException catch (e) {

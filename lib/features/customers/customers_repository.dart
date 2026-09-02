@@ -98,9 +98,21 @@ class CustomersRepository {
   /// `Budget.clientUid`/`BudgetsRepository`): o prestador não precisa
   /// cadastrar manualmente um cliente que já veio pelo app. Cadastro
   /// manual continua existindo à parte, para clientes fora do app.
+  ///
+  /// Segunda tentativa por `phone` (pedido do Franck): antes de criar um
+  /// cliente novo, também verifica se já existe um cadastro manual com o
+  /// mesmo telefone — bem mais confiável que casar por nome (nomes
+  /// duplicados, abreviados ou digitados diferente geram cliente
+  /// duplicado; telefone não). Se achar, só liga o `clientUid` a esse
+  /// cadastro (sem sobrescrever um `clientUid` que já exista ali, por
+  /// segurança) em vez de criar um segundo registro pro mesmo cliente.
+  /// `phone` é o telefone da CONTA de cliente no momento do pedido (ver
+  /// `Budget.clientPhone`), não o campo `phone` do cadastro manual em si
+  /// — os dois só precisam bater em valor pra esse casamento funcionar.
   Future<Customer> findOrCreateForClient({
     required String clientUid,
     required String name,
+    String? phone,
   }) async {
     try {
       final existing =
@@ -108,10 +120,25 @@ class CustomersRepository {
       if (existing.docs.isNotEmpty) {
         return Customer.fromFirestore(existing.docs.first);
       }
+
+      if (phone != null && phone.isNotEmpty) {
+        final byPhone = await _collection.where('phone', isEqualTo: phone).limit(1).get();
+        if (byPhone.docs.isNotEmpty) {
+          final doc = byPhone.docs.first;
+          if (doc.data()['clientUid'] == null) {
+            await doc.reference.set(
+              {'clientUid': clientUid, 'updatedAt': FieldValue.serverTimestamp()},
+              SetOptions(merge: true),
+            );
+            return Customer.fromFirestore(await doc.reference.get());
+          }
+          return Customer.fromFirestore(doc);
+        }
+      }
     } on FirebaseException catch (e) {
       throw ApiException(0, e.message ?? 'Não foi possível buscar o cliente.');
     }
-    return create(name: name, clientUid: clientUid);
+    return create(name: name, phone: phone, clientUid: clientUid);
   }
 
   /// Atualiza um cliente já existente — usado por `CustomerFormScreen` em

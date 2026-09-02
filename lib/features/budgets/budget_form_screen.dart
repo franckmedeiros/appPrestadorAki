@@ -209,6 +209,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       final customer = await context.read<CustomersRepository>().findOrCreateForClient(
             clientUid: budget.clientUid!,
             name: budget.customerName,
+            phone: budget.clientPhone,
           );
       if (!mounted) return;
       setState(() {

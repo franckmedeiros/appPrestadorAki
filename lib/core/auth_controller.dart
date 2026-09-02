@@ -155,6 +155,7 @@ class AuthController extends ChangeNotifier {
     String name,
     String email,
     String password, {
+    required String phone,
     bool asProvider = false,
     String? category,
     String? city,
@@ -172,10 +173,17 @@ class AuthController extends ChangeNotifier {
         // Documento raiz do cliente (clients/{uid}) — identidade base de
         // TODA conta, prestador ou não (ver comentário da classe). A
         // própria regra `isOwner` do firestore.rules permite que o usuário
-        // recém-criado grave este documento.
+        // recém-criado grave este documento. `phone` obrigatório (pedido
+        // do Franck) grava no mesmo campo `whatsapp` que
+        // `updateOwnProfile`/EditProfileScreen já usa pro telefone da
+        // própria conta — é o que permite casar por telefone (não por
+        // nome) um pedido de orçamento do marketplace com um cadastro de
+        // cliente já existente do prestador (ver
+        // CustomersRepository.findOrCreateForClient).
         await _firestore.collection('clients').doc(uid).set({
           'name': name,
           'email': email,
+          'whatsapp': phone,
           'createdAt': now,
           'updatedAt': now,
         });

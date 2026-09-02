@@ -5,6 +5,7 @@ import '../../core/auth_controller.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
+import '../../widgets/mask_text_input_formatter.dart';
 
 /// Cadastro (decisão combinada com o Franck): toda conta nasce como
 /// cliente — a capacidade de prestador não entra mais por aqui, porque
@@ -28,7 +29,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneMask = MaskTextInputFormatter('(##) #####-####');
   bool _obscurePassword = true;
 
   // Mesma ideia da LoginScreen/DashboardScreen: oferece biometria já no
@@ -54,6 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -64,6 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _nameController.text.trim(),
       _emailController.text.trim(),
       _passwordController.text,
+      phone: _phoneController.text.trim(),
     );
     if (ok && _useBiometrics) {
       await auth.setBiometricEnabled(true);
@@ -134,6 +139,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         textInputAction: TextInputAction.next,
                         validator: (value) =>
                             (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                      ),
+                      const SizedBox(height: 18),
+                      // Pedido do Franck: obrigar o telefone no cadastro —
+                      // é o que permite, na hora de um pedido de orçamento
+                      // pelo marketplace, casar o cliente com um cadastro
+                      // de cliente já existente do prestador por telefone
+                      // em vez de por nome (ver
+                      // CustomersRepository.findOrCreateForClient).
+                      LabeledTextField(
+                        label: 'Telefone',
+                        controller: _phoneController,
+                        hintText: '(00) 00000-0000',
+                        keyboardType: TextInputType.phone,
+                        prefixIcon: Icons.phone_outlined,
+                        textInputAction: TextInputAction.next,
+                        inputFormatters: [_phoneMask],
+                        validator: (value) {
+                          final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                          return digits.length < 10 ? 'Informe um telefone válido' : null;
+                        },
                       ),
                       const SizedBox(height: 18),
                       LabeledTextField(

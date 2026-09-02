@@ -40,6 +40,7 @@ class BudgetRequestsRepository {
     required String description,
     required String addressText,
     String? preferredDate,
+    String? clientPhone,
   }) async {
     final providerUid = provider.providerUid;
     if (providerUid == null) return null;
@@ -52,6 +53,7 @@ class BudgetRequestsRepository {
         'items': const [],
         'discountCents': 0,
         'clientUid': _auth.currentUser!.uid,
+        if (clientPhone != null && clientPhone.isNotEmpty) 'clientPhone': clientPhone,
         'providerUid': providerUid,
         'providerDirectoryId': provider.id,
         'providerName': provider.name,

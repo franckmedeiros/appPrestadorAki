@@ -18,9 +18,7 @@ import '../jobs/models/job.dart';
 /// Aba "Dashboard" — só existe pra quem tem a capacidade de prestador
 /// (ver UnifiedShell/AuthController.isProvider). Um resumo do dia +
 /// atalhos pras telas que antes eram abas próprias (Clientes/Agenda/
-/// Orçamentos), que agora só existem a partir daqui. Visual desenhado a
-/// partir de um mockup que o Franck mandou (cabeçalho decorativo, cartão
-/// de saudação flutuante, cards de atalho com subtítulo e seta).
+/// Orçamentos), que agora só existem a partir daqui.
 ///
 /// "Compromissos de hoje" mostra a agenda do dia de verdade (mesmo
 /// repositório da aba Agenda, já ordenado por data/hora). O selo no
@@ -29,12 +27,6 @@ import '../jobs/models/job.dart';
 /// antigo atalho "Pedidos" foi removido: esses pedidos já nascem como
 /// orçamento (ver `Budget`/`BudgetStatus`), não existe mais um "Pedido"
 /// separado no meio do caminho.
-String _firstName(String displayNameOrEmail) {
-  if (displayNameOrEmail.contains('@')) return displayNameOrEmail;
-  final parts = displayNameOrEmail.trim().split(RegExp(r'\s+'));
-  return parts.isEmpty || parts.first.isEmpty ? displayNameOrEmail : parts.first;
-}
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -79,6 +71,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return context.read<AppointmentsRepository>().list(from: startOfDay, to: endOfDay);
   }
 
+  void _retryToday() {
+    setState(() => _todayFuture = _loadToday());
+  }
+
   Future<int> _loadPendingRequests() async {
     // "Orçamentos abertos" = pedidos que o cliente fez (botão "Solicitar
     // orçamento" na busca) e que este prestador ainda não terminou de
@@ -121,8 +117,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DecorativeHeader(
-              height: 150,
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 44),
+              height: 110,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -137,25 +133,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            // Todo o resto sobe junto (cartão de saudação + seções abaixo)
-            // pra não sobrar um vão em branco onde o cartão "deveria" estar
-            // - só o cartão flutua sobre o cabeçalho, não os itens depois
-            // dele (ver mesma ideia em UserProfileScreen, só que lá era um
-            // painel único, não vários cards soltos como aqui).
-            Transform.translate(
-              offset: const Offset(0, -28),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _GreetingCard(name: _firstName(auth.displayName)),
+            // Pedido do Franck: tirar o cartão de saudação ("Olá, ...") —
+            // por isso não tem mais nenhum Transform.translate/overlap
+            // com o cabeçalho aqui (esse truque só existia por causa do
+            // cartão flutuando sobre a borda do cabeçalho).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                     FutureBuilder<Map<String, dynamic>?>(
                       future: _listingStatusFuture,
                       builder: (context, snapshot) {
                         if (snapshot.data?['listingStatus'] != 'pending') return const SizedBox.shrink();
                         return Padding(
-                          padding: const EdgeInsets.only(top: 12),
+                          padding: const EdgeInsets.only(bottom: 12),
                           child: Card(
                             color: const Color(0xFFFFF4E5),
                             child: Padding(
@@ -170,7 +162,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         );
                       },
                     ),
-                    const SizedBox(height: 22),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -203,6 +194,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             padding: EdgeInsets.symmetric(vertical: 24),
                             child: Center(child: CircularProgressIndicator()),
                           );
+                        }
+                        // Antes esse erro ficava mascarado: sem checar
+                        // `hasError`, uma falha ao carregar caía direto no
+                        // "sem compromisso hoje" (mesmo bug já corrigido em
+                        // MyRequestsScreen) — por isso o retry explícito aqui.
+                        if (snapshot.hasError) {
+                          return _TodayErrorState(onRetry: _retryToday);
                         }
                         // Já vem ordenado por data/hora — mesmo orderBy('scheduledAt')
                         // de AppointmentsRepository.list() usado pela aba Agenda.
@@ -280,7 +278,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -403,107 +400,27 @@ class _ShortcutCard extends StatelessWidget {
   }
 }
 
-/// Cartão de saudação flutuante — sobreposto à borda do cabeçalho
-/// decorativo (ver Transform.translate em build()), com o nome de quem
-/// está logado e uma decoração ilustrativa simples à direita (ícones em
-/// vez de uma ilustração de verdade, que o app ainda não tem).
-class _GreetingCard extends StatelessWidget {
-  const _GreetingCard({required this.name});
+/// Estado de erro de "Compromissos de hoje" — mesmo padrão de
+/// `_ErrorState` em AgendaScreen/CustomersListScreen (ícone + mensagem +
+/// botão "Tentar de novo"), só que aqui reconstrói o `Future` guardado
+/// no State (ver `_DashboardScreenState._retryToday`) em vez de recriar
+/// uma Stream.
+class _TodayErrorState extends StatelessWidget {
+  const _TodayErrorState({required this.onRetry});
 
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: const Text('👋', style: TextStyle(fontSize: 26)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Olá, $name! 👋',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'Aqui está o resumo do seu dia.',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12.5),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          const _GreetingDecoration(),
-        ],
-      ),
-    );
-  }
-}
-
-/// Decoração ilustrativa simples (página + selo de check) só pra dar um
-/// toque visual ao cartão de saudação, no lugar da ilustração de verdade
-/// do mockup - não temos esse asset no app.
-class _GreetingDecoration extends StatelessWidget {
-  const _GreetingDecoration();
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: Stack(
-        clipBehavior: Clip.none,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
         children: [
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.eco_outlined, size: 18, color: AppColors.success),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            top: 0,
-            child: Container(
-              width: 20,
-              height: 20,
-              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-              child: const Icon(Icons.check, size: 13, color: Colors.white),
-            ),
-          ),
+          const Icon(Icons.error_outline, size: 36, color: AppColors.danger),
+          const SizedBox(height: 8),
+          const Text('Não foi possível carregar os compromissos de hoje.', textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          OutlinedButton(onPressed: onRetry, child: const Text('Tentar de novo')),
         ],
       ),
     );

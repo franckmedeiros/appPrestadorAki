@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
+import '../../widgets/mask_text_input_formatter.dart';
 
 /// Aba "Meu perfil" pra quem ainda não tem sessão - login/cadastro
 /// embutidos direto na tela (sem precisar abrir uma folha/modal), a
@@ -36,7 +38,9 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneMask = MaskTextInputFormatter('(##) #####-####');
   _Mode _mode = _Mode.register;
   bool _obscurePassword = true;
 
@@ -44,6 +48,7 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -56,6 +61,7 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
             _nameController.text.trim(),
             _emailController.text.trim(),
             _passwordController.text,
+            phone: _phoneController.text.trim(),
           );
     if (ok) widget.onAuthenticated();
   }
@@ -120,6 +126,18 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
                           icon: Icons.person_outline,
                           validator: (value) =>
                               (value == null || value.trim().isEmpty) ? 'Informe seu nome' : null,
+                        ),
+                        const SizedBox(height: 14),
+                        _PanelField(
+                          controller: _phoneController,
+                          hintText: 'Telefone',
+                          icon: Icons.phone_outlined,
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [_phoneMask],
+                          validator: (value) {
+                            final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                            return digits.length < 10 ? 'Informe um telefone válido' : null;
+                          },
                         ),
                         const SizedBox(height: 14),
                       ],
@@ -198,6 +216,7 @@ class _PanelField extends StatelessWidget {
     this.obscureText = false,
     this.suffixIcon,
     this.validator,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -207,6 +226,7 @@ class _PanelField extends StatelessWidget {
   final bool obscureText;
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +235,7 @@ class _PanelField extends StatelessWidget {
       keyboardType: keyboardType,
       obscureText: obscureText,
       validator: validator,
+      inputFormatters: inputFormatters,
       decoration: InputDecoration(
         hintText: hintText,
         prefixIcon: Icon(icon, color: AppColors.primary, size: 20),

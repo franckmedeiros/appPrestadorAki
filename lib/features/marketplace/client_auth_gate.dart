@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../widgets/mask_text_input_formatter.dart';
 
 /// Ponto único de "gate" pro lado do cliente do marketplace, depois da
 /// mudança de ideia: buscar e ver o perfil público de um prestador NÃO
@@ -81,13 +82,16 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneMask = MaskTextInputFormatter('(##) #####-####');
   _Mode _mode = _Mode.register;
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -100,6 +104,7 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
             _nameController.text.trim(),
             _emailController.text.trim(),
             _passwordController.text,
+            phone: _phoneController.text.trim(),
           );
     if (ok && mounted) Navigator.pop(context, true);
   }
@@ -152,6 +157,17 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
                   decoration: const InputDecoration(labelText: 'Seu nome'),
                   validator: (value) =>
                       (value == null || value.trim().isEmpty) ? 'Informe seu nome' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [_phoneMask],
+                  decoration: const InputDecoration(labelText: 'Telefone', hintText: '(00) 00000-0000'),
+                  validator: (value) {
+                    final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                    return digits.length < 10 ? 'Informe um telefone válido' : null;
+                  },
                 ),
                 const SizedBox(height: 12),
               ],
