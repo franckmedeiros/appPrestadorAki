@@ -12,6 +12,8 @@ import '../../widgets/notification_bell.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
 import '../budgets/budgets_repository.dart';
+import '../jobs/job_details_sheet.dart';
+import '../jobs/job_status_chip.dart';
 import '../jobs/jobs_repository.dart';
 import '../jobs/models/job.dart';
 
@@ -46,6 +48,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late Future<List<Appointment>> _todayFuture;
   late Future<Map<String, dynamic>?> _listingStatusFuture;
   late Future<int> _pendingRequestsFuture;
+  // Guardo a lista inteira (não só a contagem) porque o card de
+  // "Compromissos de hoje" agora também precisa saber, pra cada
+  // compromisso, se existe um Job ligado a ele (pra mostrar a etapa e
+  // deixar tocar pra mudar — pedido do Franck).
+  late Stream<List<Job>> _jobsStream;
   late Stream<int> _activeJobsStream;
 
   @override
@@ -58,10 +65,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // "Serviços ativos" = tudo que ainda não chegou em "concluído" — no
     // lugar do antigo atalho "Pedidos" (pedido do Franck), agora mostra
     // quantos serviços o prestador tem em andamento no Kanban.
-    _activeJobsStream = context
-        .read<JobsRepository>()
-        .watchAll()
-        .map((jobs) => jobs.where((job) => job.status != JobStatus.concluido).length);
+    _jobsStream = context.read<JobsRepository>().watchAll();
+    _activeJobsStream =
+        _jobsStream.map((jobs) => jobs.where((job) => job.status != JobStatus.concluido).length);
   }
 
   Future<List<Appointment>> _loadToday() {
@@ -208,15 +214,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         if (today.isEmpty) {
                           return _TodayEmptyState(onGoToAgenda: () => context.push('/agenda'));
                         }
-                        return Column(
-                          children: today
-                              .map(
-                                (appointment) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: _TodayAppointmentTile(appointment: appointment),
-                                ),
-                              )
-                              .toList(),
+                        return StreamBuilder<List<Job>>(
+                          stream: _jobsStream,
+                          builder: (context, jobsSnapshot) {
+                            // Um compromisso só tem Job (e, portanto, etapa/selo/toque)
+                            // quando nasceu do aceite final de um orçamento vindo do
+                            // marketplace (ver Job.appointmentId) — visita/serviço
+                            // criado à mão na Agenda continua sem nada disso.
+                            final jobsByAppointmentId = <String, Job>{
+                              for (final job in jobsSnapshot.data ?? const <Job>[])
+                                if (job.appointmentId != null) job.appointmentId!: job,
+                            };
+                            return _TodayAppointmentsList(
+                              appointments: today,
+                              jobsByAppointmentId: jobsByAppointmentId,
+                            );
+                          },
                         );
                       },
                     ),
@@ -285,15 +298,84 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
+/// Lista de "Compromissos de hoje" com altura própria e rolagem interna —
+/// pedido do Franck: com muitos compromissos no dia (ele chegou a citar
+/// uns 10 clientes), a lista não pode mais "empurrar" a seção Atalhos pra
+/// baixo da tela; ela cresce só até um limite e passa a rolar sozinha
+/// dali pra frente. Com poucos itens (cabem nos `_maxHeight`), o
+/// `ListView` com `shrinkWrap: true` simplesmente ocupa só o espaço que
+/// precisa — o `ConstrainedBox` só entra em ação quando o conteúdo
+/// passaria do limite.
+class _TodayAppointmentsList extends StatelessWidget {
+  const _TodayAppointmentsList({required this.appointments, required this.jobsByAppointmentId});
+
+  final List<Appointment> appointments;
+  final Map<String, Job> jobsByAppointmentId;
+
+  static const _maxHeight = 260.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final list = ListView.separated(
+      shrinkWrap: true,
+      itemCount: appointments.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final appointment = appointments[index];
+        return _TodayAppointmentTile(
+          appointment: appointment,
+          job: jobsByAppointmentId[appointment.id],
+        );
+      },
+    );
+    final bounded = ConstrainedBox(constraints: const BoxConstraints(maxHeight: _maxHeight), child: list);
+    // Sombreado de "tem mais embaixo" só quando a lista provavelmente vai
+    // mesmo precisar rolar (estimativa: mais de 3 cards não cabem nos
+    // 260px) — sem isso, uns 2 compromissos ficariam com uma sombra
+    // decorativa sem função nenhuma.
+    if (appointments.length <= 3) return bounded;
+    return Stack(
+      children: [
+        bounded,
+        Positioned(
+          left: 0,
+          right: 4,
+          bottom: 0,
+          child: IgnorePointer(
+            child: Container(
+              height: 24,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppColors.background.withValues(alpha: 0), AppColors.background],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TodayAppointmentTile extends StatelessWidget {
-  const _TodayAppointmentTile({required this.appointment});
+  const _TodayAppointmentTile({required this.appointment, this.job});
 
   final Appointment appointment;
+
+  /// Serviço (Kanban) ligado a este compromisso, se houver — só existe
+  /// quando o compromisso nasceu do aceite final de um orçamento vindo
+  /// do marketplace (ver `Job.appointmentId`). Com ele, o card ganha um
+  /// selo de etapa e passa a abrir o mesmo painel de ações do Kanban ao
+  /// tocar; sem ele, o card continua igual a antes (só informativo).
+  final Job? job;
 
   @override
   Widget build(BuildContext context) {
     final date = appointment.scheduledAt;
     final timeLabel = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final job = this.job;
     return AppListCard(
       leading: Container(
         width: 52,
@@ -312,6 +394,16 @@ class _TodayAppointmentTile extends StatelessWidget {
       ),
       title: appointment.customerName ?? appointment.type.label,
       subtitle: appointment.type.label,
+      footer: job != null ? Align(alignment: Alignment.centerLeft, child: JobStatusChip(status: job.status)) : null,
+      trailing: job != null ? const Icon(Icons.chevron_right, color: AppColors.muted, size: 20) : null,
+      onTap: job != null
+          ? () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                builder: (context) => JobDetailsSheet(job: job),
+              )
+          : null,
     );
   }
 }

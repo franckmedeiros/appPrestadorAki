@@ -1,4 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart' show Color;
+
+import '../../../core/app_theme.dart';
 
 /// Status do módulo "Serviços" (Kanban — ver JobsKanbanScreen), pedido do
 /// Franck pra substituir o antigo atalho "Pedidos" do Dashboard: quando o
@@ -27,6 +30,18 @@ extension JobStatusWire on JobStatus {
         JobStatus.interrompido => 'interrompido',
         JobStatus.aguardandoPagamento => 'aguardando_pagamento',
         JobStatus.concluido => 'concluido',
+      };
+
+  /// Mesma paleta de cor usada no Kanban (Serviços) pra cada etapa —
+  /// agora compartilhada com o selo de status do Dashboard
+  /// (`JobStatusChip`/"Compromissos de hoje"), em vez de duplicar este
+  /// switch em cada tela que precisa colorir por status.
+  Color get color => switch (this) {
+        JobStatus.novo => AppColors.primary,
+        JobStatus.emAndamento => AppColors.warning,
+        JobStatus.interrompido => AppColors.danger,
+        JobStatus.aguardandoPagamento => AppColors.warning,
+        JobStatus.concluido => AppColors.success,
       };
 
   String get label => switch (this) {
