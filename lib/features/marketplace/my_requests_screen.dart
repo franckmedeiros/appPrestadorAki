@@ -43,6 +43,19 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     _stream = context.read<BudgetRequestsRepository>().watchMine();
   }
 
+  /// Cria uma consulta NOVA de verdade, ignorando o cache de
+  /// `_ensureStream` (que só recria quando o uid muda) — necessário
+  /// porque, depois de um erro definitivo (ex.: PERMISSION_DENIED — o
+  /// Firestore não tenta de novo sozinho depois desse tipo de
+  /// erro, diferente de uma falha passageira de rede), só uma consulta
+  /// nova destrava a tela. Isso pode acontecer numa corrida rara logo na
+  /// abertura do app, se o listener desta aba (que fica viva o tempo
+  /// todo — ver comentário da classe) for montado um instante antes do
+  /// token de autenticação estar pronto.
+  void _retry() {
+    setState(() => _stream = context.read<BudgetRequestsRepository>().watchMine());
+  }
+
   Future<void> _signIn() async {
     if (await ensureClientAccount(context) && mounted) setState(() {});
   }
@@ -117,6 +130,8 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                           style: const TextStyle(color: AppColors.muted, fontSize: 12),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      Center(child: OutlinedButton(onPressed: _retry, child: const Text('Tentar de novo'))),
                     ],
                   );
                 }

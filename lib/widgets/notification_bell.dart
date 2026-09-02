@@ -22,8 +22,16 @@ import '../features/notifications/notifications_repository.dart';
 /// Só é colocado nas telas "principais" de cada lado da conta (Buscar,
 /// pro cliente; Dashboard, pro prestador) — igual ao Resenha, que só tem
 /// o sino na lista principal, não repetido em toda tela.
-class NotificationBell extends StatelessWidget {
+class NotificationBell extends StatefulWidget {
   const NotificationBell({super.key});
+
+  @override
+  State<NotificationBell> createState() => _NotificationBellState();
+}
+
+class _NotificationBellState extends State<NotificationBell> {
+  Stream<int>? _stream;
+  bool _retryScheduled = false;
 
   Future<void> _open(BuildContext context) async {
     if (!await ensureClientAccount(context)) return;
@@ -31,11 +39,25 @@ class NotificationBell extends StatelessWidget {
     context.push('/notificacoes');
   }
 
+  void _newStream() {
+    _stream = context.read<NotificationsRepository>().watchUnreadCount();
+  }
+
+  void _scheduleRetry() {
+    if (_retryScheduled) return;
+    _retryScheduled = true;
+    Future.delayed(const Duration(seconds: 3), () {
+      _retryScheduled = false;
+      if (mounted) setState(_newStream);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isAuthenticated = context.watch<AuthController>().status == AuthStatus.authenticated;
 
     if (!isAuthenticated) {
+      _stream = null;
       return IconButton(
         tooltip: 'Notificações',
         onPressed: () => _open(context),
@@ -43,9 +65,20 @@ class NotificationBell extends StatelessWidget {
       );
     }
 
+    _stream ??= context.read<NotificationsRepository>().watchUnreadCount();
+
     return StreamBuilder<int>(
-      stream: context.read<NotificationsRepository>().watchUnreadCount(),
+      stream: _stream,
       builder: (context, snapshot) {
+        // Um erro terminal (ex.: PERMISSION_DENIED numa corrida rara com
+        // o token de autenticação recém-chegando, logo na abertura do
+        // app) não é tentado de novo sozinho pelo Firestore — então
+        // agenda uma única nova tentativa (com uma consulta nova de
+        // verdade) em vez de deixar o sino travado mostrando "sem
+        // notificações" pra sempre nessa sessão.
+        if (snapshot.hasError) {
+          _scheduleRetry();
+        }
         final count = snapshot.data ?? 0;
         return IconButton(
           tooltip: 'Notificações',
