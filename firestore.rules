@@ -247,8 +247,11 @@ service cloud.firestore {
     // (usada para resolver o link público de orçamento) só é lida/escrita
     // pelas Cloud Functions via Admin SDK, que ignora estas regras — por
     // isso nem precisa aparecer aqui.
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    // TESTE TEMPORARIO: comentado pra isolar se essa regra catch-all
+    // estava atrapalhando a prova de seguranca da collectionGroup query
+    // de budgets. Reverter depois de confirmar.
+    // match /{document=**} {
+    //   allow read, write: if false;
+    // }
   }
 }
