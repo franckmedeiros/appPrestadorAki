@@ -87,9 +87,28 @@ export async function notify(uid: string, input: NotificationInput): Promise<voi
       android: { notification: { channelId: NOTIFICATION_CHANNEL_ID } },
     });
   } catch (e) {
-    // Token inválido/expirado é comum (app desinstalado, permissão
-    // negada etc.) — só registra no log, não faz a função falhar.
+    // Token inválido/expirado é comum (app desinstalado, dados do app
+    // limpos, permissão negada etc.) — só registra no log, não faz a
+    // função falhar. Caso real visto em produção: o prestador não recebia
+    // o push (só a entrada no sininho) porque o token salvo tinha
+    // apodrecido — e como nada aqui limpava esse token morto, toda
+    // notificação seguinte ia continuar tentando o mesmo token pra
+    // sempre, até a pessoa abrir o app de novo por acaso (que é o que
+    // salva um token novo — ver NotificationService._saveCurrentToken no
+    // app). Quando o próprio FCM confirma que o token não existe mais,
+    // apaga ele daqui — assim o próximo `getToken()`/reabertura do app já
+    // encontra o campo limpo, em vez de ficar mascarado por um valor
+    // antigo que nunca mais vai funcionar.
     logger.warn('Falha ao enviar push', e);
+    const code = (e as { code?: string } | undefined)?.code;
+    if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-argument') {
+      await db.collection('clients').doc(uid).update({ fcmToken: FieldValue.delete() }).catch(() => {});
+      const providerRef = db.collection('providers').doc(uid);
+      const providerSnap = await providerRef.get();
+      if (providerSnap.exists) {
+        await providerRef.update({ fcmToken: FieldValue.delete() }).catch(() => {});
+      }
+    }
   }
 }
 
