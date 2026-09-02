@@ -106,8 +106,10 @@ service cloud.firestore {
         // campos (`BudgetsRepository.watchAll/watchPending` por
         // `providerUid`; `BudgetRequestsRepository.watchMine` por
         // `clientUid`), então cada declaração é provável isoladamente.
-        allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
-        allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
+        // TESTE TEMPORARIO — libera list pra qualquer autenticado, só
+        // pra isolar se o problema é a condição em si ou outra coisa
+        // (reverter depois de confirmar).
+        allow list: if request.auth != null;
 
         allow create: if isOwner(providerId) ||
           (request.auth != null &&
