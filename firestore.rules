@@ -113,7 +113,11 @@ service cloud.firestore {
         // (mesmo sem bater com a query) está fazendo o Firestore negar a
         // collectionGroup do cliente. Restaurar depois do teste.
         // allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
-        allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
+        // TESTE DIAGNÓSTICO 2 (2026-09-02): "if true" total, sem NENHUMA
+        // condição — pra saber se QUALQUER list nessa collectionGroup
+        // consegue funcionar neste projeto, independente de regra.
+        allow list: if true;
+        // allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
 
         allow create: if isOwner(providerId) ||
           (request.auth != null &&
