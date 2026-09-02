@@ -205,6 +205,27 @@ service cloud.firestore {
       }
     }
 
+    // Índice de telefone único (pedido do Franck: telefone obrigatório E
+    // único no cadastro de cliente — ver AuthController.register). O id
+    // do documento é o telefone só com dígitos; o dono é quem consta no
+    // campo `clientUid`. Truque padrão pra unicidade no Firestore: como
+    // `allow create` só vale pra um documento que AINDA NÃO existe (se já
+    // existir, a mesma escrita cai em `allow update`, que é negado aqui),
+    // duas contas tentando reservar o mesmo telefone ao mesmo tempo nunca
+    // conseguem as duas — só a primeira a confirmar no servidor "cria" de
+    // verdade, a segunda recebe PERMISSION_DENIED e o app desfaz a conta
+    // recém-criada no Auth (ver `register`). `get` é público de propósito
+    // (só existe pra checar "esse telefone já está em uso?" antes mesmo
+    // de autenticar) — não expõe nada além disso (nem sequer é uma
+    // consulta com `list`, só existência de um documento específico).
+    match /phoneIndex/{phone} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.clientUid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.clientUid;
+      allow update: if false;
+    }
+
     // Diretório público de prestadores (marketplace) — leitura é pública
     // de propósito (mudança de ideia: buscar um prestador nunca deve
     // exigir conta, só ações como favoritar/solicitar orçamento pedem

@@ -8,6 +8,17 @@ import 'token_storage.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated, locked }
 
+/// Erro interno de `AuthController.register` — telefone já reservado por
+/// outra conta em `phoneIndex` (ver firestore.rules). Fica só dentro
+/// deste arquivo de propósito: `_submit` traduz pra uma mensagem em
+/// português antes de chegar em qualquer tela.
+class _PhoneAlreadyRegisteredException implements Exception {}
+
+/// Só dígitos — mesma normalização usada nos dois lados de
+/// `phoneIndex`/`register`, pra "(11) 91234-5678" e "11912345678"
+/// contarem como o mesmo telefone pra fins de unicidade.
+String _normalizePhone(String phone) => phone.replaceAll(RegExp(r'[^0-9]'), '');
+
 /// Estado de autenticação do app, compartilhado via Provider a partir da
 /// raiz (main.dart). Depois da migração para Firebase, quem sabe fazer
 /// login/cadastro/logout de verdade é o próprio `FirebaseAuth` — esta
@@ -162,11 +173,43 @@ class AuthController extends ChangeNotifier {
     String? state,
   }) =>
       _submit(() async {
+        // Telefone único (pedido do Franck), além de obrigatório — ver
+        // `phoneIndex` no firestore.rules pro truque de unicidade.
+        // Normaliza pra só dígitos: a máscara (00) 00000-0000 não pode
+        // deixar "mesmo número, formatado diferente" escapar da checagem.
+        final normalizedPhone = _normalizePhone(phone);
+        final phoneIndexRef = _firestore.collection('phoneIndex').doc(normalizedPhone);
+
+        // Checagem otimista ANTES de criar a conta no Firebase Auth —
+        // ainda sem sessão, então só dá pra fazer isso porque a regra
+        // permite `get` público neste documento específico. Evita criar
+        // uma conta órfã no Auth só pra descobrir depois que o telefone
+        // já estava em uso; a garantia de verdade contra corrida (dois
+        // cadastros no mesmíssimo instante) é a reserva abaixo, depois de
+        // autenticado.
+        if ((await phoneIndexRef.get()).exists) {
+          throw _PhoneAlreadyRegisteredException();
+        }
+
         final credential = await _auth.createUserWithEmailAndPassword(
           email: email,
           password: password,
         );
         final uid = credential.user!.uid;
+
+        try {
+          // Reserva de verdade: só "cria" se ninguém tiver reservado este
+          // telefone entre a checagem acima e agora (ver comentário do
+          // bloco `phoneIndex` no firestore.rules — a regra nega isso como
+          // "update" de um documento que já existe).
+          await phoneIndexRef.set({'clientUid': uid, 'createdAt': FieldValue.serverTimestamp()});
+        } on FirebaseException {
+          // Perdeu a corrida — desfaz a conta recém-criada no Auth pra não
+          // deixar um usuário órfão sem `clients/{uid}` nem telefone.
+          await credential.user?.delete();
+          throw _PhoneAlreadyRegisteredException();
+        }
+
         await credential.user?.updateDisplayName(name);
         final now = FieldValue.serverTimestamp();
 
@@ -539,6 +582,9 @@ class AuthController extends ChangeNotifier {
     try {
       await action();
       return true;
+    } on _PhoneAlreadyRegisteredException {
+      errorMessage = 'Esse telefone já está cadastrado em outra conta.';
+      return false;
     } on FirebaseAuthException catch (e) {
       errorMessage = _messageFor(e.code);
       return false;
