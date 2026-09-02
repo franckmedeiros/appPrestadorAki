@@ -92,9 +92,21 @@ service cloud.firestore {
         // consegue validar a query (ver `Budget.providerUid`/
         // `BudgetsRepository.create`/`BudgetRequestsRepository.create`,
         // que sempre gravam esse campo).
+        // Acesso DIRETO ao campo (`resource.data.providerUid`, não
+        // `resource.data.get('providerUid', null)`) de propósito: o
+        // Firestore só consegue ligar esta condição ao `where(...)` da
+        // consulta (pra provar a query inteira) quando é o mesmo acesso
+        // direto ao campo — com `.get()` ele não reconhece a
+        // correspondência e nega a collectionGroup de novo, mesmo sendo
+        // logicamente a mesma coisa. Seguro mesmo assim porque toda
+        // consulta de verdade já filtra por um dos dois campos
+        // (`BudgetsRepository.watchAll/watchPending` filtram por
+        // `providerUid`; `BudgetRequestsRepository.watchMine` filtra por
+        // `clientUid`) — o OR de curto-circuito nunca chega a acessar o
+        // campo que o documento não tem.
         allow list: if request.auth != null &&
-          (request.auth.uid == resource.data.get('providerUid', null) ||
-           request.auth.uid == resource.data.get('clientUid', null));
+          (request.auth.uid == resource.data.providerUid ||
+           request.auth.uid == resource.data.clientUid);
 
         allow create: if isOwner(providerId) ||
           (request.auth != null &&
