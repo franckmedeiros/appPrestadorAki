@@ -74,62 +74,12 @@ service cloud.firestore {
         allow get: if isOwner(providerId) ||
           (request.auth != null && request.auth.uid == resource.data.get('clientUid', null));
 
-        // Consultas (`list`) — inclusive a `collectionGroup('budgets')`
-        // que o CLIENTE usa em "Meus orçamentos" pra ver pedidos em
-        // QUALQUER prestador (ver BudgetRequestsRepository.watchMine).
-        // Isso NÃO pode usar `isOwner(providerId)` aqui: o Firestore
-        // recusa a `collectionGroup` inteira quando a regra mistura uma
-        // variável do CAMINHO do documento (`providerId`, que varia por
-        // prestador) com uma condição sobre CAMPO do documento
-        // (`clientUid`) dentro de um OR — mesmo sendo logicamente seguro
-        // (o filtro `where('clientUid', ...)` da query já garante que só
-        // vem documento do próprio cliente), ele não consegue provar isso
-        // pra uma query em aberto e nega a consulta inteira com
-        // PERMISSION_DENIED (limitação documentada do próprio Firebase).
-        // Por isso usamos `providerUid` — o MESMO uid do prestador, só
-        // que gravado como campo do documento — em vez de `isOwner`: aí
-        // as duas metades do OR são só sobre campos, e o Firestore
-        // consegue validar a query (ver `Budget.providerUid`/
-        // `BudgetsRepository.create`/`BudgetRequestsRepository.create`,
-        // que sempre gravam esse campo).
-        // Acesso direto ao campo (não `resource.data.get(...)`), e
-        // DUAS declarações `allow list` separadas em vez de uma com OR
-        // — nenhuma dessas variações mudou o resultado de um
-        // PERMISSION_DENIED persistente na collectionGroup query do
-        // cliente (testado inclusive com `allow list: if request.auth
-        // != null` totalmente aberto, que TAMBÉM foi negado — ver
-        // investigação em 2026-09-01/02). Isso descarta a lógica da
-        // condição como causa: se até "qualquer autenticado" nega, o
-        // request está chegando ao servidor sem `request.auth`
-        // populado (observado junto com instabilidade de rede do
-        // aparelho de teste — DNS falhando pra
-        // firestore.googleapis.com e timeout no bootstrap de auth).
-        // Mantendo a forma mais segura e correta (campo direto, duas
-        // declarações) — quando a causa de ambiente for confirmada/
-        // resolvida, isso deve funcionar sem precisar mexer de novo
-        // aqui.
-        // INVESTIGAÇÃO 2026-09-01/02 (ver commits do dia): testado
-        // exaustivamente — campo direto x resource.data.get(), uma
-        // declaração x duas separadas, e por fim "allow list: if true"
-        // (aberto pra qualquer um, sem checar nem login) em DUAS
-        // collectionGroups diferentes (`budgets` e `customers`),
-        // confirmado ao vivo tanto pelo app quanto por uma chamada REST
-        // crua (fora do SDK Flutter) — e mesmo assim negado com
-        // PERMISSION_DENIED em todos os casos. Ou seja: o conteúdo da
-        // regra não é a causa (nem uma regra totalmente aberta escapa
-        // da negação). Descartado também: token/uid errado (conferido
-        // token novo batendo com o uid da query), App Check (não
-        // registrado/aplicado em nenhum produto), múltiplos bancos
-        // (só existe o "(default)"), deploy desatualizado (regra ao
-        // vivo no Console conferida batendo com este arquivo). Ficou
-        // sem explicação do lado da regra/do app — parece algo preso na
-        // configuração do projeto ou um bug do próprio Firestore com
-        // collectionGroup neste projeto específico. Mantendo aqui a
-        // versão mais segura e correta (a mesma que o Firebase documenta
-        // como padrão pra esse cenário) enquanto abrimos um chamado com
-        // o suporte do Firebase — se um dia isso passar a funcionar
-        // sozinho (bug do lado deles corrigido), não deve ser preciso
-        // mexer aqui de novo.
+        // Consultas (`list`) na PRÓPRIA subcoleção do prestador (ex.:
+        // BudgetsRepository.watchAll/watchPending, filtrando por
+        // `providerUid`) — isso aqui NÃO cobre a `collectionGroup('budgets')`
+        // que o cliente usa em "Meus orçamentos" (ver o bloco
+        // `match /{path=**}/budgets/{budgetId}` mais abaixo, fora de
+        // `providers/{providerId}`, e o comentário lá explicando por quê).
         allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
         allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
 
@@ -286,11 +236,30 @@ service cloud.firestore {
 
     // Não existe mais uma coleção `serviceRequests` separada — pedido do
     // Franck: o pedido do cliente já nasce como um orçamento (ver o bloco
-    // `budgets` acima, dentro de `providers/{providerId}`). As mesmas
-    // regras de lá também valem pra uma consulta `collectionGroup('budgets')`
-    // (usada por `BudgetRequestsRepository.watchMine` pra juntar os
-    // pedidos do cliente em vários prestadores) — o Firestore casa as
-    // regras pelo id da (sub)coleção, não importa a profundidade.
+    // `budgets` acima, dentro de `providers/{providerId}`).
+    //
+    // CAUSA REAL do PERMISSION_DENIED investigado em 2026-09-01/02 (achada
+    // em 2026-09-02, com uma segunda opinião do ChatGPT que valeu a pena
+    // conferir): a afirmação que existia aqui antes — "o Firestore casa as
+    // regras pelo id da (sub)coleção, não importa a profundidade" — estava
+    // ERRADA. Documentado pelo próprio Firebase (Structure Security Rules
+    // > Collection group query): uma `collectionGroup()` query só é
+    // avaliada por regras escritas com o wildcard RECURSIVO `{path=**}`.
+    // Um `match` de caminho fixo, mesmo aninhado com wildcard de variável
+    // (`match /providers/{providerId}/budgets/{budgetId}`, que é
+    // exatamente o que o bloco `budgets` acima é, por baixo dos panos),
+    // NUNCA é consultado por uma `collectionGroup('budgets')` — só serve
+    // pra acesso direto à subcoleção (`providers/{uid}/budgets`, usado por
+    // `BudgetsRepository`). Por isso `allow list: if true` ali dentro
+    // continuava negando: a regra nem chegava a ser avaliada pra essa
+    // consulta, caía direto no bloco final `match /{document=**} { allow
+    // read, write: if false; }`. Nada a ver com token, App Check, índice
+    // ou instabilidade de rede — só faltava este bloco aqui.
+    match /{path=**}/budgets/{budgetId} {
+      allow list: if request.auth != null &&
+        (request.auth.uid == resource.data.providerUid ||
+         request.auth.uid == resource.data.clientUid);
+    }
 
     // Nenhuma outra coleção é acessível pelo cliente. `publicBudgetTokens`
     // (usada para resolver o link público de orçamento) só é lida/escrita
