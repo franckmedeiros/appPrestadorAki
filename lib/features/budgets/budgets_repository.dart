@@ -43,7 +43,16 @@ class BudgetsRepository {
   /// Ao vivo, mais recente primeiro — mesma razão de
   /// AppointmentsRepository.watchRange: evita "salvei e não apareceu".
   Stream<List<Budget>> watchAll() {
+    // Filtra por `providerUid` (em vez de confiar só no caminho da
+    // subcoleção) pelo mesmo motivo de `firestore.rules`/
+    // `Budget.providerUid`: a regra de `list` só pode usar campos do
+    // documento (nunca `isOwner(providerId)`, que quebraria a
+    // collectionGroup query do cliente em "Meus orçamentos"), e o
+    // Firestore só consegue provar essa condição de campo se a própria
+    // consulta já tiver um `where` correspondente — sem isso, a regra
+    // não teria como garantir o resultado e negaria a listagem inteira.
     return _collection
+        .where('providerUid', isEqualTo: _auth.currentUser!.uid)
         .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map(Budget.fromFirestore).toList());
@@ -90,7 +99,10 @@ class BudgetsRepository {
   /// esses itens na tela de Orçamentos (ver pedido do Franck: "ficar como
   /// pendente para fazer/enviar o orçamento").
   Stream<List<Budget>> watchPending() {
+    // Mesmo motivo do `where('providerUid', ...)` em `watchAll` acima —
+    // ver comentário lá.
     return _collection
+        .where('providerUid', isEqualTo: _auth.currentUser!.uid)
         .where('status', isEqualTo: BudgetStatus.pendente.wireValue)
         .orderBy('createdAt', descending: true)
         .snapshots()
