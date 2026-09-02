@@ -167,12 +167,18 @@ service cloud.firestore {
         }
       }
 
-      // Jobs só nascem automaticamente quando uma Cloud Function aprova um
-      // orçamento — o prestador pode ler e atualizar status de execução
-      // (a_caminho/chegou/concluído), mas não cria nem apaga um job à mão.
+      // Serviços (Kanban — ver lib/features/jobs/): nascem direto do app,
+      // no aceite final de um orçamento (`BudgetsRepository.acceptFinal`
+      // -> `JobsRepository.create`), no lugar do antigo desenho (dead
+      // code) que previa uma Cloud Function criando isso — mesmo padrão
+      // já usado por `appointments`/`customers` (CRUD simples, isolamento
+      // só por `isOwner`, sem `collectionGroup` nenhuma aqui, então não
+      // tem a limitação de `budgets` com campo x variável de caminho).
+      // Apagar um serviço não faz sentido no fluxo (só avança de etapa,
+      // até "concluído") — continua não permitido.
       match /jobs/{jobId} {
-        allow read, update: if isOwner(providerId);
-        allow create, delete: if false;
+        allow read, create, update: if isOwner(providerId);
+        allow delete: if false;
       }
     }
 

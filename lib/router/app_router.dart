@@ -13,6 +13,7 @@ import '../features/budgets/budget_form_screen.dart';
 import '../features/budgets/budgets_screen.dart';
 import '../features/budgets/models/budget.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/jobs/jobs_kanban_screen.dart';
 import '../features/marketplace/client_home_screen.dart';
 import '../features/marketplace/models/provider_listing.dart';
 import '../features/marketplace/my_favorites_screen.dart';
@@ -45,6 +46,7 @@ const _providerOnlyRoutes = {
   '/agenda/editar',
   '/orcamentos',
   '/orcamentos/editar',
+  '/servicos',
 };
 
 GoRouter buildAppRouter(AuthController authController) {
@@ -116,6 +118,7 @@ GoRouter buildAppRouter(AuthController authController) {
         builder: (context, state) => AppointmentFormScreen(appointment: state.extra as Appointment?),
       ),
       GoRoute(path: '/orcamentos', builder: (context, state) => const BudgetsScreen()),
+      GoRoute(path: '/servicos', builder: (context, state) => const JobsKanbanScreen()),
       // `extra` carrega o Budget sendo editado, null pra criar um novo —
       // mesmo padrão de '/clientes/editar' e '/agenda/editar'.
       GoRoute(

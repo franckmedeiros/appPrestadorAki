@@ -17,6 +17,7 @@ import 'core/token_storage.dart';
 import 'features/agenda/appointments_repository.dart';
 import 'features/budgets/budgets_repository.dart';
 import 'features/customers/customers_repository.dart';
+import 'features/jobs/jobs_repository.dart';
 import 'features/marketplace/favorites_controller.dart';
 import 'features/marketplace/favorites_repository.dart';
 import 'features/marketplace/provider_directory_repository.dart';
@@ -124,6 +125,7 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
         Provider(create: (context) => CustomersRepository()),
         Provider(create: (context) => AppointmentsRepository()),
         Provider(create: (context) => BudgetsRepository()),
+        Provider(create: (context) => JobsRepository()),
         Provider(create: (context) => ProviderDirectoryRepository()),
         Provider(create: (context) => BudgetRequestsRepository()),
         Provider(create: (context) => FavoritesRepository()),

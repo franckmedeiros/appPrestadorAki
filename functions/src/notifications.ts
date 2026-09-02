@@ -43,7 +43,7 @@ const messaging = getMessaging();
 
 const NOTIFICATION_CHANNEL_ID = 'prestadoraki_avisos';
 
-interface NotificationInput {
+export interface NotificationInput {
   type: string;
   title: string;
   body: string;
@@ -57,7 +57,7 @@ interface NotificationInput {
  * fora — notificação é um "extra" sobre a operação principal (criar/
  * atualizar o orçamento), que não pode falhar por causa disso.
  */
-async function notify(uid: string, input: NotificationInput): Promise<void> {
+export async function notify(uid: string, input: NotificationInput): Promise<void> {
   if (!uid) return;
 
   try {

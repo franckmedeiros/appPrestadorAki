@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/api_exception.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
+import '../jobs/jobs_repository.dart';
 import 'models/budget.dart';
 
 /// Lançada por `BudgetsRepository.acceptFinal` quando já existe outro
@@ -26,14 +27,17 @@ class BudgetsRepository {
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     AppointmentsRepository? appointmentsRepository,
+    JobsRepository? jobsRepository,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _auth = auth ?? FirebaseAuth.instance,
         _appointments = appointmentsRepository ??
-            AppointmentsRepository(firestore: firestore, auth: auth);
+            AppointmentsRepository(firestore: firestore, auth: auth),
+        _jobs = jobsRepository ?? JobsRepository(firestore: firestore, auth: auth);
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
   final AppointmentsRepository _appointments;
+  final JobsRepository _jobs;
 
   CollectionReference<Map<String, dynamic>> get _collection => _firestore
       .collection('providers')
@@ -180,6 +184,28 @@ class BudgetsRepository {
         'appointmentId': appointment.id,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
+      // Nasce o serviço no módulo "Serviços" (Kanban — ver
+      // JobsKanbanScreen/JobsRepository), no lugar do antigo atalho
+      // "Pedidos" do Dashboard (pedido do Franck) — só orçamentos vindos
+      // de um pedido de cliente pelo marketplace têm `clientUid`/
+      // `providerDirectoryId` pra alimentar as notificações de mudança de
+      // etapa (ver functions/src/jobs.ts); um orçamento manual do
+      // prestador não gera Job nenhum (não tem cliente do app pra
+      // acompanhar).
+      if (budget.isFromClientRequest) {
+        await _jobs.create(
+          customerName: budget.customerName,
+          totalCents: budget.totalCents,
+          budgetId: budget.id,
+          appointmentId: appointment.id,
+          clientUid: budget.clientUid,
+          providerDirectoryId: budget.providerDirectoryId,
+          providerName: budget.providerName,
+          category: budget.category,
+          addressText: budget.addressText,
+        );
+      }
     } on BudgetScheduleConflictException {
       rethrow;
     } on FirebaseException catch (e) {

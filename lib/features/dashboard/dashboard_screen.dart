@@ -12,6 +12,8 @@ import '../../widgets/notification_bell.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
 import '../budgets/budgets_repository.dart';
+import '../jobs/jobs_repository.dart';
+import '../jobs/models/job.dart';
 
 /// Aba "Dashboard" — só existe pra quem tem a capacidade de prestador
 /// (ver UnifiedShell/AuthController.isProvider). Um resumo do dia +
@@ -52,6 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late Future<List<Appointment>> _todayFuture;
   late Future<Map<String, dynamic>?> _listingStatusFuture;
   late Future<int> _pendingRequestsFuture;
+  late Stream<int> _activeJobsStream;
 
   @override
   void initState() {
@@ -60,6 +63,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _todayFuture = _loadToday();
     _listingStatusFuture = _loadListingStatus();
     _pendingRequestsFuture = _loadPendingRequests();
+    // "Serviços ativos" = tudo que ainda não chegou em "concluído" — no
+    // lugar do antigo atalho "Pedidos" (pedido do Franck), agora mostra
+    // quantos serviços o prestador tem em andamento no Kanban.
+    _activeJobsStream = context
+        .read<JobsRepository>()
+        .watchAll()
+        .map((jobs) => jobs.where((job) => job.status != JobStatus.concluido).length);
   }
 
   Future<List<Appointment>> _loadToday() {
@@ -245,6 +255,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             label: 'Orçamentos',
                             subtitle: 'Crie e gerencie seus orçamentos',
                             onTap: () => context.push('/orcamentos'),
+                            badgeCount: snapshot.data,
+                          ),
+                        ),
+                        StreamBuilder<int>(
+                          stream: _activeJobsStream,
+                          builder: (context, snapshot) => _ShortcutCard(
+                            icon: Icons.build_outlined,
+                            label: 'Serviços',
+                            subtitle: 'Acompanhe os serviços em execução',
+                            onTap: () => context.push('/servicos'),
                             badgeCount: snapshot.data,
                           ),
                         ),

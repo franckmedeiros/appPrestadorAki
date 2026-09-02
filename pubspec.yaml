@@ -66,6 +66,10 @@ dependencies:
   # - so aparece pra quem tem assinatura ativa (ver ProviderListing.whatsapp).
   url_launcher: ^6.3.1
 
+  # QR Code do Pix na tela de Serviços (ver lib/core/pix_payload.dart) —
+  # gera a imagem do QR a partir do payload "Copia e Cola" já montado.
+  qr_flutter: ^4.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

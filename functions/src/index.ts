@@ -13,6 +13,8 @@ export { confirmarAssinaturaPrestador, processarNotificacaoPlay } from './subscr
 
 export { onBudgetRequestCreated, onBudgetStatusChanged } from './notifications';
 
+export { onJobStatusChanged } from './jobs';
+
 export { excluirContaEDados } from './account';
 
 export { gerarDescricaoPrestador } from './bio';
