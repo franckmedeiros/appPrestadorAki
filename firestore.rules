@@ -108,7 +108,11 @@ service cloud.firestore {
         // declarações) — quando a causa de ambiente for confirmada/
         // resolvida, isso deve funcionar sem precisar mexer de novo
         // aqui.
-        allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
+        // TESTE DIAGNÓSTICO (2026-09-02): removendo temporariamente a
+        // declaração do providerUid pra isolar se a simples PRESENÇA dela
+        // (mesmo sem bater com a query) está fazendo o Firestore negar a
+        // collectionGroup do cliente. Restaurar depois do teste.
+        // allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
         allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
 
         allow create: if isOwner(providerId) ||
