@@ -92,24 +92,24 @@ service cloud.firestore {
         // consegue validar a query (ver `Budget.providerUid`/
         // `BudgetsRepository.create`/`BudgetRequestsRepository.create`,
         // que sempre gravam esse campo).
-        // DUAS declarações `allow list` separadas, em vez de uma só
-        // com OR: mesmo com acesso direto ao campo (sem `isOwner`), um
-        // único `allow list` com `providerUid == uid || clientUid == uid`
-        // continuou negando a collectionGroup query do cliente. O
-        // verificador de segurança de consultas do Firestore parece
-        // analisar cada declaração `allow` separadamente pra provar que
-        // ela cobre a query — um OR dentro da MESMA declaração atrapalha
-        // essa prova, mesmo as duas metades sendo só sobre campos do
-        // documento. Duas declarações independentes (logicamente
-        // idênticas — Firestore já OR"s todo `allow` do mesmo tipo)
-        // resolvem isso. Cada consulta real já filtra por um dos dois
-        // campos (`BudgetsRepository.watchAll/watchPending` por
-        // `providerUid`; `BudgetRequestsRepository.watchMine` por
-        // `clientUid`), então cada declaração é provável isoladamente.
-        // TESTE TEMPORARIO — libera list pra qualquer autenticado, só
-        // pra isolar se o problema é a condição em si ou outra coisa
-        // (reverter depois de confirmar).
-        allow list: if request.auth != null;
+        // Acesso direto ao campo (não `resource.data.get(...)`), e
+        // DUAS declarações `allow list` separadas em vez de uma com OR
+        // — nenhuma dessas variações mudou o resultado de um
+        // PERMISSION_DENIED persistente na collectionGroup query do
+        // cliente (testado inclusive com `allow list: if request.auth
+        // != null` totalmente aberto, que TAMBÉM foi negado — ver
+        // investigação em 2026-09-01/02). Isso descarta a lógica da
+        // condição como causa: se até "qualquer autenticado" nega, o
+        // request está chegando ao servidor sem `request.auth`
+        // populado (observado junto com instabilidade de rede do
+        // aparelho de teste — DNS falhando pra
+        // firestore.googleapis.com e timeout no bootstrap de auth).
+        // Mantendo a forma mais segura e correta (campo direto, duas
+        // declarações) — quando a causa de ambiente for confirmada/
+        // resolvida, isso deve funcionar sem precisar mexer de novo
+        // aqui.
+        allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
+        allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
 
         allow create: if isOwner(providerId) ||
           (request.auth != null &&
@@ -247,11 +247,8 @@ service cloud.firestore {
     // (usada para resolver o link público de orçamento) só é lida/escrita
     // pelas Cloud Functions via Admin SDK, que ignora estas regras — por
     // isso nem precisa aparecer aqui.
-    // TESTE TEMPORARIO: comentado pra isolar se essa regra catch-all
-    // estava atrapalhando a prova de seguranca da collectionGroup query
-    // de budgets. Reverter depois de confirmar.
-    // match /{document=**} {
-    //   allow read, write: if false;
-    // }
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
