@@ -92,21 +92,22 @@ service cloud.firestore {
         // consegue validar a query (ver `Budget.providerUid`/
         // `BudgetsRepository.create`/`BudgetRequestsRepository.create`,
         // que sempre gravam esse campo).
-        // Acesso DIRETO ao campo (`resource.data.providerUid`, não
-        // `resource.data.get('providerUid', null)`) de propósito: o
-        // Firestore só consegue ligar esta condição ao `where(...)` da
-        // consulta (pra provar a query inteira) quando é o mesmo acesso
-        // direto ao campo — com `.get()` ele não reconhece a
-        // correspondência e nega a collectionGroup de novo, mesmo sendo
-        // logicamente a mesma coisa. Seguro mesmo assim porque toda
-        // consulta de verdade já filtra por um dos dois campos
-        // (`BudgetsRepository.watchAll/watchPending` filtram por
-        // `providerUid`; `BudgetRequestsRepository.watchMine` filtra por
-        // `clientUid`) — o OR de curto-circuito nunca chega a acessar o
-        // campo que o documento não tem.
-        allow list: if request.auth != null &&
-          (request.auth.uid == resource.data.providerUid ||
-           request.auth.uid == resource.data.clientUid);
+        // DUAS declarações `allow list` separadas, em vez de uma só
+        // com OR: mesmo com acesso direto ao campo (sem `isOwner`), um
+        // único `allow list` com `providerUid == uid || clientUid == uid`
+        // continuou negando a collectionGroup query do cliente. O
+        // verificador de segurança de consultas do Firestore parece
+        // analisar cada declaração `allow` separadamente pra provar que
+        // ela cobre a query — um OR dentro da MESMA declaração atrapalha
+        // essa prova, mesmo as duas metades sendo só sobre campos do
+        // documento. Duas declarações independentes (logicamente
+        // idênticas — Firestore já OR"s todo `allow` do mesmo tipo)
+        // resolvem isso. Cada consulta real já filtra por um dos dois
+        // campos (`BudgetsRepository.watchAll/watchPending` por
+        // `providerUid`; `BudgetRequestsRepository.watchMine` por
+        // `clientUid`), então cada declaração é provável isoladamente.
+        allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
+        allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
 
         allow create: if isOwner(providerId) ||
           (request.auth != null &&
