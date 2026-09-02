@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -46,7 +47,13 @@ class _NotificationBellState extends State<NotificationBell> {
   void _scheduleRetry() {
     if (_retryScheduled) return;
     _retryScheduled = true;
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 3), () async {
+      // Mesmo raciocínio do botão "Tentar de novo" em MyRequestsScreen:
+      // força um token novo antes de tentar de novo, em vez de reusar o
+      // mesmo token (possivelmente velho/incompleto) que já falhou.
+      try {
+        await FirebaseAuth.instance.currentUser?.getIdToken(true);
+      } catch (_) {}
       _retryScheduled = false;
       if (mounted) setState(_newStream);
     });

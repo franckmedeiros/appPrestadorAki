@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -52,7 +53,20 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   /// abertura do app, se o listener desta aba (que fica viva o tempo
   /// todo — ver comentário da classe) for montado um instante antes do
   /// token de autenticação estar pronto.
-  void _retry() {
+  Future<void> _retry() async {
+    // Força um token de autenticação NOVO antes de tentar de novo — se a
+    // consulta anterior foi negada porque o listener foi montado com um
+    // token velho/incompleto (corrida na abertura do app), só recriar a
+    // stream com o MESMO token em cache não resolve nada; só um refresh
+    // de verdade garante que o request chega ao servidor com um token
+    // válido.
+    try {
+      await FirebaseAuth.instance.currentUser?.getIdToken(true);
+    } catch (_) {
+      // Sem internet ou token impossível de renovar agora — segue e
+      // tenta com o que tiver; pelo menos não trava o botão.
+    }
+    if (!mounted) return;
     setState(() => _stream = context.read<BudgetRequestsRepository>().watchMine());
   }
 
