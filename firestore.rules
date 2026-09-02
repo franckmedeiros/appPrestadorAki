@@ -28,6 +28,11 @@ service cloud.firestore {
 
       match /customers/{customerId} {
         allow read, write: if isOwner(providerId);
+        // TESTE DIAGNÓSTICO 3 (2026-09-02): isolar se o problema é
+        // específico da collectionGroup `budgets` ou se É QUALQUER
+        // collectionGroup nesse projeto — usando uma coleção totalmente
+        // diferente, com regra totalmente aberta, sem nenhuma condição.
+        allow list: if true;
       }
 
       match /technicalVisits/{visitId} {
