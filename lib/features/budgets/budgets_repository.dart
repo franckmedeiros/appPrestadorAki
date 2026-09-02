@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/api_exception.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
@@ -193,18 +194,37 @@ class BudgetsRepository {
       // etapa (ver functions/src/jobs.ts); um orçamento manual do
       // prestador não gera Job nenhum (não tem cliente do app pra
       // acompanhar).
+      //
+      // Try/catch PRÓPRIO aqui (em vez de deixar cair no `on FirebaseException`
+      // /genérico lá embaixo): nesse ponto o compromisso na Agenda e o
+      // status "aceito" do orçamento JÁ foram gravados com sucesso — se a
+      // criação do Job falhar por qualquer motivo, o prestador precisa
+      // saber EXATAMENTE disso (e não só ver um "não foi possível
+      // confirmar o orçamento" genérico, que soa como se nada tivesse
+      // sido salvo, escondendo a causa real — mesmo cuidado que já
+      // tomamos antes com erro de Firestore engolido em outras telas).
       if (budget.isFromClientRequest) {
-        await _jobs.create(
-          customerName: budget.customerName,
-          totalCents: budget.totalCents,
-          budgetId: budget.id,
-          appointmentId: appointment.id,
-          clientUid: budget.clientUid,
-          providerDirectoryId: budget.providerDirectoryId,
-          providerName: budget.providerName,
-          category: budget.category,
-          addressText: budget.addressText,
-        );
+        try {
+          await _jobs.create(
+            customerName: budget.customerName,
+            totalCents: budget.totalCents,
+            budgetId: budget.id,
+            appointmentId: appointment.id,
+            clientUid: budget.clientUid,
+            providerDirectoryId: budget.providerDirectoryId,
+            providerName: budget.providerName,
+            category: budget.category,
+            addressText: budget.addressText,
+          );
+        } catch (e) {
+          debugPrint('BudgetsRepository.acceptFinal: falha ao criar o Job: $e');
+          throw ApiException(
+            0,
+            'O serviço foi agendado e o orçamento foi aceito, mas não foi '
+            'possível criar o registro em "Serviços" ($e). Avise o suporte '
+            'com essa mensagem.',
+          );
+        }
       }
     } on BudgetScheduleConflictException {
       rethrow;
