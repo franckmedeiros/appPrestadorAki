@@ -38,6 +38,12 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
   // quem nunca contratou. `_myRating` != null vira edição em vez de uma
   // segunda avaliação (ver ProviderDirectoryRepository.rate).
   bool _canRate = false;
+  // true quando a própria checagem de elegibilidade falhou (ex.:
+  // collectionGroup('budgets') sem índice/rule) — sem isso, um erro
+  // aqui era engolido e virava silenciosamente "você não pode
+  // avaliar", mesmo pra quem já tinha contratado (mesmo bug já visto
+  // no Dashboard/MyRequestsScreen: erro tratado como estado vazio).
+  bool _ratingCheckFailed = false;
   ProviderRating? _myRating;
   int _pendingStars = 0;
   final _commentController = TextEditingController();
@@ -61,16 +67,22 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
   Future<void> _loadRatingContext() async {
     final auth = context.read<AuthController>();
     if (auth.status != AuthStatus.authenticated) return;
-    final canRate =
-        await context.read<BudgetRequestsRepository>().hasAcceptedBudgetWith(widget.listingId);
-    final myRating = await context.read<ProviderDirectoryRepository>().getMyRating(widget.listingId);
-    if (!mounted) return;
-    setState(() {
-      _canRate = canRate;
-      _myRating = myRating;
-      _pendingStars = myRating?.stars ?? 0;
-      _commentController.text = myRating?.comment ?? '';
-    });
+    try {
+      final canRate =
+          await context.read<BudgetRequestsRepository>().hasAcceptedBudgetWith(widget.listingId);
+      final myRating = await context.read<ProviderDirectoryRepository>().getMyRating(widget.listingId);
+      if (!mounted) return;
+      setState(() {
+        _canRate = canRate;
+        _myRating = myRating;
+        _pendingStars = myRating?.stars ?? 0;
+        _commentController.text = myRating?.comment ?? '';
+        _ratingCheckFailed = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _ratingCheckFailed = true);
+    }
   }
 
   Future<void> _toggleFavorite() async {
@@ -120,6 +132,15 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
       if (ctx != null) {
         Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       }
+      return;
+    }
+    if (_ratingCheckFailed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Não foi possível verificar se você pode avaliar agora.'),
+          action: SnackBarAction(label: 'Tentar de novo', onPressed: _loadRatingContext),
+        ),
+      );
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
