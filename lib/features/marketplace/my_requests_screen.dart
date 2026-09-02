@@ -61,16 +61,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     // de verdade garante que o request chega ao servidor com um token
     // válido.
     try {
-      final token = await FirebaseAuth.instance.currentUser?.getIdToken(true);
-      // TEMPORÁRIO (diagnóstico 2026-09-02): imprime o token e o uid no
-      // Logcat pra testar a query direto pela REST API do Firestore, fora
-      // do app — ver se o problema é do SDK/app ou do servidor, e
-      // confirmar que o uid do teste bate com quem está logado de
-      // verdade. Remover depois.
-      // ignore: avoid_print
-      print('DEBUG_CURRENT_UID: ${FirebaseAuth.instance.currentUser?.uid}');
-      // ignore: avoid_print
-      print('DEBUG_ID_TOKEN: $token');
+      await FirebaseAuth.instance.currentUser?.getIdToken(true);
     } catch (_) {
       // Sem internet ou token impossível de renovar agora — segue e
       // tenta com o que tiver; pelo menos não trava o botão.

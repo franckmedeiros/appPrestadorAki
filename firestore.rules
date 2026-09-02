@@ -28,11 +28,6 @@ service cloud.firestore {
 
       match /customers/{customerId} {
         allow read, write: if isOwner(providerId);
-        // TESTE DIAGNÓSTICO 3 (2026-09-02): isolar se o problema é
-        // específico da collectionGroup `budgets` ou se É QUALQUER
-        // collectionGroup nesse projeto — usando uma coleção totalmente
-        // diferente, com regra totalmente aberta, sem nenhuma condição.
-        allow list: if true;
       }
 
       match /technicalVisits/{visitId} {
@@ -113,16 +108,30 @@ service cloud.firestore {
         // declarações) — quando a causa de ambiente for confirmada/
         // resolvida, isso deve funcionar sem precisar mexer de novo
         // aqui.
-        // TESTE DIAGNÓSTICO (2026-09-02): removendo temporariamente a
-        // declaração do providerUid pra isolar se a simples PRESENÇA dela
-        // (mesmo sem bater com a query) está fazendo o Firestore negar a
-        // collectionGroup do cliente. Restaurar depois do teste.
-        // allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
-        // TESTE DIAGNÓSTICO 2 (2026-09-02): "if true" total, sem NENHUMA
-        // condição — pra saber se QUALQUER list nessa collectionGroup
-        // consegue funcionar neste projeto, independente de regra.
-        allow list: if true;
-        // allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
+        // INVESTIGAÇÃO 2026-09-01/02 (ver commits do dia): testado
+        // exaustivamente — campo direto x resource.data.get(), uma
+        // declaração x duas separadas, e por fim "allow list: if true"
+        // (aberto pra qualquer um, sem checar nem login) em DUAS
+        // collectionGroups diferentes (`budgets` e `customers`),
+        // confirmado ao vivo tanto pelo app quanto por uma chamada REST
+        // crua (fora do SDK Flutter) — e mesmo assim negado com
+        // PERMISSION_DENIED em todos os casos. Ou seja: o conteúdo da
+        // regra não é a causa (nem uma regra totalmente aberta escapa
+        // da negação). Descartado também: token/uid errado (conferido
+        // token novo batendo com o uid da query), App Check (não
+        // registrado/aplicado em nenhum produto), múltiplos bancos
+        // (só existe o "(default)"), deploy desatualizado (regra ao
+        // vivo no Console conferida batendo com este arquivo). Ficou
+        // sem explicação do lado da regra/do app — parece algo preso na
+        // configuração do projeto ou um bug do próprio Firestore com
+        // collectionGroup neste projeto específico. Mantendo aqui a
+        // versão mais segura e correta (a mesma que o Firebase documenta
+        // como padrão pra esse cenário) enquanto abrimos um chamado com
+        // o suporte do Firebase — se um dia isso passar a funcionar
+        // sozinho (bug do lado deles corrigido), não deve ser preciso
+        // mexer aqui de novo.
+        allow list: if request.auth != null && request.auth.uid == resource.data.providerUid;
+        allow list: if request.auth != null && request.auth.uid == resource.data.clientUid;
 
         allow create: if isOwner(providerId) ||
           (request.auth != null &&
