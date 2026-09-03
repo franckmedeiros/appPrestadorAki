@@ -23,6 +23,19 @@ String _rejectedByLabel(String? rejectedBy) => switch (rejectedBy) {
       _ => 'Este orçamento foi recusado.',
     };
 
+/// Devolvido pelo `Navigator.pop` de `BudgetFormScreen` só quando o
+/// fechamento veio de um aceite final bem-sucedido (ver `_acceptFinal`)
+/// — pedido do Franck: "quando o orçamento é concluído, poderia ter
+/// alguma coisa que pudesse nos mostrar que ele está no guia serviços
+/// agora... eu achei um pouco perdido". `BudgetsScreen` usa a mensagem
+/// pronta aqui pra mostrar um SnackBar com atalho pra "Serviços" — os
+/// outros fechamentos (salvar, recusar, cancelar) continuam devolvendo
+/// só `true`, sem esse aviso extra.
+class BudgetAcceptedResult {
+  const BudgetAcceptedResult(this.message);
+  final String message;
+}
+
 /// Controllers de uma linha de item — cada linha vira um `BudgetItem` na
 /// hora de salvar/gerar o PDF (ver `toItem()`). Ficam num objeto próprio
 /// (em vez de 4 listas paralelas de controllers) só pra não perder o
@@ -535,6 +548,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     }
     final scheduledAt =
         DateTime(date.year, date.month, date.day, _serviceTime.hour, _serviceTime.minute);
+    // Capturado ANTES de chamar `acceptFinal` — `widget.budget` continua
+    // sendo o estado de ANTES desta chamada (ver comentário de
+    // `BudgetAcceptedResult`), então isso reflete corretamente se este
+    // aceite era a primeira vez ou uma reconfirmação depois de aditivo.
+    final wasReconfirmation = widget.budget?.appointmentId != null;
 
     setState(() {
       _saving = true;
@@ -545,7 +563,15 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             widget.budget!,
             serviceScheduledAt: scheduledAt,
           );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        Navigator.of(context).pop(
+          BudgetAcceptedResult(
+            wasReconfirmation
+                ? 'Revisão confirmada! O valor atualizado já está em "Serviços".'
+                : 'Serviço agendado! Acompanhe o andamento em "Serviços".',
+          ),
+        );
+      }
     } on ApiException catch (e) {
       _setError(e.message);
     } catch (_) {

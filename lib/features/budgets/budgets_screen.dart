@@ -6,6 +6,7 @@ import '../../core/app_theme.dart';
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/app_list_card.dart';
+import 'budget_form_screen.dart' show BudgetAcceptedResult;
 import 'budgets_repository.dart';
 import 'models/budget.dart';
 
@@ -31,7 +32,30 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     setState(() => _stream = context.read<BudgetsRepository>().watchAll());
   }
 
-  Future<void> _openBudget(Budget? budget) => context.push('/orcamentos/editar', extra: budget);
+  /// Abre o formulário e, se ele fechar depois de um aceite final bem
+  /// sucedido (ver `BudgetFormScreen._acceptFinal`/`BudgetAcceptedResult`),
+  /// mostra onde o serviço foi parar — pedido do Franck: "quando o
+  /// orçamento é concluído, poderia ter alguma coisa que pudesse nos
+  /// mostrar que ele está no guia serviços agora... eu achei um pouco
+  /// perdido". Um SnackBar com atalho pra "Serviços" em vez de deixar a
+  /// pessoa procurar sozinha aonde o orçamento foi parar.
+  Future<void> _openBudget(Budget? budget) async {
+    final result = await context.push<Object?>('/orcamentos/editar', extra: budget);
+    if (!mounted || result is! BudgetAcceptedResult) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(result.message),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'Ver Serviços',
+            onPressed: () => context.push('/servicos'),
+          ),
+        ),
+      );
+  }
 
   Color _statusColor(BudgetStatus status) => switch (status) {
         BudgetStatus.pendente => AppColors.primary,
