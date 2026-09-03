@@ -52,7 +52,6 @@ class NotificationService {
   /// uma vez — só faz efeito na primeira.
   Future<void> init() async {
     if (_started) return;
-    _started = true;
 
     try {
       await _localNotifications
@@ -68,20 +67,44 @@ class NotificationService {
       await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
       await _saveCurrentToken();
-      _messaging.onTokenRefresh.listen((_) => _saveCurrentToken());
+      _messaging.onTokenRefresh.listen(
+        (_) => _saveCurrentToken()
+            .catchError((e) => debugPrint('Não foi possível salvar o token renovado: $e')),
+      );
 
       // Com o app ABERTO, o Android não mostra a notificação sozinho —
       // aqui a gente escuta e exibe manualmente com o mesmo visual de uma
       // notificação normal.
       FirebaseMessaging.onMessage.listen(_showLocalNotification);
+
+      // Só marca como "pronto" DEPOIS de tudo ter funcionado de verdade —
+      // antes `_started = true` era setado logo no início, então se
+      // `getToken()`/o salvamento no Firestore falhasse uma vez (ex: sem
+      // internet ainda bem no instante em que o app acabou de abrir, ou o
+      // Google Play Services ainda inicializando logo depois de uma
+      // instalação nova), o app nunca mais tentava de novo dentro do
+      // mesmo processo — só resolvia matando o app de verdade (não
+      // bastava fechar pelos recentes e reabrir, o processo continua
+      // vivo). Agora, como `init()` já é chamado de novo a cada rebuild
+      // do UnifiedShell (troca de aba, por exemplo — ver ali), uma falha
+      // aqui simplesmente tenta de novo na próxima vez sozinha.
+      _started = true;
     } catch (e) {
       // Notificação é um "extra" — se der qualquer problema (permissão
       // negada, aparelho sem Google Play Services etc.), o app continua
-      // funcionando normal, só sem push.
+      // funcionando normal, só sem push. `_started` continua false de
+      // propósito (ver comentário acima) pra tentar de novo depois.
       debugPrint('Não foi possível configurar notificações: $e');
     }
   }
 
+  /// Deixa qualquer erro subir pra quem chamou (`init()`, que decide se
+  /// tenta de novo depois — ver comentário lá) em vez de engolir com
+  /// try/catch só um debugPrint: antes, se o `.set()` no Firestore
+  /// falhasse (regra de segurança, sem rede etc.), `init()` já tinha
+  /// marcado `_started = true` e nunca mais tentava de novo, mesmo com o
+  /// token do aparelho nunca tendo sido salvo — o cenário mais provável
+  /// por trás de "desinstalei e instalei de novo e não gerou token".
   Future<void> _saveCurrentToken() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -91,26 +114,18 @@ class NotificationService {
     final firestore = FirebaseFirestore.instance;
     final now = FieldValue.serverTimestamp();
 
-    try {
-      await firestore
-          .collection('clients')
-          .doc(uid)
-          .set({'fcmToken': token, 'fcmTokenUpdatedAt': now}, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('Não foi possível salvar o token de notificação (clients): $e');
-    }
+    await firestore
+        .collection('clients')
+        .doc(uid)
+        .set({'fcmToken': token, 'fcmTokenUpdatedAt': now}, SetOptions(merge: true));
 
     // Só atualiza providers/{uid} se ele já existir — nunca cria essa
     // coleção sozinho a partir daqui (quem cria é a Cloud Function de
     // assinatura, ver DATA_MODEL.md).
-    try {
-      final providerRef = firestore.collection('providers').doc(uid);
-      final snapshot = await providerRef.get();
-      if (snapshot.exists) {
-        await providerRef.set({'fcmToken': token, 'fcmTokenUpdatedAt': now}, SetOptions(merge: true));
-      }
-    } catch (e) {
-      debugPrint('Não foi possível salvar o token de notificação (providers): $e');
+    final providerRef = firestore.collection('providers').doc(uid);
+    final snapshot = await providerRef.get();
+    if (snapshot.exists) {
+      await providerRef.set({'fcmToken': token, 'fcmTokenUpdatedAt': now}, SetOptions(merge: true));
     }
   }
 
