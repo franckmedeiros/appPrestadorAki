@@ -174,6 +174,22 @@ class ProviderDirectoryRepository {
     return ProviderRating.fromFirestore(doc);
   }
 
+  /// Ao vivo, mais recente primeiro — TODAS as avaliações (com
+  /// comentário ou não) de um prestador, pra mostrar de verdade no perfil
+  /// público (pedido do Franck: hoje o cliente escreve um comentário e
+  /// ele nunca aparece pra ninguém, nem pro próprio prestador). Leitura
+  /// pública, mesma regra de `allow read: if true` já usada por
+  /// `getMyRating` — ver firestore.rules, bloco `ratings`.
+  Stream<List<ProviderRating>> watchRatings(String listingId, {int limit = 30}) {
+    return _collection
+        .doc(listingId)
+        .collection('ratings')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(ProviderRating.fromFirestore).toList());
+  }
+
   /// Avalia (ou edita a própria avaliação de) um prestador — 1 a 5
   /// estrelas, comentário opcional. Recalcula `ratingAverage`/
   /// `ratingCount` no próprio documento do diretório dentro de uma
@@ -190,7 +206,12 @@ class ProviderDirectoryRepository {
   /// elaborada lendo os orçamentos via `collectionGroup` a partir do
   /// firestore.rules; fica como próximo passo se abuso aparecer na
   /// prática.
-  Future<void> rate(String listingId, {required int stars, String? comment}) async {
+  Future<void> rate(
+    String listingId, {
+    required int stars,
+    String? comment,
+    String? clientName,
+  }) async {
     if (stars < 1 || stars > 5) {
       throw ApiException(0, 'A nota precisa ser de 1 a 5 estrelas.');
     }
@@ -227,6 +248,7 @@ class ProviderDirectoryRepository {
         tx.set(ratingRef, {
           'stars': stars,
           if (comment != null && comment.trim().isNotEmpty) 'comment': comment.trim(),
+          if (clientName != null && clientName.trim().isNotEmpty) 'clientName': clientName.trim(),
           'createdAt': createdAt,
           'updatedAt': FieldValue.serverTimestamp(),
         });

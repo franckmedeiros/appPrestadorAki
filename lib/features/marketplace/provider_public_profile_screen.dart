@@ -3,9 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/date_text_utils.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
 import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador;
+import 'widgets/star_rating_bar.dart';
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'budget_requests_repository.dart';
@@ -31,6 +33,13 @@ class ProviderPublicProfileScreen extends StatefulWidget {
 
 class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScreen> {
   late Future<ProviderListing?> _future;
+  // Guardado uma vez (em vez de chamar watchRatings() direto no
+  // `stream:` do StreamBuilder lá embaixo) pra não recriar a inscrição
+  // no Firestore a cada rebuild desta tela (ex.: toda vez que o
+  // cliente toca numa estrela do formulário de avaliação, ver
+  // `_pendingStars`) — isso faria a lista de avaliações "piscar"
+  // voltando pro estado de carregando sem necessidade.
+  late final Stream<List<ProviderRating>> _ratingsStream;
 
   // Gamificação por estrelas: só um cliente com pelo menos um orçamento
   // aceito com ESSE prestador pode avaliar (ver
@@ -54,6 +63,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
   void initState() {
     super.initState();
     _future = context.read<ProviderDirectoryRepository>().get(widget.listingId);
+    _ratingsStream = context.read<ProviderDirectoryRepository>().watchRatings(widget.listingId);
     context.read<FavoritesController>().ensureLoaded();
     _loadRatingContext();
   }
@@ -109,6 +119,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
             widget.listingId,
             stars: _pendingStars,
             comment: _commentController.text,
+            clientName: context.read<AuthController>().displayName,
           );
       if (!mounted) return;
       messenger.showSnackBar(const SnackBar(content: Text('Avaliação registrada. Obrigado!')));
@@ -325,6 +336,56 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                                   height: 1.45,
                                   color: AppColors.ink,
                                 ),
+                              ),
+                            ],
+
+                            // Pedido do Franck: "os clientes podem e deve
+                            // ser as avaliações e principalmente os
+                            // comentários, hoje não é possível" — antes
+                            // ficavam gravados sem NUNCA aparecer pra
+                            // ninguém. Pública pra qualquer visitante
+                            // (mesma regra de leitura da subcoleção
+                            // `ratings`, ver firestore.rules), não só pra
+                            // quem pode avaliar.
+                            if (listing.ratingCount > 0) ...[
+                              const SizedBox(height: 14),
+                              Divider(
+                                height: 1,
+                                color: AppColors.muted.withValues(alpha: 0.16),
+                              ),
+                              const SizedBox(height: 12),
+                              const _SectionLabel(
+                                icon: Icons.rate_review_outlined,
+                                title: 'Avaliações',
+                              ),
+                              const SizedBox(height: 10),
+                              StreamBuilder<List<ProviderRating>>(
+                                stream: _ratingsStream,
+                                builder: (context, ratingsSnapshot) {
+                                  final ratings = ratingsSnapshot.data ?? const <ProviderRating>[];
+                                  if (ratingsSnapshot.connectionState == ConnectionState.waiting &&
+                                      ratings.isEmpty) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 12),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  if (ratings.isEmpty) return const SizedBox.shrink();
+                                  return Column(
+                                    children: [
+                                      for (var i = 0; i < ratings.length; i++) ...[
+                                        if (i > 0) const SizedBox(height: 12),
+                                        _ReviewTile(rating: ratings[i]),
+                                      ],
+                                    ],
+                                  );
+                                },
                               ),
                             ],
                           ],
@@ -768,6 +829,57 @@ class _RatingForm extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Uma avaliação individual, com nome do cliente + data + estrelas +
+/// comentário (quando houver) — pedido do Franck: os comentários
+/// precisam realmente aparecer, não só ficar gravados no banco.
+class _ReviewTile extends StatelessWidget {
+  const _ReviewTile({required this.rating});
+
+  final ProviderRating rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final comment = rating.comment?.trim();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  (rating.clientName ?? '').trim().isNotEmpty ? rating.clientName!.trim() : 'Cliente',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                ),
+              ),
+              Text(
+                formatDateDdMmYyyy(rating.createdAt),
+                style: const TextStyle(fontSize: 11, color: AppColors.muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          StarRatingBar(rating: rating.stars.toDouble(), count: 1, starSize: 14, showCount: false),
+          if (comment != null && comment.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              comment,
+              style: const TextStyle(fontSize: 12.5, height: 1.4, color: AppColors.ink),
+            ),
+          ],
+        ],
       ),
     );
   }

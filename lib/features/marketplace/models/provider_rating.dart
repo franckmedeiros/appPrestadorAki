@@ -11,6 +11,7 @@ class ProviderRating {
     required this.stars,
     this.comment,
     required this.createdAt,
+    this.clientName,
   });
 
   factory ProviderRating.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -20,6 +21,7 @@ class ProviderRating {
       stars: (data['stars'] as num?)?.toInt() ?? 0,
       comment: data['comment'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      clientName: data['clientName'] as String?,
     );
   }
 
@@ -27,4 +29,14 @@ class ProviderRating {
   final int stars;
   final String? comment;
   final DateTime createdAt;
+
+  /// "Retrato" do nome do cliente no momento da avaliação (mesma
+  /// convenção de `Budget.customerName`/`Job.customerName` — ver
+  /// comentários lá) — pedido do Franck: "os clientes podem e deve ser as
+  /// avaliações e principalmente os comentários" precisarem aparecer pra
+  /// quem visita o perfil, não só ficarem gravados sem nunca serem
+  /// mostrados (ver `ProviderPublicProfileScreen`). Avaliações antigas,
+  /// gravadas antes deste campo existir, ficam `null` — a tela mostra
+  /// "Cliente" nesse caso.
+  final String? clientName;
 }
