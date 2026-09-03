@@ -405,7 +405,14 @@ class _TodayAppointmentTile extends StatelessWidget {
       title: appointment.customerName ?? appointment.type.label,
       subtitle: appointment.type.label,
       footer: job != null ? Align(alignment: Alignment.centerLeft, child: JobStatusChip(status: job.status)) : null,
-      trailing: job != null ? const Icon(Icons.chevron_right, color: AppColors.muted, size: 20) : null,
+      trailing: const Icon(Icons.chevron_right, color: AppColors.muted, size: 20),
+      // Com serviço (Kanban) ligado, o toque abre o painel de ações do
+      // Job (comportamento de sempre). Sem Job — compromisso "solto" da
+      // agenda, sem orçamento de marketplace por trás — pedido do Franck:
+      // "se eu clicar na agenda em Compromisso de hoje, ela abrir a
+      // agenda que estou clicando", ou seja, o mesmo formulário de edição
+      // que abre ao tocar nesse compromisso dentro da própria aba Agenda
+      // (ver AgendaScreen._openAppointment).
       onTap: job != null
           ? () => showModalBottomSheet(
                 context: context,
@@ -413,7 +420,7 @@ class _TodayAppointmentTile extends StatelessWidget {
                 shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
                 builder: (context) => JobDetailsSheet(job: job),
               )
-          : null,
+          : () => context.push('/agenda/editar', extra: appointment),
     );
   }
 }

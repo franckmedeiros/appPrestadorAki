@@ -9,6 +9,7 @@ import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
 import 'edit_profile_screen.dart';
+import 'my_reviews_screen.dart';
 import '../../widgets/service_category_field.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
@@ -116,6 +117,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         duration: Duration(seconds: 6),
       ));
     }
+  }
+
+  Future<void> _openMyReviews() async {
+    final auth = context.read<AuthController>();
+    final uid = auth.providerIdOrNull;
+    if (uid == null) return;
+    final listing = await _listingFuture;
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => MyReviewsScreen(providerId: uid, listing: listing)),
+    );
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -392,6 +404,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       icon: Icons.edit_outlined,
                       onPressed: _editProfile,
                     ),
+                    // Pedido do Franck: "ter a opção no app do prestador
+                    // ver as suas avaliações" — antes só dava pra ver
+                    // isso saindo da própria conta e abrindo o perfil
+                    // público (ProviderPublicProfileScreen, lado do
+                    // cliente que navega o marketplace).
+                    if (isProvider) ...[
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: _openMyReviews,
+                        icon: const Icon(Icons.star_outline, color: AppColors.ink),
+                        label: const Text('Minhas avaliações', style: TextStyle(color: AppColors.ink)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          side: BorderSide(color: AppColors.muted.withValues(alpha: 0.35)),
+                        ),
+                      ),
+                    ],
                     if (!isProvider) ...[
                       const SizedBox(height: 12),
                       _BecomeProviderCard(onTap: _becomeProvider),
