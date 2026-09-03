@@ -41,7 +41,12 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _phoneMask = MaskTextInputFormatter('(##) #####-####');
-  _Mode _mode = _Mode.register;
+  // Pedido do Franck: quem toca em "Meu perfil" sem sessão via de cara
+  // "Crie uma conta grátis" -- deveria abrir já em "Entrar na sua
+  // conta" (a maioria de quem chega aqui sem sessão já tem conta, só
+  // saiu ou trocou de aparelho; cadastro continua a um toque de
+  // distância, só não é mais o padrão).
+  _Mode _mode = _Mode.login;
   bool _obscurePassword = true;
 
   @override
