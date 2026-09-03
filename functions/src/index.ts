@@ -11,6 +11,8 @@ export {
 
 export { confirmarAssinaturaPrestador, processarNotificacaoPlay } from './subscription';
 
+export { confirmarAssinaturaPrestadorApple, processarNotificacaoApple } from './subscriptionApple';
+
 export { onBudgetRequestCreated, onBudgetStatusChanged } from './notifications';
 
 export { onJobStatusChanged } from './jobs';

@@ -1,26 +1,31 @@
 import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:in_app_purchase/in_app_purchase.dart';
 
-/// Ponte com o Google Play Billing pra assinatura mensal do prestador —
-/// único gate do app: sem assinatura ativa, a conta nunca vira prestador
-/// (nunca aparece na busca de "Encontre um profissional"). Quem só quer
-/// contratar serviços (cliente) usa o app de graça pra sempre.
+/// Ponte com o billing nativo (Google Play no Android, StoreKit/App Store
+/// no iOS — o pacote `in_app_purchase` abstrai os dois por trás da MESMA
+/// API aqui) pra assinatura mensal do prestador — único gate do app: sem
+/// assinatura ativa, a conta nunca vira prestador (nunca aparece na busca
+/// de "Encontre um profissional"). Quem só quer contratar serviços
+/// (cliente) usa o app de graça pra sempre.
 ///
 /// Mesmo desenho usado no app Resenha pra "criar uma resenha" (ver
 /// lib/services/subscription_service.dart de lá), com uma diferença
 /// importante: aqui a confirmação da compra (Cloud Function
-/// `confirmarAssinaturaPrestador`) também é reforçada por notificações
-/// automáticas da própria Play Store (RTDN — ver
-/// functions/src/subscription.ts), então se a pessoa parar de pagar o
+/// `confirmarAssinaturaPrestador`/`confirmarAssinaturaPrestadorApple`,
+/// conforme a plataforma — ver [iniciarEscuta]) também é reforçada por
+/// notificações automáticas da própria loja (RTDN no Google, App Store
+/// Server Notifications V2 na Apple — ver functions/src/subscription.ts e
+/// functions/src/subscriptionApple.ts), então se a pessoa parar de pagar o
 /// prestador sai da busca sozinho, sem precisar abrir o app.
 ///
-/// A confirmação de verdade (bater o token de compra com a Google Play
-/// Developer API) acontece só no servidor. Os erros que a Cloud Function
-/// devolve, e os que a própria Play Store devolve durante a compra,
-/// chegam aqui como exceções técnicas — [descreverErro] traduz isso pra
-/// algo que faça sentido pra quem está usando o app.
+/// A confirmação de verdade (bater o token/transação com a API de cada
+/// loja) acontece só no servidor. Os erros que a Cloud Function devolve, e
+/// os que a própria loja devolve durante a compra, chegam aqui como
+/// exceções técnicas — [descreverErro] traduz isso pra algo que faça
+/// sentido pra quem está usando o app.
 class SubscriptionService {
   SubscriptionService._();
   static final SubscriptionService instance = SubscriptionService._();
@@ -64,10 +69,25 @@ class SubscriptionService {
           } else if (compra.status == PurchaseStatus.purchased ||
               compra.status == PurchaseStatus.restored) {
             try {
+              // Mesmo dado (`serverVerificationData`) nos dois casos — o
+              // `in_app_purchase` já devolve o "comprovante" (purchase
+              // token no Google, JWS da transação StoreKit2 na Apple) na
+              // mesma chave, independente da plataforma. Só o NOME da
+              // Cloud Function e o nome do campo mudam, porque cada loja
+              // precisa verificar esse comprovante do seu próprio jeito
+              // (ver functions/src/subscription.ts x
+              // functions/src/subscriptionApple.ts).
+              final naApple = defaultTargetPlatform == TargetPlatform.iOS ||
+                  defaultTargetPlatform == TargetPlatform.macOS;
               await FirebaseFunctions.instance
-                  .httpsCallable('confirmarAssinaturaPrestador')
+                  .httpsCallable(
+                    naApple ? 'confirmarAssinaturaPrestadorApple' : 'confirmarAssinaturaPrestador',
+                  )
                   .call({
-                'purchaseToken': compra.verificationData.serverVerificationData,
+                if (naApple)
+                  'signedTransactionInfo': compra.verificationData.serverVerificationData
+                else
+                  'purchaseToken': compra.verificationData.serverVerificationData,
                 'productId': compra.productID,
                 if (category != null) 'category': category,
                 if (city != null) 'city': city,

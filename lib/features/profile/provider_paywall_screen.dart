@@ -9,9 +9,11 @@ import '../../core/subscription_service.dart';
 /// Tela de venda da assinatura mensal — único jeito de virar prestador
 /// (aparecer na busca "Encontre um profissional"). Decisão combinada com
 /// o Franck: nada de cobrança manual via Pix/cartão nem corte manual de
-/// quem não pagar — tudo passa pelo Google Play Billing, com renovação e
-/// cancelamento automáticos cuidados pela própria Play Store (ver
-/// functions/src/subscription.ts).
+/// quem não pagar — tudo passa pela loja nativa de cada plataforma
+/// (Google Play Billing no Android, StoreKit/App Store no iOS — ver
+/// SubscriptionService), com renovação e cancelamento automáticos
+/// cuidados pela própria loja (ver functions/src/subscription.ts e
+/// functions/src/subscriptionApple.ts).
 ///
 /// Aberta a partir de `_BecomeProviderSheet` (UserProfileScreen), depois
 /// que a pessoa já escolheu categoria/cidade/UF. Se a compra for

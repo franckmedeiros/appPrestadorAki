@@ -5,6 +5,15 @@
  * DATA_MODEL.md, decisão combinada com o Franck — mesmo desenho já usado
  * no app Resenha pra "criar uma resenha").
  *
+ * ESTE ARQUIVO é só o lado Google/Android — o app agora lança nos dois
+ * (Franck: "vou lançar nos dois já"), então tem um arquivo irmão,
+ * `subscriptionApple.ts`, com a mesma função pro iOS (App Store Server
+ * API em vez de Play Developer API). Os dois terminam no mesmo lugar:
+ * `aplicarEstadoNormalizado` (definida aqui embaixo, exportada pro outro
+ * arquivo importar) — é ela quem de fato liga/desliga
+ * `providers/{uid}.listingStatus` e a entrada em `providerDirectory`,
+ * independente de qual loja confirmou a compra.
+ *
  * Duas entradas, pelo mesmo caminho de verificação:
  * 1. `confirmarAssinaturaPrestador` (callable) — chamada pelo app logo
  *    depois de uma compra/restauração no Google Play, com o
@@ -20,6 +29,8 @@
  * (nunca confiam soltas no que o app ou a notificação dizem) — é a
  * mesma prática recomendada pela própria Google, porque o payload da
  * notificação avisa só "algo mudou", não qual é o estado atual de fato.
+ * O lado Apple segue a MESMA filosofia (ver o comentário no topo de
+ * `subscriptionApple.ts`).
  *
  * A chave da service account NUNCA fica no código nem no repositório —
  * fica no Secret Manager do Firebase (`PLAY_SERVICE_ACCOUNT_KEY`), e essa
@@ -172,10 +183,30 @@ async function reivindicarListagemPorTelefone(
   };
 }
 
+export interface EstadoNormalizado {
+  ativa: boolean;
+  expiraEm: Timestamp | null;
+  /**
+   * Texto cru do estado, só pra guardar em `providers/{uid}.subscriptionState`
+   * e pra depuração/suporte — cada loja tem o próprio vocabulário (ver
+   * `ESTADOS_ATIVOS` aqui pro do Google e `APPLE_ESTADOS_ATIVOS` em
+   * `subscriptionApple.ts` pro da Apple).
+   */
+  rawState: string;
+  /** Qual loja gerou esse estado — grava em `providers/{uid}.subscriptionStore`, útil pra suporte saber onde olhar (Play Console x App Store Connect) sem precisar perguntar pro prestador. */
+  loja: 'google' | 'apple';
+}
+
 /**
- * Aplica o estado já consultado na Play Developer API: liga/desliga
+ * Aplica um estado de assinatura JÁ normalizado e já consultado na loja de
+ * verdade (Play Developer API ou App Store Server API — ver
+ * `aplicarEstadoDaAssinatura` abaixo pro adaptador do Google e
+ * `subscriptionApple.ts` pro da Apple): liga/desliga
  * `providers/{uid}.listingStatus` e a visibilidade da entrada em
- * `providerDirectory/{uid}`.
+ * `providerDirectory/{uid}`. Compartilhado pelas duas lojas — pra nunca
+ * ter duas cópias deste pedaço (criação de `providers/{uid}`, reivindicação
+ * por telefone, sincronização do diretório) divergindo uma da outra com o
+ * tempo.
  *
  * Decisão consciente: quando a assinatura para de valer, a entrada do
  * diretório NÃO é apagada — só marcada `visible: false` (ver
@@ -186,18 +217,18 @@ async function reivindicarListagemPorTelefone(
  *
  * Só CRIA `providers/{uid}`/`providerDirectory/{uid}` pela primeira vez
  * quando `category`/`city` chegam junto (só acontece na primeira
- * confirmação de compra, vinda de `confirmarAssinaturaPrestador` — ver
- * abaixo); a notificação do Pub/Sub nunca manda esses campos, então
- * nunca cria nada do zero — só atualiza quem já existe.
+ * confirmação de compra, vinda de `confirmarAssinaturaPrestador`/
+ * `confirmarAssinaturaPrestadorApple`); a notificação de renovação/mudança
+ * de estado (RTDN do Google ou Server Notifications V2 da Apple) nunca
+ * manda esses campos, então nunca cria nada do zero — só atualiza quem já
+ * existe.
  */
-async function aplicarEstadoDaAssinatura(
+export async function aplicarEstadoNormalizado(
   uid: string,
-  dadosAssinatura: PlaySubscriptionData,
+  estado: EstadoNormalizado,
   dadosNovoProvider?: { category: string; city: string; state?: string },
 ): Promise<boolean> {
-  const linha = (dadosAssinatura.lineItems || [])[0];
-  const ativa = ESTADOS_ATIVOS.has(dadosAssinatura.subscriptionState ?? '');
-  const expiraEm = linha?.expiryTime ? Timestamp.fromDate(new Date(linha.expiryTime)) : null;
+  const { ativa, expiraEm } = estado;
 
   const providerRef = db.collection('providers').doc(uid);
   const providerSnap = await providerRef.get();
@@ -207,7 +238,7 @@ async function aplicarEstadoDaAssinatura(
     // providers/{uid} e não veio junto com os dados pra criar um novo —
     // não deveria acontecer no fluxo normal (só a primeira confirmação
     // cria, com dadosNovoProvider preenchido), mas não há o que atualizar.
-    logger.warn(`aplicarEstadoDaAssinatura: providers/${uid} não existe e sem dados pra criar.`);
+    logger.warn(`aplicarEstadoNormalizado: providers/${uid} não existe e sem dados pra criar.`);
     return ativa;
   }
 
@@ -254,7 +285,8 @@ async function aplicarEstadoDaAssinatura(
           }
         : {}),
       listingStatus: ativa ? 'active' : 'pending',
-      subscriptionState: dadosAssinatura.subscriptionState ?? null,
+      subscriptionState: estado.rawState,
+      subscriptionStore: estado.loja,
       subscriptionExpiresAt: expiraEm,
       updatedAt: now,
     },
@@ -327,6 +359,27 @@ async function aplicarEstadoDaAssinatura(
   }
 
   return ativa;
+}
+
+/**
+ * Adaptador do Google: transforma o que a Play Developer API devolve no
+ * formato normalizado que `aplicarEstadoNormalizado` (acima) entende, e
+ * delega pra lá. Mantido com o mesmo nome de antes pra não mudar as duas
+ * chamadas abaixo (`confirmarAssinaturaPrestador`/`processarNotificacaoPlay`).
+ */
+async function aplicarEstadoDaAssinatura(
+  uid: string,
+  dadosAssinatura: PlaySubscriptionData,
+  dadosNovoProvider?: { category: string; city: string; state?: string },
+): Promise<boolean> {
+  const linha = (dadosAssinatura.lineItems || [])[0];
+  const estado: EstadoNormalizado = {
+    ativa: ESTADOS_ATIVOS.has(dadosAssinatura.subscriptionState ?? ''),
+    expiraEm: linha?.expiryTime ? Timestamp.fromDate(new Date(linha.expiryTime)) : null,
+    rawState: dadosAssinatura.subscriptionState ?? 'DESCONHECIDO',
+    loja: 'google',
+  };
+  return aplicarEstadoNormalizado(uid, estado, dadosNovoProvider);
 }
 
 export const confirmarAssinaturaPrestador = onCall(
