@@ -92,6 +92,10 @@ flutter:
     # 120 subcategorias) — usado pelo seletor em duas etapas em vez de um
     # enum fixo no código (ver lib/features/marketplace/models/service_category.dart).
     - assets/data/service_categories.json
+    # Logo da empresa responsável pelo app (OPOutSourcing Brasil) — usado
+    # na tela "Sobre o app" (ver lib/features/profile/about_screen.dart),
+    # pedido do Franck.
+    - assets/brand/logo_opoutsourcing.jpg
 
 # Configuração do flutter_launcher_icons — corrige o ícone do Android
 # aparecer pequeno e apertado dentro de um círculo branco (o Franck

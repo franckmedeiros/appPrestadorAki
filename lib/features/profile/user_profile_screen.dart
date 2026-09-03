@@ -14,6 +14,7 @@ import '../../widgets/service_category_field.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
 import 'provider_paywall_screen.dart';
+import 'about_screen.dart';
 
 /// Aba "Meu perfil" — igual ao pedido do Franck ("colocar a opção de
 /// usuário igual do Resenha, hoje eu não consigo mudar os dados do
@@ -455,6 +456,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                     ],
                     const SizedBox(height: 28),
+                    // "Sobre o app" — pedido do Franck: dados da empresa
+                    // responsável pelo produto + WhatsApp/e-mail de
+                    // contato, visível pra qualquer conta (cliente ou
+                    // prestador), não só quem é prestador.
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AboutScreen()),
+                      ),
+                      icon: const Icon(Icons.info_outline, color: AppColors.ink),
+                      label: const Text('Sobre o app', style: TextStyle(color: AppColors.ink)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: BorderSide(color: AppColors.muted.withValues(alpha: 0.35)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     // Sair da conta virou um botão neutro (não mais vermelho):
                     // é uma ação comum e reversível, não destrutiva — o
                     // vermelho de "perigo" fica só pra excluir conta de
