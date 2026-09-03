@@ -175,7 +175,12 @@ export const onBudgetStatusChanged = onDocumentUpdated(
       await notify(clientUid, {
         type: 'orcamento_revisado',
         title: 'Orçamento revisado',
-        body: `${providerName} registrou um aditivo no seu orçamento — novo valor: ${totalLabel}.`,
+        // Pedido do Franck: o aditivo agora sempre deixa o orçamento em
+        // 'aditivo_enviado' (aguardando aprovação — ver
+        // BudgetsRepository.registerAditivo), não mais preso em
+        // "Aceito" sem nada pra fazer, então o aviso já convida a
+        // pessoa a agir.
+        body: `${providerName} registrou um aditivo no seu orçamento — novo valor: ${totalLabel}. Aprove ou recuse pra confirmar.`,
         budgetId,
       });
       return;

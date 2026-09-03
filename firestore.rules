@@ -100,7 +100,12 @@ service cloud.firestore {
         allow update: if isOwner(providerId) ||
           (request.auth != null &&
            request.auth.uid == resource.data.get('clientUid', null) &&
-           resource.data.status == 'enviado' &&
+           // 'aditivo_enviado' (ver BudgetsRepository.registerAditivo,
+           // pedido do Franck: reenviar um aditivo não pode deixar o
+           // orçamento preso em "Aceito" sem o cliente poder agir) conta
+           // igual a 'enviado' aqui -- o cliente aprova/recusa dos dois
+           // jeitos, do mesmo jeito.
+           resource.data.status in ['enviado', 'aditivo_enviado'] &&
            request.resource.data.status in ['aprovado', 'recusado'] &&
            request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['status', 'rejectedBy', 'updatedAt'])) ||

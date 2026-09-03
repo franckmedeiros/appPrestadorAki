@@ -354,8 +354,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// Reabre o formulário completo de itens/preço num orçamento já
   /// enviado (`enviado`/`aprovado`/`aceito`) pra registrar um aditivo —
   /// pedido do Franck. Confirma antes: mexer no valor de um orçamento já
-  /// enviado/aceito é uma ação com peso (o cliente vai ver e, se ainda
-  /// não tinha dado aceite final, vai precisar aprovar de novo).
+  /// enviado/aceito é uma ação com peso. Um aditivo SEMPRE volta o
+  /// orçamento pra "aguardando aprovação" (ver
+  /// BudgetsRepository.registerAditivo/BudgetStatus.aditivoEnviado) — já
+  /// não existe mais o caso especial de continuar "Aceito" sem o cliente
+  /// precisar agir de novo.
   Future<void> _startAditivo() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -364,8 +367,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         content: Text(
           _status == BudgetStatus.aceito
               ? 'Você vai poder alterar itens e valor deste orçamento. O '
-                  'agendamento do serviço não muda, mas o cliente será '
-                  'avisado do novo valor.'
+                  'agendamento do serviço não muda, mas o orçamento volta a '
+                  'aguardar aprovação — o cliente vai precisar confirmar o '
+                  'novo valor.'
               : 'Você vai poder alterar itens e valor deste orçamento. O '
                   'cliente vai precisar aprovar o valor revisado de novo.',
         ),
@@ -955,7 +959,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       ];
     }
 
-    if (status == BudgetStatus.enviado) {
+    if (status == BudgetStatus.enviado || status == BudgetStatus.aditivoEnviado) {
       return [
         SizedBox(
           width: double.infinity,
@@ -1037,6 +1041,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         BudgetStatus.enviado => Colors.orange,
         BudgetStatus.aprovado => Colors.blue,
         BudgetStatus.aceito => Colors.green,
+        BudgetStatus.aditivoEnviado => Colors.deepPurple,
         BudgetStatus.recusado => AppColors.danger,
       };
 
@@ -1190,6 +1195,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           ],
           if (status == BudgetStatus.enviado) ...[
             const Text('Aguardando o cliente aprovar ou recusar.',
+                style: TextStyle(fontSize: 13, color: AppColors.ink)),
+            const SizedBox(height: 12),
+          ],
+          if (status == BudgetStatus.aditivoEnviado) ...[
+            const Text('Aguardando o cliente aprovar ou recusar o aditivo.',
                 style: TextStyle(fontSize: 13, color: AppColors.ink)),
             const SizedBox(height: 12),
           ],

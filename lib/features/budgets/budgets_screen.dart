@@ -38,6 +38,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         BudgetStatus.enviado => Colors.orange,
         BudgetStatus.aprovado => Colors.blue,
         BudgetStatus.aceito => Colors.green,
+        BudgetStatus.aditivoEnviado => Colors.deepPurple,
         BudgetStatus.recusado => AppColors.danger,
       };
 

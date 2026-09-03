@@ -259,7 +259,13 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                   itemBuilder: (context, index) {
                     final budget = budgets[index];
                     final status = budget.status;
-                    final awaitingDecision = status == BudgetStatus.enviado;
+                    // Pedido do Franck: quando o prestador reenvia um
+                    // aditivo, o cliente precisa poder aprovar/recusar
+                    // igual a um orçamento comum enviado -- não fica
+                    // "preso" no status Aceito antigo sem nenhuma ação
+                    // disponível (ver BudgetsRepository.registerAditivo).
+                    final awaitingDecision =
+                        status == BudgetStatus.enviado || status == BudgetStatus.aditivoEnviado;
                     final accepted = status == BudgetStatus.aceito;
                     final category =
                         budget.category != null ? serviceCategoryFromWire(budget.category!) : null;

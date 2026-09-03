@@ -51,12 +51,24 @@ class BudgetItem {
 /// não tem status nenhum (`Budget.status == null`) — o campo só existe
 /// pra orçamentos que nasceram de uma solicitação de cliente:
 ///
-///   pendente  -> cliente pediu, prestador ainda não preencheu/enviou.
-///   enviado   -> prestador preencheu itens/preço e mandou pro cliente.
-///   aprovado  -> cliente aprovou; falta o prestador dar o aceite final.
-///   aceito    -> prestador aceitou; serviço já lançado na agenda.
-///   recusado  -> alguém recusou (ver `rejectedBy`); fluxo encerrado.
-enum BudgetStatus { pendente, enviado, aprovado, aceito, recusado }
+///   pendente       -> cliente pediu, prestador ainda não preencheu/enviou.
+///   enviado        -> prestador preencheu itens/preço e mandou pro cliente.
+///   aprovado       -> cliente aprovou; falta o prestador dar o aceite final.
+///   aceito         -> prestador aceitou; serviço já lançado na agenda.
+///   aditivoEnviado -> orçamento já tinha ido pro cliente (em qualquer
+///                     estado) e o prestador registrou um ADITIVO (ver
+///                     BudgetsRepository.registerAditivo) — pedido do
+///                     Franck: "quando eu reenvio o aditivo... ele não
+///                     poderia estar como Aceito, e sim indicando que
+///                     foi enviado pro cliente o aditivo e aguardando
+///                     aprovação do mesmo". Aceita a mesma decisão do
+///                     cliente que `enviado` (aprovar vira `aprovado`,
+///                     recusar vira `recusado`) — só existe pra dar um
+///                     rótulo/cor diferentes, deixando claro que o que
+///                     está pendente agora é a REVISÃO, não a proposta
+///                     original.
+///   recusado       -> alguém recusou (ver `rejectedBy`); fluxo encerrado.
+enum BudgetStatus { pendente, enviado, aprovado, aceito, aditivoEnviado, recusado }
 
 extension BudgetStatusWire on BudgetStatus {
   String get wireValue => switch (this) {
@@ -64,6 +76,7 @@ extension BudgetStatusWire on BudgetStatus {
         BudgetStatus.enviado => 'enviado',
         BudgetStatus.aprovado => 'aprovado',
         BudgetStatus.aceito => 'aceito',
+        BudgetStatus.aditivoEnviado => 'aditivo_enviado',
         BudgetStatus.recusado => 'recusado',
       };
 
@@ -72,6 +85,7 @@ extension BudgetStatusWire on BudgetStatus {
         BudgetStatus.enviado => 'Aguardando aprovação do cliente',
         BudgetStatus.aprovado => 'Aprovado — falta confirmar',
         BudgetStatus.aceito => 'Aceito',
+        BudgetStatus.aditivoEnviado => 'Aditivo enviado — aguardando aprovação',
         BudgetStatus.recusado => 'Recusado',
       };
 }

@@ -175,8 +175,15 @@ class BudgetsRepository {
     required String observations,
     required DateTime aditivoDate,
   }) async {
-    final newStatus =
-        original.status == BudgetStatus.aceito ? BudgetStatus.aceito : BudgetStatus.enviado;
+    // Pedido do Franck: "quando eu reenvio o aditivo... ele não poderia
+    // estar como Aceito, e sim indicando que foi enviado pro cliente o
+    // aditivo e aguardando aprovação do mesmo" — antes disso, um aditivo
+    // registrado em cima de um orçamento já `aceito` simplesmente
+    // mantinha `aceito`, escondendo que a REVISÃO ainda precisa ser
+    // aprovada. Agora sempre vira `aditivoEnviado`, não importa o status
+    // anterior (a UI já bloqueia registrar aditivo em cima de um
+    // `recusado` — ver `canRegisterAditivo` em BudgetFormScreen).
+    const newStatus = BudgetStatus.aditivoEnviado;
     try {
       await _collection.doc(original.id).collection('versions').add({
         'items': original.items.map((item) => item.toMap()).toList(),
