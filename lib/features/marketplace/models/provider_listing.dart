@@ -10,7 +10,7 @@ class ProviderListing {
   ProviderListing({
     required this.id,
     required this.name,
-    required this.category,
+    required this.categories,
     required this.city,
     this.state,
     required this.claimed,
@@ -24,10 +24,21 @@ class ProviderListing {
 
   factory ProviderListing.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
+    // `categories` (lista) é o formato novo — pedido do Franck: "hoje o
+    // prestador pode atuar em 2 ou mais categorias... hoje não é possível
+    // selecionar mais de uma". Documentos gravados antes dessa mudança só
+    // têm o campo singular `category` — tratado aqui como uma lista de
+    // um item só, pra continuar funcionando sem precisar de migração/
+    // resave em massa (o próprio prestador resolve isso ao salvar o
+    // perfil de novo, ver EditProfileScreen).
+    final categoriesWire = (data['categories'] as List?)?.cast<String>() ??
+        (data['category'] != null ? [data['category'] as String] : const <String>[]);
     return ProviderListing(
       id: doc.id,
       name: data['name'] as String? ?? '',
-      category: serviceCategoryFromWire(data['category'] as String? ?? 'outro'),
+      categories: categoriesWire.isEmpty
+          ? [ServiceCategoryCatalog.outro]
+          : categoriesWire.map(serviceCategoryFromWire).toList(),
       city: data['city'] as String? ?? '',
       state: data['state'] as String?,
       claimed: data['claimed'] as bool? ?? false,
@@ -42,7 +53,12 @@ class ProviderListing {
 
   final String id;
   final String name;
-  final ServiceCategory category;
+
+  /// Todas as categorias de serviço em que o prestador atua (ex.:
+  /// "Esquadrias de Alumínio" + "Vidraçaria") — pedido do Franck. A
+  /// PRIMEIRA da lista é tratada como a "principal" em lugares que só
+  /// têm espaço pra uma (ver [category], o ícone do card/avatar).
+  final List<ServiceCategory> categories;
   final String city;
   final String? state;
   final bool claimed;
@@ -88,6 +104,12 @@ class ProviderListing {
   /// assinatura, não aparece pra listagem "não reivindicada" nem pra
   /// quem deixou a assinatura vencer.
   bool get isVerifiedSubscriber => claimed && visible != false;
+
+  /// Categoria "principal" (a primeira escolhida) — usada onde só cabe
+  /// uma (ícone do avatar do card/perfil). Pra ver TODAS as categorias
+  /// (ex.: "Serviços oferecidos" no perfil público, ou a busca por
+  /// qualquer uma delas), use [categories].
+  ServiceCategory get category => categories.isEmpty ? ServiceCategoryCatalog.outro : categories.first;
 
   String get locationLabel => state == null || state!.isEmpty ? city : '$city/$state';
 }

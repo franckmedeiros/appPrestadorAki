@@ -303,7 +303,10 @@ class AuthController extends ChangeNotifier {
     await _firestore.collection('providers').doc(uid).set({
       'name': name,
       'email': email,
-      if (category != null && category.isNotEmpty) 'category': category,
+      if (category != null && category.isNotEmpty) ...{
+        'category': category,
+        'categories': [category],
+      },
       if (city != null && city.isNotEmpty) 'city': city,
       if (state != null && state.isNotEmpty) 'state': state,
       for (final field in const [
@@ -485,15 +488,20 @@ class AuthController extends ChangeNotifier {
   /// `EditProfileScreen` decide separadamente se chama
   /// `ProviderDirectoryRepository.upsertOwnListing` a partir disso.
   Future<bool> updateProviderBusinessInfo({
-    required String category,
+    required List<String> categories,
     required String city,
     String? state,
   }) =>
       _submit(() async {
+        assert(categories.isNotEmpty, 'updateProviderBusinessInfo precisa de ao menos uma categoria');
         final user = _auth.currentUser!;
         await _firestore.collection('providers').doc(user.uid).set(
           {
-            'category': category,
+            'categories': categories,
+            // `category` (singular) continua gravado com a primeira
+            // escolhida — mesma razão de compatibilidade explicada em
+            // ProviderDirectoryRepository.upsertOwnListing.
+            'category': categories.first,
             'city': city,
             'state': (state != null && state.isNotEmpty) ? state : FieldValue.delete(),
             // TEMPORÁRIO (ver lib/core/testing_flags.dart) — com a flag

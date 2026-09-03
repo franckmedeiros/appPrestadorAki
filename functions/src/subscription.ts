@@ -165,6 +165,7 @@ async function aplicarEstadoDaAssinatura(
         ? {
             ...copiaDoCliente,
             category: dadosNovoProvider.category,
+            categories: [dadosNovoProvider.category],
             city: dadosNovoProvider.city,
             ...(dadosNovoProvider.state ? { state: dadosNovoProvider.state } : {}),
             nextBudgetNumber: 1,
@@ -184,10 +185,23 @@ async function aplicarEstadoDaAssinatura(
     const provider = (await providerRef.get()).data() ?? {};
     if (provider.category && provider.city) {
       const directorySnap = await directoryRef.get();
+      // `categories` (lista) é o formato novo — pedido do Franck:
+      // prestador pode atuar em 2+ categorias. Cai pro `category`
+      // singular antigo quando o documento ainda não tem o campo novo
+      // (nunca editou o perfil desde essa mudança) — sem esse fallback,
+      // uma renovação de assinatura (este mesmo bloco roda a cada
+      // notificação da Play Store, não só na primeira confirmação)
+      // "resetaria" um prestador multi-categoria de volta pra só a
+      // principal, porque este bloco é quem por fim decide o que fica
+      // gravado no diretório público.
+      const categories: string[] = Array.isArray(provider.categories) && provider.categories.length > 0
+        ? provider.categories
+        : [provider.category];
       await directoryRef.set(
         {
           name: provider.name,
-          category: provider.category,
+          categories,
+          category: categories[0],
           city: provider.city,
           ...(provider.state ? { state: provider.state } : {}),
           // So mostra o WhatsApp de verdade no card do prestador (ver

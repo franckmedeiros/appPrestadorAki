@@ -362,7 +362,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       builder: (context, snapshot) {
                         final data = snapshot.data ?? const <String, dynamic>{};
                         final whatsapp = data['whatsapp'] as String?;
+                        // `categories` (lista) é o formato novo — pedido
+                        // do Franck: prestador em 2+ categorias. Cai pro
+                        // `category` singular antigo pra quem ainda não
+                        // salvou o perfil de novo desde essa mudança (ver
+                        // mesma lógica em ProviderListing.fromFirestore).
+                        final categoriesWire = (data['categories'] as List?)?.cast<String>();
                         final category = data['category'] as String?;
+                        final categoryLabel = (categoriesWire != null && categoriesWire.isNotEmpty)
+                            ? categoriesWire.map((c) => serviceCategoryFromWire(c).label).join(', ')
+                            : (category != null && category.isNotEmpty)
+                                ? serviceCategoryFromWire(category).label
+                                : null;
                         final city = data['city'] as String?;
                         final state = data['state'] as String?;
                         final cityLabel = (city != null && city.isNotEmpty)
@@ -374,9 +385,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               _InfoTile(
                                 icon: Icons.handyman_outlined,
                                 label: 'Categoria',
-                                value: (category != null && category.isNotEmpty)
-                                    ? serviceCategoryFromWire(category).label
-                                    : 'Não informado',
+                                value: categoryLabel ?? 'Não informado',
                               ),
                               _InfoTile(
                                 icon: Icons.location_city_outlined,

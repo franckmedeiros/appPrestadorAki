@@ -58,7 +58,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _areaCity;
   String? _areaUf;
   final _streetFocusNode = FocusNode();
-  ServiceCategory? _category;
+  List<ServiceCategory> _categories = [];
 
   final _phoneMask = MaskTextInputFormatter('(##) #####-####');
   final _cepMask = MaskTextInputFormatter('#####-###');
@@ -88,7 +88,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final listing = widget.currentListing;
     _areaCity = listing?.city;
     _areaUf = listing?.state;
-    if (listing != null) _category = listing.category;
+    if (listing != null) _categories = listing.categories;
     _loadOwnData();
   }
 
@@ -112,10 +112,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       // pra quem ainda não foi ativado). Só sobrescreve o que já veio do
       // `currentListing` no initState se providers/{uid} de fato tiver o
       // campo — evita apagar um valor bom com um branco à toa.
+      final categoriesWire = (data['categories'] as List?)?.cast<String>();
       final category = data['category'] as String?;
       final city = data['city'] as String?;
       final state = data['state'] as String?;
-      if (category != null) _category = serviceCategoryFromWire(category);
+      if (categoriesWire != null && categoriesWire.isNotEmpty) {
+        _categories = categoriesWire.map(serviceCategoryFromWire).toList();
+      } else if (category != null) {
+        _categories = [serviceCategoryFromWire(category)];
+      }
       if (city != null && city.isNotEmpty) _areaCity = city;
       if (state != null && state.isNotEmpty) _areaUf = state;
     } catch (e) {
@@ -222,7 +227,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   /// decide se manda o texto já escrito no campo (pra IA melhorar) ou
   /// nada (pra IA gerar do zero, só com categoria/cidade).
   Future<void> _gerarDescricao({required bool comRascunho}) async {
-    if (_category == null) {
+    if (_categories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Escolha sua categoria de serviço primeiro.')),
       );
@@ -231,7 +236,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _geradorIABusy = true);
     try {
       final descricao = await ProviderBioAiService.instance.gerar(
-        categoria: _category!.label,
+        categoria: _categories.map((c) => c.label).join(' e '),
         cidade: _areaCity,
         estado: _areaUf,
         rascunho: comRascunho ? _bioController.text : null,
@@ -408,7 +413,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         // status de ativação — não se perde enquanto listingStatus segue
         // 'pending'.
         final businessInfoOk = await auth.updateProviderBusinessInfo(
-          category: _category!.wireValue,
+          categories: _categories.map((c) => c.wireValue).toList(),
           city: (_areaCity ?? '').trim(),
           state: (_areaUf ?? '').trim().toUpperCase(),
         );
@@ -427,7 +432,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (_listingStatus != 'pending') {
           await context.read<ProviderDirectoryRepository>().upsertOwnListing(
                 name: name,
-                category: _category!,
+                categories: _categories,
                 city: (_areaCity ?? '').trim(),
                 state: (_areaUf ?? '').trim().toUpperCase(),
                 bio: _bioController.text.trim(),
@@ -479,7 +484,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   uploading: _uploadingLogo,
                   onTrocarFoto: () => _trocarLogo(context),
                   nameListenable: _nameController,
-                  categoryLabel: isProvider ? _category?.label : null,
+                  categoryLabel: isProvider ? _categories.map((c) => c.label).join(' • ') : null,
                 ),
                 const SizedBox(height: 24),
                 const _SectionHeader(icon: Icons.person_outline, title: 'Informações pessoais'),
@@ -544,11 +549,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ],
                   const SizedBox(height: 8),
-                  ServiceCategorySelectorField(
-                    label: 'Sua principal categoria de serviço',
-                    initialValue: _category,
-                    validator: (value) => value == null ? 'Selecione' : null,
-                    onChanged: (value) => setState(() => _category = value),
+                  ServiceCategoryMultiSelectorField(
+                    label: 'Categorias de serviço',
+                    initialValue: _categories,
+                    validator: (value) =>
+                        (value == null || value.isEmpty) ? 'Selecione ao menos uma categoria' : null,
+                    onChanged: (value) => setState(() => _categories = value),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -887,7 +893,12 @@ class _ProfileHeader extends StatelessWidget {
               ),
               if (categoryLabel != null && categoryLabel!.isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Text(categoryLabel!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                Text(
+                  categoryLabel!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                ),
               ],
               const SizedBox(height: 8),
               OutlinedButton.icon(

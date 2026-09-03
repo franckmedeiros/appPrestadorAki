@@ -50,7 +50,18 @@ class ProviderDirectoryRepository {
     try {
       Query<Map<String, dynamic>> query = _collection;
       if (category != null) {
-        query = query.where('category', isEqualTo: category.wireValue);
+        // `Filter.or` casa tanto quem já tem o campo novo `categories`
+        // (lista, ver ProviderListing/upsertOwnListing — pedido do
+        // Franck: prestador em 2+ categorias precisa aparecer na busca
+        // de QUALQUER uma delas) quanto quem ainda só tem o `category`
+        // singular antigo (documento de antes dessa mudança, que só
+        // recebe `categories` no próximo salvamento do perfil).
+        query = query.where(
+          Filter.or(
+            Filter('categories', arrayContains: category.wireValue),
+            Filter('category', isEqualTo: category.wireValue),
+          ),
+        );
       }
       // Nota honesta: o filtro de cidade NÃO usa mais `where('city',
       // isEqualTo: ...)` do Firestore — isso é comparação exata de
@@ -134,12 +145,13 @@ class ProviderDirectoryRepository {
   /// vez. Usado no cadastro e na tela "Editar perfil" (EditProfileScreen).
   Future<void> upsertOwnListing({
     required String name,
-    required ServiceCategory category,
+    required List<ServiceCategory> categories,
     required String city,
     String? state,
     String? bio,
     String? whatsapp,
   }) async {
+    assert(categories.isNotEmpty, 'upsertOwnListing precisa de ao menos uma categoria');
     try {
       final uid = _auth.currentUser!.uid;
       final ref = _collection.doc(uid);
@@ -147,7 +159,12 @@ class ProviderDirectoryRepository {
       final now = FieldValue.serverTimestamp();
       await ref.set({
         'name': name,
-        'category': category.wireValue,
+        'categories': categories.map((c) => c.wireValue).toList(),
+        // `category` (singular) continua gravado com a primeira escolhida
+        // — mantém compatibilidade com qualquer leitura antiga que ainda
+        // espere só esse campo (ex.: uma versão anterior do app instalada
+        // em algum aparelho que ainda não atualizou).
+        'category': categories.first.wireValue,
         'city': city,
         if (state != null && state.isNotEmpty) 'state': state,
         'bio': (bio != null && bio.trim().isNotEmpty) ? bio.trim() : FieldValue.delete(),

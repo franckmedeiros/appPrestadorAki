@@ -63,8 +63,14 @@ Widget providerListingCard({
                               const Icon(Icons.grid_view_rounded, size: 13, color: AppColors.primary),
                               const SizedBox(width: 5),
                               Flexible(
+                                // Todas as categorias, não só a
+                                // "principal" — pedido do Franck: um
+                                // prestador em 2+ categorias (ex.:
+                                // "Esquadrias de Alumínio" e
+                                // "Vidraçaria") precisa aparecer com as
+                                // duas aqui, não só a primeira escolhida.
                                 child: Text(
-                                  listing.category.label,
+                                  listing.categories.map((c) => c.label).join(', '),
                                   style: const TextStyle(color: AppColors.muted, fontSize: 13),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

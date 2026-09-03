@@ -240,7 +240,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                                       const SizedBox(height: 8),
                                       _ProfileMeta(
                                         icon: Icons.grid_view_rounded,
-                                        text: listing.category.label,
+                                        text: listing.categories.map((c) => c.label).join(', '),
                                         primary: true,
                                       ),
                                       const SizedBox(height: 4),
@@ -300,19 +300,25 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                               title: 'Serviços oferecidos',
                             ),
                             const SizedBox(height: 8),
+                            // Um chip por categoria — pedido do Franck:
+                            // prestador em 2+ categorias (ex.:
+                            // "Esquadrias de Alumínio" e "Vidraçaria")
+                            // precisa mostrar TODOS os serviços que
+                            // oferece aqui, não só o principal.
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                Chip(
-                                  label: Text(listing.category.label),
-                                  visualDensity: VisualDensity.compact,
-                                  backgroundColor: AppColors.background,
-                                  side: BorderSide(
-                                    color: AppColors.muted
-                                        .withValues(alpha: 0.10),
+                                for (final category in listing.categories)
+                                  Chip(
+                                    label: Text(category.label),
+                                    visualDensity: VisualDensity.compact,
+                                    backgroundColor: AppColors.background,
+                                    side: BorderSide(
+                                      color: AppColors.muted
+                                          .withValues(alpha: 0.10),
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
 
