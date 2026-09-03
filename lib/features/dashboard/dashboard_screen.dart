@@ -45,9 +45,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // é só um Card que aparece ou não no build(), dependendo do estado atual.
   bool? _biometricAvailable;
   bool _dismissedThisSession = false;
-  late Future<List<Appointment>> _todayFuture;
+  // Antes era um Future recarregado só uma vez em initState — igual ao
+  // bug já corrigido em Agenda/Clientes (ver AppointmentsRepository.
+  // watchRange e CustomersRepository.watchAll): como o Dashboard vive
+  // dentro de um StatefulShellRoute (UnifiedShell), essa aba nunca é
+  // reconstruída ao trocar de aba, então um compromisso criado depois
+  // (na Agenda, ou aceitando um orçamento) nunca aparecia aqui sem
+  // fechar e abrir o app de novo. Com stream, atualiza sozinho.
+  late Stream<List<Appointment>> _todayStream;
   late Future<Map<String, dynamic>?> _listingStatusFuture;
-  late Future<int> _pendingRequestsFuture;
+  // Mesmo motivo do _todayStream acima: watchPending() já era uma
+  // stream de verdade, mas `.first` a transformava num Future só lido
+  // uma vez em initState — o selo de "Orçamentos" também ficava
+  // parado no valor de quando o Dashboard abriu pela primeira vez.
+  late Stream<int> _pendingRequestsStream;
   // Guardo a lista inteira (não só a contagem) porque o card de
   // "Compromissos de hoje" agora também precisa saber, pra cada
   // compromisso, se existe um Job ligado a ele (pra mostrar a etapa e
@@ -59,9 +70,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _checkBiometricAvailability();
-    _todayFuture = _loadToday();
+    _todayStream = _watchToday();
     _listingStatusFuture = _loadListingStatus();
-    _pendingRequestsFuture = _loadPendingRequests();
+    _pendingRequestsStream = _watchPendingRequests();
     // "Serviços ativos" = tudo que ainda não chegou em "concluído" — no
     // lugar do antigo atalho "Pedidos" (pedido do Franck), agora mostra
     // quantos serviços o prestador tem em andamento no Kanban.
@@ -70,23 +81,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _jobsStream.map((jobs) => jobs.where((job) => job.status != JobStatus.concluido).length);
   }
 
-  Future<List<Appointment>> _loadToday() {
+  Stream<List<Appointment>> _watchToday() {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
-    return context.read<AppointmentsRepository>().list(from: startOfDay, to: endOfDay);
+    return context.read<AppointmentsRepository>().watchRange(from: startOfDay, to: endOfDay);
   }
 
   void _retryToday() {
-    setState(() => _todayFuture = _loadToday());
+    setState(() => _todayStream = _watchToday());
   }
 
-  Future<int> _loadPendingRequests() async {
+  Stream<int> _watchPendingRequests() {
     // "Orçamentos abertos" = pedidos que o cliente fez (botão "Solicitar
     // orçamento" na busca) e que este prestador ainda não terminou de
     // preencher/enviar (status `pendente` — ver `BudgetStatus`).
-    final pending = await context.read<BudgetsRepository>().watchPending().first;
-    return pending.length;
+    return context.read<BudgetsRepository>().watchPending().map((pending) => pending.length);
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -192,8 +202,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    FutureBuilder<List<Appointment>>(
-                      future: _todayFuture,
+                    StreamBuilder<List<Appointment>>(
+                      stream: _todayStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Padding(
@@ -259,8 +269,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           subtitle: 'Veja visitas e serviços',
                           onTap: () => context.push('/agenda'),
                         ),
-                        FutureBuilder<int>(
-                          future: _pendingRequestsFuture,
+                        StreamBuilder<int>(
+                          stream: _pendingRequestsStream,
                           builder: (context, snapshot) => _ShortcutCard(
                             icon: Icons.description_outlined,
                             label: 'Orçamentos',
@@ -424,7 +434,7 @@ class _ShortcutCard extends StatelessWidget {
   final VoidCallback onTap;
 
   /// Número mostrado num selo no canto do card — hoje só usado no atalho
-  /// "Orçamentos" (pedidos pendentes, ver _loadPendingRequests). `null` ou
+  /// "Orçamentos" (pedidos pendentes, ver _watchPendingRequests). `null` ou
   /// zero não mostra selo nenhum.
   final int? badgeCount;
 
