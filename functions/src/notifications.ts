@@ -85,6 +85,16 @@ export async function notify(uid: string, input: NotificationInput): Promise<voi
         ...(input.budgetId ? { budgetId: input.budgetId } : {}),
       },
       android: { notification: { channelId: NOTIFICATION_CHANNEL_ID } },
+      // Sem isso, o envio pro lado iOS ficava só no que o próprio FCM
+      // infere por padrão a partir de `notification` — funciona na
+      // maioria das vezes, mas sem som/prioridade explícitos. Deixando
+      // explícito (mesma ideia do `android.notification.channelId`
+      // acima) pra não depender do comportamento padrão do FCM nem do
+      // APNs mudar silenciosamente.
+      apns: {
+        headers: { 'apns-priority': '10' },
+        payload: { aps: { sound: 'default' } },
+      },
     });
   } catch (e) {
     // Token inválido/expirado é comum (app desinstalado, dados do app

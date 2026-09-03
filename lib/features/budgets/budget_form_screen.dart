@@ -287,22 +287,47 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     }
   }
 
+  /// Mostra um erro tanto inline (`_error`, texto que já existia
+  /// embaixo do resumo/formulário) quanto num SnackBar — pedido do
+  /// Franck: "quando acontecer de ter que aparecer essa mensagem, deve
+  /// aparecer num lugar que o usuário consiga ver, ficou lá embaixo. O
+  /// usuário clica e não salva e ele não sabe o que aconteceu". O texto
+  /// inline sozinho fica dentro da área ROLÁVEL (SingleChildScrollView /
+  /// `_buildReadOnlySummary`), enquanto o botão de ação mora numa barra
+  /// FIXA embaixo da tela (ver `_buildActions`) — se a pessoa não tivesse
+  /// rolado até o fim, o erro aparecia fora da área visível sem ela
+  /// perceber. O SnackBar flutua por cima de tudo, então aparece sempre,
+  /// não importa a posição do scroll.
+  void _setError(String message) {
+    if (!mounted) return;
+    setState(() => _error = message);
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
   /// Monta o `Budget` a partir do estado atual do formulário — usado
   /// tanto por `_save` quanto por `_generatePdf`, pra nunca ficarem
   /// divergentes sobre o que vale como orçamento válido.
   Future<Budget?> _buildBudgetFromForm() async {
     final items = _currentItems();
     if (items.isEmpty) {
-      setState(() => _error = 'Adicione pelo menos um item com descrição.');
+      _setError('Adicione pelo menos um item com descrição.');
       return null;
     }
     if (_selectedCustomerId == null) {
-      setState(() => _error = 'Selecione um cliente.');
+      _setError('Selecione um cliente.');
       return null;
     }
     final date = tryParseDateDdMmYyyy(_activeDateController.text.trim());
     if (date == null) {
-      setState(() => _error = _editingAditivo ? 'Data do aditivo inválida.' : 'Data inválida.');
+      _setError(_editingAditivo ? 'Data do aditivo inválida.' : 'Data inválida.');
       return null;
     }
     final customers = await _customersFuture;
@@ -314,7 +339,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       }
     }
     if (customer == null) {
-      setState(() => _error = 'Cliente selecionado não encontrado — escolha de novo.');
+      _setError('Cliente selecionado não encontrado — escolha de novo.');
       return null;
     }
     return Budget(
@@ -343,6 +368,18 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       final budget = await _buildBudgetFromForm();
       if (budget == null) return;
       final repository = context.read<BudgetsRepository>();
+      // Pedido do Franck: "o valor de um orçamento novo que vem pra
+      // confirmar e agendar está vindo com valor zerado" — o formulário
+      // só exigia uma DESCRIÇÃO preenchida (ver `_buildBudgetFromForm`),
+      // nunca que o PREÇO também estivesse preenchido, então dava pra
+      // mandar (ou reenviar via aditivo) um orçamento com todos os itens
+      // a R$ 0,00 sem nenhum aviso — o cliente conseguia aprovar esse
+      // valor normalmente, e só o prestador notava depois, no aceite
+      // final.
+      if ((_editingAditivo || _status == BudgetStatus.pendente) && budget.subtotalCents <= 0) {
+        _setError('Informe o preço de pelo menos um item antes de enviar pro cliente.');
+        return;
+      }
       if (_editingAditivo) {
         // Registra o aditivo (ver BudgetsRepository.registerAditivo) —
         // NUNCA passa por update()/create(): itens/valor/data revisados
@@ -368,9 +405,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       }
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      _setError(e.message);
     } catch (_) {
-      setState(() => _error = 'Não foi possível salvar o orçamento.');
+      _setError('Não foi possível salvar o orçamento.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -478,9 +515,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       await context.read<BudgetsRepository>().rejectAsProvider(widget.budget!.id);
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      _setError(e.message);
     } catch (_) {
-      setState(() => _error = 'Não foi possível recusar o pedido.');
+      _setError('Não foi possível recusar o pedido.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -493,7 +530,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   Future<void> _acceptFinal() async {
     final date = tryParseDateDdMmYyyy(_dateController.text.trim());
     if (date == null) {
-      setState(() => _error = 'Data inválida.');
+      _setError('Data inválida.');
       return;
     }
     final scheduledAt =
@@ -510,9 +547,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           );
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      _setError(e.message);
     } catch (_) {
-      setState(() => _error = 'Não foi possível confirmar o orçamento.');
+      _setError('Não foi possível confirmar o orçamento.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -540,7 +577,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       final suffix = budget.revisionNumber > 0 ? '_aditivo${budget.revisionNumber}' : '';
       await Printing.sharePdf(bytes: bytes, filename: 'orcamento_${budget.customerName}$suffix.pdf');
     } catch (_) {
-      if (mounted) setState(() => _error = 'Não foi possível gerar o PDF. Tenta de novo.');
+      if (mounted) _setError('Não foi possível gerar o PDF. Tenta de novo.');
     } finally {
       if (mounted) setState(() => _generatingPdf = false);
     }

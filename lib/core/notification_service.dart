@@ -61,6 +61,19 @@ class NotificationService {
       await _localNotifications.initialize(
         const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          // Sem isso, o lado Darwin do plugin nunca é inicializado — a
+          // notificação manual que a gente mostra com o app aberto (ver
+          // `_showLocalNotification` logo abaixo) simplesmente não
+          // aparecia no iPhone, silenciosamente (nenhum erro, nenhum
+          // log — só não tinha efeito nenhum). Não pede permissão de
+          // novo aqui (`request...Permission: false`) porque isso já é
+          // feito explicitamente logo abaixo, via
+          // `_messaging.requestPermission`.
+          iOS: DarwinInitializationSettings(
+            requestAlertPermission: false,
+            requestBadgePermission: false,
+            requestSoundPermission: false,
+          ),
         ),
       );
 
@@ -144,6 +157,13 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
+        ),
+        // Mesmo motivo do `iOS:` em `init()` acima — sem isso a
+        // notificação manual nunca aparecia com o app aberto no iPhone.
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
         ),
       ),
     );
