@@ -149,7 +149,7 @@ Future<Uint8List> buildBudgetPdf(Budget budget, BudgetPdfProvider provider) asyn
             ),
             for (final item in budget.items)
               pw.TableRow(children: [
-                _cell(item.description),
+                _itemDescriptionCell(item),
                 _cell(item.quantityLabel, align: pw.TextAlign.center),
                 _cell(formatCentsBRL(item.unitPriceCents), align: pw.TextAlign.right),
                 _cell(formatCentsBRL(item.totalCents), align: pw.TextAlign.right),
@@ -230,6 +230,37 @@ pw.Widget _cell(String text, {bool bold = false, pw.TextAlign align = pw.TextAli
       text,
       textAlign: align,
       style: pw.TextStyle(fontSize: 10.5, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal),
+    ),
+  );
+}
+
+/// Célula de "Descrição" da tabela de itens — igual a `_cell`, mas com
+/// um selo "Aditivo nº N" logo abaixo quando o item foi acrescentado por
+/// um aditivo (ver `BudgetItem.aditivoNumber`) — pedido do Franck: "eu
+/// sempre preciso ver o orçamento original e o aditivo... seja como um
+/// item a mais no orçamento, marcando como aditivo". Sem selo nenhum
+/// pro item original (`aditivoNumber == null`) — visual idêntico a
+/// antes dessa mudança.
+pw.Widget _itemDescriptionCell(BudgetItem item) {
+  final aditivoNumber = item.aditivoNumber;
+  return pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(item.description, style: const pw.TextStyle(fontSize: 10.5)),
+        if (aditivoNumber != null) ...[
+          pw.SizedBox(height: 2),
+          pw.Text(
+            'Aditivo nº $aditivoNumber',
+            style: pw.TextStyle(
+              fontSize: 8.5,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor.fromInt(0xFFE7772E),
+            ),
+          ),
+        ],
+      ],
     ),
   );
 }

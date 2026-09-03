@@ -28,8 +28,28 @@ String _withThousandsSeparator(int value) {
 /// Lê um texto digitado (vírgula ou ponto como separador decimal) e
 /// devolve o valor em centavos — `null` se não for um número válido.
 /// Mesma tolerância usada em outros formulários com valor em reais.
+///
+/// BUG REAL corrigido aqui (visto pelo Franck no primeiro aditivo com
+/// item acima de R$ 1.000): os campos de preço/desconto são
+/// PRÉ-PREENCHIDOS com `formatCentsBRL(cents).replaceAll('R\$ ', '')`
+/// (ver `_ItemRowControllers`/`_discountController` em
+/// BudgetFormScreen) — pra qualquer valor >= R\$ 1.000 isso já vem com
+/// PONTO como separador de milhar (ex.: "1.500,00"). Sem tratar isso, o
+/// `replaceAll(',', '.')' de antes virava "1.500.00" (dois pontos),
+/// `double.tryParse` devolvia `null`, e o preço salvava como 0 SEM
+/// avisar nada — só reaparecia quebrado depois (ex.: registrar um
+/// aditivo sem retocar um campo de preço que já vinha preenchido).
+/// Regra: se tem vírgula, ela É o separador decimal (convenção BR usada
+/// em todo o app) — qualquer ponto antes dela só pode ser separador de
+/// milhar, então remove os pontos ANTES de trocar a vírgula por ponto.
+/// Sem vírgula (texto digitado direto, ex.: "10.50"), o ponto continua
+/// tratado como decimal, igual sempre foi.
 int? tryParseCentsFromText(String text) {
-  final value = double.tryParse(text.trim().replaceAll(',', '.'));
+  var normalized = text.trim();
+  if (normalized.contains(',')) {
+    normalized = normalized.replaceAll('.', '');
+  }
+  final value = double.tryParse(normalized.replaceAll(',', '.'));
   if (value == null) return null;
   return (value * 100).round();
 }

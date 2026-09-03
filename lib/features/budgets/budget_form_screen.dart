@@ -14,6 +14,7 @@ import '../marketplace/models/service_category.dart';
 import 'budget_pdf.dart';
 import 'budgets_repository.dart';
 import 'models/budget.dart';
+import 'widgets/aditivo_badge.dart';
 
 /// Rótulo de quem recusou (ver `Budget.rejectedBy`) pronto pra exibir.
 String _rejectedByLabel(String? rejectedBy) => switch (rejectedBy) {
@@ -32,6 +33,7 @@ class _ItemRowControllers {
     double quantity = 1,
     String unit = 'serviço',
     int unitPriceCents = 0,
+    this.aditivoNumber,
   })  : descriptionController = TextEditingController(text: description),
         quantityController = TextEditingController(text: _formatQuantity(quantity)),
         unitController = TextEditingController(text: unit),
@@ -43,6 +45,12 @@ class _ItemRowControllers {
   final TextEditingController quantityController;
   final TextEditingController unitController;
   final TextEditingController unitPriceController;
+
+  /// `null` = item original; um número = acrescentado por esse aditivo
+  /// (ver `BudgetItem.aditivoNumber` — pedido do Franck: o aditivo vira
+  /// um item a mais no orçamento, marcado como tal, em vez de substituir
+  /// os itens originais). Fixo por linha (não muda depois de criada).
+  final int? aditivoNumber;
 
   static String _formatQuantity(double quantity) => quantity == quantity.roundToDouble()
       ? quantity.toInt().toString()
@@ -57,7 +65,13 @@ class _ItemRowControllers {
     final quantity = double.tryParse(quantityController.text.trim().replaceAll(',', '.')) ?? 1;
     final unit = unitController.text.trim().isEmpty ? 'serviço' : unitController.text.trim();
     final unitPriceCents = tryParseCentsFromText(unitPriceController.text) ?? 0;
-    return BudgetItem(description: description, quantity: quantity, unit: unit, unitPriceCents: unitPriceCents);
+    return BudgetItem(
+      description: description,
+      quantity: quantity,
+      unit: unit,
+      unitPriceCents: unitPriceCents,
+      aditivoNumber: aditivoNumber,
+    );
   }
 
   void dispose() {
@@ -172,6 +186,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                   quantity: item.quantity,
                   unit: item.unit,
                   unitPriceCents: item.unitPriceCents,
+                  aditivoNumber: item.aditivoNumber,
                 ))
             .toList()
         : [_ItemRowControllers()];
@@ -190,7 +205,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     super.dispose();
   }
 
-  void _addItemRow() => setState(() => _itemRows.add(_ItemRowControllers()));
+  /// Item novo criado enquanto `_editingAditivo` está ativo já nasce
+  /// marcado com o número do aditivo em registro — pedido do Franck: "o
+  /// aditivo... seja como um item a mais no orçamento, marcando como
+  /// aditivo". Os itens que já existiam antes de abrir o aditivo (ver
+  /// `initState`/`_cancelAditivo`) continuam com o selo que já tinham
+  /// (`null` = original), sem essa linha mexer neles.
+  void _addItemRow() => setState(() => _itemRows.add(
+        _ItemRowControllers(
+          aditivoNumber: _editingAditivo ? (widget.budget?.revisionNumber ?? 0) + 1 : null,
+        ),
+      ));
 
   void _removeItemRow(int index) {
     setState(() {
@@ -410,6 +435,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                     quantity: item.quantity,
                     unit: item.unit,
                     unitPriceCents: item.unitPriceCents,
+                    aditivoNumber: item.aditivoNumber,
                   ))
               .toList()
           : [_ItemRowControllers()];
@@ -540,13 +566,22 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Item ${index + 1}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Item ${index + 1}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    if (row.aditivoNumber != null) ...[
+                      const SizedBox(width: 8),
+                      AditivoBadge(number: row.aditivoNumber!, compact: true),
+                    ],
+                  ],
                 ),
               ),
               IconButton(
@@ -977,6 +1012,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             label: const Text('Cancelar orçamento'),
           ),
         ),
+        _registrarAditivoButton(busy),
         TextButton(
           onPressed: busy ? null : () => Navigator.of(context).pop(),
           child: const Text('Fechar'),
@@ -1001,6 +1037,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             label: const Text('Confirmar e agendar na agenda'),
           ),
         ),
+        _registrarAditivoButton(busy),
         TextButton.icon(
           onPressed: busy ? null : _rejectAsProvider,
           style: TextButton.styleFrom(
@@ -1013,14 +1050,44 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       ];
     }
 
-    // aceito / recusado — estado final, só fechar.
+    // aceito / recusado — estado final, só fechar (mais "Registrar
+    // aditivo" logo acima, pra quem ainda pode registrar um — ver
+    // `_registrarAditivoButton`).
     return [
+      _registrarAditivoButton(busy),
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
         child: const Text('Fechar'),
       ),
     ];
   }
+
+  /// Botão "Registrar aditivo" do rodapé fixo — pedido do Franck: ficar
+  /// logo ACIMA do botão "Fechar" (antes vivia lá em cima, dentro do
+  /// resumo somente-leitura que rola — ver `_buildReadOnlySummary`).
+  /// Devolve um widget vazio (sem altura) em vez de `null` pra caber
+  /// direto na lista de `children` de `_buildActions` sem precisar de um
+  /// `if`/spread em cada branch.
+  Widget _registrarAditivoButton(bool busy) {
+    final status = _status;
+    // Só faz sentido pra quem já viu o orçamento — não em `recusado`
+    // (fluxo encerrado, sem mais volta).
+    if (status == null || status == BudgetStatus.recusado) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: busy ? null : _startAditivo,
+        icon: const Icon(Icons.difference_outlined, size: 16),
+        label: const Text('Registrar aditivo (revisar itens/valor)'),
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(0, 32),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
   Widget _totalsRow(String label, String value, {bool bold = false}) {
     final style = TextStyle(
       fontSize: bold ? 18 : 14,
@@ -1144,9 +1211,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// serviço pro aceite final.
   Widget _buildReadOnlySummary(Budget budget) {
     final status = budget.status!;
-    // Aditivo (pedido do Franck) só faz sentido pra quem já viu o
-    // orçamento — não em `recusado` (fluxo encerrado, sem mais volta).
-    final canRegisterAditivo = status != BudgetStatus.recusado;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
       child: Column(
@@ -1157,36 +1221,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
               _statusChip(status),
               if (budget.revisionNumber > 0) ...[
                 const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'Aditivo nº ${budget.revisionNumber}',
-                    style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w700, fontSize: 12),
-                  ),
-                ),
+                AditivoBadge(number: budget.revisionNumber),
               ],
             ],
           ),
-          if (canRegisterAditivo) ...[
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _startAditivo,
-                icon: const Icon(Icons.difference_outlined, size: 16),
-                label: const Text('Registrar aditivo (revisar itens/valor)'),
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(0, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ),
-          ],
           const SizedBox(height: 12),
           if (status == BudgetStatus.recusado) ...[
             Text(_rejectedByLabel(budget.rejectedBy),
@@ -1284,7 +1322,18 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.description, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(item.description,
+                                  style: const TextStyle(fontWeight: FontWeight.w600)),
+                            ),
+                            if (item.aditivoNumber != null) ...[
+                              const SizedBox(width: 8),
+                              AditivoBadge(number: item.aditivoNumber!, compact: true),
+                            ],
+                          ],
+                        ),
                         Text(item.quantityLabel,
                             style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                       ],

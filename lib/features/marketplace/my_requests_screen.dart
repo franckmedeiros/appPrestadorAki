@@ -10,6 +10,7 @@ import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/app_list_card.dart';
 import '../budgets/models/budget.dart';
+import '../budgets/widgets/aditivo_badge.dart';
 import 'budget_requests_repository.dart';
 import 'client_auth_gate.dart';
 import 'models/service_category.dart';
@@ -471,22 +472,11 @@ class _BudgetDetailSheet extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
                   ),
                 ),
-                // Mesmo selo de "Aditivo nº X" que o prestador vê ao
+                // Mesmo selo (AditivoBadge) que o prestador vê ao
                 // editar (ver BudgetFormScreen) — o cliente também
                 // precisa saber que o valor foi revisado desde o pedido
                 // original.
-                if (budget.revisionNumber > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'Aditivo nº ${budget.revisionNumber}',
-                      style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w700, fontSize: 12),
-                    ),
-                  ),
+                if (budget.revisionNumber > 0) AditivoBadge(number: budget.revisionNumber),
               ],
             ),
             const SizedBox(height: 4),
@@ -507,6 +497,12 @@ class _BudgetDetailSheet extends StatelessWidget {
             const SizedBox(height: 18),
             const Text('Itens', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.ink)),
             const SizedBox(height: 8),
+            // Pedido do Franck: "eu sempre preciso ver o orçamento
+            // original e o aditivo... seja como um item a mais no
+            // orçamento, marcando como aditivo" — cada item acrescentado
+            // por um aditivo (ver BudgetItem.aditivoNumber) ganha o
+            // mesmo selo aqui, ao lado dos itens originais (nunca
+            // escondidos).
             for (final item in budget.items)
               Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -521,7 +517,18 @@ class _BudgetDetailSheet extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item.description, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(item.description,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                              ),
+                              if (item.aditivoNumber != null) ...[
+                                const SizedBox(width: 8),
+                                AditivoBadge(number: item.aditivoNumber!, compact: true),
+                              ],
+                            ],
+                          ),
                           Text(item.quantityLabel, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                         ],
                       ),

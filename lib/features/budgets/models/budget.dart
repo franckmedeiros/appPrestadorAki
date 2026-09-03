@@ -12,6 +12,7 @@ class BudgetItem {
     required this.quantity,
     required this.unitPriceCents,
     this.unit = 'serviço',
+    this.aditivoNumber,
   });
 
   factory BudgetItem.fromMap(Map<String, dynamic> map) => BudgetItem(
@@ -19,12 +20,25 @@ class BudgetItem {
         quantity: (map['quantity'] as num?)?.toDouble() ?? 1,
         unit: map['unit'] as String? ?? 'serviço',
         unitPriceCents: (map['unitPriceCents'] as num?)?.toInt() ?? 0,
+        aditivoNumber: (map['aditivoNumber'] as num?)?.toInt(),
       );
 
   final String description;
   final double quantity;
   final String unit;
   final int unitPriceCents;
+
+  /// `null` pro item ORIGINAL do orçamento; um número (1, 2, ...) pro
+  /// item que foi ACRESCENTADO por um aditivo — pedido do Franck: "eu
+  /// sempre preciso ver o orçamento original e o aditivo... seja como um
+  /// item a mais no orçamento, marcando como aditivo". Diferente do
+  /// desenho anterior (substituir a lista inteira de itens e guardar o
+  /// estado anterior à parte, numa subcoleção `versions` que ninguém via
+  /// na tela), agora o aditivo só ACRESCENTA item(ns) na MESMA lista — o
+  /// orçamento original nunca é escondido, só ganha linhas novas
+  /// marcadas com um selo "Aditivo nº N" (ver BudgetFormScreen/
+  /// MyRequestsScreen/budget_pdf.dart).
+  final int? aditivoNumber;
 
   int get totalCents => (quantity * unitPriceCents).round();
 
@@ -42,6 +56,7 @@ class BudgetItem {
         'quantity': quantity,
         'unit': unit,
         'unitPriceCents': unitPriceCents,
+        if (aditivoNumber != null) 'aditivoNumber': aditivoNumber,
       };
 }
 
