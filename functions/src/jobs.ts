@@ -21,7 +21,11 @@
  */
 
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { logger } from 'firebase-functions';
+import { FieldValue } from 'firebase-admin/firestore';
+import { db } from './lib/admin';
 import { notify } from './notifications';
+import { buildPixPayload } from './pix_payload';
 
 export const onJobStatusChanged = onDocumentUpdated(
   'providers/{providerId}/jobs/{jobId}',
@@ -43,17 +47,76 @@ export const onJobStatusChanged = onDocumentUpdated(
 
     const providerName = (after.providerName as string | undefined) || 'O prestador';
     const budgetId = after.budgetId as string | undefined;
+    const providerId = event.params.providerId as string;
 
     switch (afterStatus) {
       case 'aguardando_pagamento':
+        // Pedido do Franck: o cliente precisa ver o QR Code de pagamento
+        // dentro do próprio app, em "Meus orçamentos" — não só escanear a
+        // tela do prestador presencialmente. Como a chave Pix mora em
+        // `providers/{uid}.pixKey` (campo privado, não exposto no
+        // diretório público), quem monta o QR Code é esta function (com
+        // privilégio de administrador), e grava o resultado pronto no
+        // orçamento do cliente (`budgets/{budgetId}` deste mesmo
+        // prestador) — o app só precisa saber renderizar (ver
+        // MyRequestsScreen).
+        if (budgetId) {
+          try {
+            const providerSnap = await db.collection('providers').doc(providerId).get();
+            const pixKey = providerSnap.data()?.pixKey as string | undefined;
+            const totalCents = (after.totalCents as number | undefined) ?? 0;
+            if (pixKey && pixKey.trim().length > 0 && totalCents > 0) {
+              const payload = buildPixPayload({
+                pixKey,
+                amountCents: totalCents,
+                merchantName: providerName,
+                referenceLabel: event.params.jobId as string,
+              });
+              await db
+                .collection('providers')
+                .doc(providerId)
+                .collection('budgets')
+                .doc(budgetId)
+                .set(
+                  {
+                    paymentPixPayload: payload,
+                    paymentAmountCents: totalCents,
+                    paymentRequestedAt: FieldValue.serverTimestamp(),
+                    paymentPaidAt: FieldValue.delete(),
+                    updatedAt: FieldValue.serverTimestamp(),
+                  },
+                  { merge: true },
+                );
+            } else {
+              logger.warn(
+                `onJobStatusChanged: prestador ${providerId} sem chave Pix cadastrada (ou totalCents zerado) — QR Code não gerado pro orçamento ${budgetId}`,
+              );
+            }
+          } catch (e) {
+            // O aviso ao cliente (abaixo) não depende disso — se o QR
+            // Code falhar por qualquer motivo, o prestador ainda pode
+            // mostrar a cobrança presencialmente pela tela dele (ver
+            // JobDetailsSheet/_PaymentQrCode no app).
+            logger.warn('onJobStatusChanged: falha ao gravar QR Code Pix no orçamento', e);
+          }
+        }
         await notify(clientUid, {
           type: 'servico_aguardando_pagamento',
           title: 'Pagamento disponível',
-          body: `${providerName} concluiu o serviço — escaneie o QR Code Pix no app dele pra pagar.`,
+          body: `${providerName} concluiu o serviço — pague pelo QR Code Pix direto em "Meus orçamentos".`,
           budgetId,
         });
         return;
       case 'concluido':
+        if (budgetId) {
+          await db
+            .collection('providers')
+            .doc(providerId)
+            .collection('budgets')
+            .doc(budgetId)
+            .set({ paymentPaidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+            .catch((e) => logger.warn('onJobStatusChanged: falha ao marcar pagamento como confirmado', e));
+        }
         await notify(clientUid, {
           type: 'servico_concluido',
           title: 'Como foi o serviço?',

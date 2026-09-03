@@ -119,6 +119,11 @@ class Budget {
     this.serviceDurationMinutes,
     this.appointmentId,
     this.createdAt,
+    this.paymentPixPayload,
+    this.paymentAmountCents,
+    this.paymentRequestedAt,
+    this.paymentPaidAt,
+    this.archivedByClient = false,
   });
 
   factory Budget.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -149,6 +154,11 @@ class Budget {
       serviceDurationMinutes: (data['serviceDurationMinutes'] as num?)?.toInt(),
       appointmentId: data['appointmentId'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      paymentPixPayload: data['paymentPixPayload'] as String?,
+      paymentAmountCents: (data['paymentAmountCents'] as num?)?.toInt(),
+      paymentRequestedAt: (data['paymentRequestedAt'] as Timestamp?)?.toDate(),
+      paymentPaidAt: (data['paymentPaidAt'] as Timestamp?)?.toDate(),
+      archivedByClient: data['archivedByClient'] as bool? ?? false,
     );
   }
 
@@ -204,6 +214,36 @@ class Budget {
   final int? serviceDurationMinutes;
   final String? appointmentId;
   final DateTime? createdAt;
+
+  /// Os quatro campos abaixo só existem em orçamentos vindos de um
+  /// pedido de cliente pelo marketplace, e só são gravados pelo Admin
+  /// SDK (ver `functions/src/jobs.ts` — `onJobStatusChanged`), nunca pelo
+  /// app: quando o serviço (Job, ver `JobStatus`) entra em "aguardando
+  /// pagamento", a function monta o QR Code Pix (a chave mora em
+  /// `providers/{uid}.pixKey`, campo privado que o cliente não tem como
+  /// ler direto) e grava aqui, pra "Meus orçamentos" mostrar o QR Code
+  /// sem precisar o cliente estar presencialmente com o prestador (pedido
+  /// do Franck: "deve ser enviado via app"). Por isso NÃO entram em
+  /// `toMap()` abaixo — o app nunca deveria escrever neles.
+  final String? paymentPixPayload;
+  final int? paymentAmountCents;
+  final DateTime? paymentRequestedAt;
+
+  /// Preenchido quando o serviço é concluído (`JobStatus.concluido`) —
+  /// usado só pra trocar o call-to-action "pagar agora" por uma
+  /// confirmação depois que o prestador já bateu o pagamento como
+  /// recebido (ver JobDetailsSheet — "Confirmar pagamento e concluir").
+  final DateTime? paymentPaidAt;
+
+  /// Marca só pro CLIENTE esconder um pedido antigo da lista padrão de
+  /// "Meus orçamentos" (pedido do Franck) — não afeta a visão do
+  /// prestador em "Orçamentos" nenhum pouco (é um campo por conta, não
+  /// uma exclusão). Gravado pelo próprio cliente via
+  /// `BudgetRequestsRepository.setArchivedByClient` — ver regra dedicada
+  /// em firestore.rules que libera só ESSE campo pra ele, mesmo fora da
+  /// janela estreita de transição de `status` que as outras regras de
+  /// update do cliente exigem.
+  final bool archivedByClient;
 
   /// Se veio de um pedido de cliente pelo marketplace (em vez de criado
   /// manualmente pelo prestador).
@@ -273,5 +313,10 @@ class Budget {
         serviceDurationMinutes: serviceDurationMinutes,
         appointmentId: appointmentId,
         createdAt: createdAt,
+        paymentPixPayload: paymentPixPayload,
+        paymentAmountCents: paymentAmountCents,
+        paymentRequestedAt: paymentRequestedAt,
+        paymentPaidAt: paymentPaidAt,
+        archivedByClient: archivedByClient,
       );
 }

@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/currency_text_utils.dart';
@@ -37,6 +39,12 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   // esta aqui pra recarregar. Ver BudgetRequestsRepository.watchMine.
   Stream<List<Budget>>? _stream;
   String? _streamForUid;
+
+  // Pedido do Franck: opção de arquivar pedidos antigos em "Meus
+  // orçamentos" — não é uma consulta separada (só um filtro local em
+  // cima do mesmo `_stream`, ver `archivedByClient` em Budget), porque a
+  // lista inteira do cliente já é pequena o bastante pra isso não pesar.
+  bool _showArchived = false;
 
   void _ensureStream(String uid) {
     if (_streamForUid == uid) return;
@@ -74,6 +82,18 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     if (await ensureClientAccount(context) && mounted) setState(() {});
   }
 
+  Future<void> _setArchived(Budget budget, bool archived) async {
+    try {
+      await context.read<BudgetRequestsRepository>().setArchivedByClient(budget, archived);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(archived ? 'Não foi possível arquivar agora.' : 'Não foi possível desarquivar agora.')),
+      );
+    }
+    // Stream — a lista já atualiza sozinha, mesmo raciocínio de _respond.
+  }
+
   Future<void> _respond(Budget budget, bool approved) async {
     try {
       final repository = context.read<BudgetRequestsRepository>();
@@ -90,6 +110,54 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     }
     // Não precisa recarregar manualmente: a tela usa watchMine() (Stream),
     // então a lista já atualiza sozinha quando o status muda.
+  }
+
+  /// Junta o QR Code de pagamento (quando o prestador já mandou cobrar —
+  /// ver `Budget.paymentPixPayload`/`functions/src/jobs.ts`) com o que já
+  /// existia no rodapé do card (aprovar/recusar, ou o link pra avaliar) —
+  /// os dois podem coexistir (ex.: já pagou mas ainda não avaliou).
+  Widget? _buildFooter(Budget budget, {required bool awaitingDecision, required bool accepted}) {
+    final Widget? decisionOrRating = awaitingDecision
+        ? Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => _respond(budget, false),
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                child: const Text('Recusar'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: () => _respond(budget, true),
+                child: const Text('Aprovar'),
+              ),
+            ],
+          )
+        : accepted && budget.providerDirectoryId != null
+            ? Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => context.push('/prestador/${budget.providerDirectoryId}'),
+                  icon: const Icon(Icons.star_outline, size: 16),
+                  label: const Text('Avaliar este prestador'),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              )
+            : null;
+
+    final showPayment = budget.paymentPixPayload != null;
+    if (!showPayment) return decisionOrRating;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _PaymentSection(budget: budget),
+        if (decisionOrRating != null) ...[const SizedBox(height: 10), decisionOrRating],
+      ],
+    );
   }
 
   @override
@@ -111,7 +179,17 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Meus orçamentos')),
+      appBar: AppBar(
+        title: const Text('Meus orçamentos'),
+        actions: [
+          if (isClient)
+            IconButton(
+              tooltip: _showArchived ? 'Ver pedidos ativos' : 'Ver arquivados',
+              icon: Icon(_showArchived ? Icons.inbox_outlined : Icons.archive_outlined),
+              onPressed: () => setState(() => _showArchived = !_showArchived),
+            ),
+        ],
+      ),
       body: !isClient
           ? ClientSignInPrompt(
               icon: Icons.list_alt_outlined,
@@ -149,15 +227,28 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     ],
                   );
                 }
-                final budgets = snapshot.data ?? [];
+                // Filtro local de arquivados (ver `_showArchived` acima) —
+                // não é uma consulta separada, `watchMine()` já traz tudo.
+                final budgets = (snapshot.data ?? [])
+                    .where((budget) => budget.archivedByClient == _showArchived)
+                    .toList();
                 if (budgets.isEmpty) {
                   return ListView(
-                    children: const [
-                      SizedBox(height: 80),
-                      Icon(Icons.list_alt_outlined, size: 48, color: AppColors.muted),
-                      SizedBox(height: 12),
-                      Text('Nenhum pedido de orçamento enviado ainda.',
-                          textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+                    children: [
+                      const SizedBox(height: 80),
+                      Icon(
+                        _showArchived ? Icons.inbox_outlined : Icons.list_alt_outlined,
+                        size: 48,
+                        color: AppColors.muted,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _showArchived
+                            ? 'Nenhum pedido arquivado.'
+                            : 'Nenhum pedido de orçamento enviado ainda.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.muted),
+                      ),
                     ],
                   );
                 }
@@ -176,30 +267,49 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       leading: AppListCard.iconAvatar(category?.icon ?? Icons.handyman_rounded),
                       title: budget.providerName ?? 'Prestador',
                       subtitle: budget.requestDescription ?? '',
-                      trailing: Column(
+                      trailing: Row(
                         mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Pedido do Franck: mostrar a data do pedido no
-                          // card (a lista já vem ordenada da mais recente
-                          // pra mais antiga — ver
-                          // BudgetRequestsRepository.watchMine).
-                          Text(
-                            budget.createdAt != null
-                                ? formatDateDdMmYyyy(budget.createdAt!)
-                                : formatDateDdMmYyyy(budget.date),
-                            style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              // Pedido do Franck: mostrar a data do pedido no
+                              // card (a lista já vem ordenada da mais recente
+                              // pra mais antiga — ver
+                              // BudgetRequestsRepository.watchMine).
+                              Text(
+                                budget.createdAt != null
+                                    ? formatDateDdMmYyyy(budget.createdAt!)
+                                    : formatDateDdMmYyyy(budget.date),
+                                style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(status?.label ?? '',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                              if (status != null &&
+                                  status != BudgetStatus.pendente &&
+                                  budget.totalCents > 0)
+                                Text(
+                                  formatCentsBRL(budget.totalCents),
+                                  style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                                ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(status?.label ?? '',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                          if (status != null &&
-                              status != BudgetStatus.pendente &&
-                              budget.totalCents > 0)
-                            Text(
-                              formatCentsBRL(budget.totalCents),
-                              style: const TextStyle(fontSize: 12, color: AppColors.muted),
-                            ),
+                          // Arquivar/desarquivar (pedido do Franck) — cabe
+                          // em qualquer status, por isso fica separado do
+                          // fluxo de aprovar/recusar/avaliar abaixo.
+                          PopupMenuButton<void>(
+                            icon: const Icon(Icons.more_vert, size: 18, color: AppColors.muted),
+                            padding: EdgeInsets.zero,
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                onTap: () => _setArchived(budget, !budget.archivedByClient),
+                                child: Text(budget.archivedByClient ? 'Desarquivar' : 'Arquivar'),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                       // Só orçamentos aceitos liberam avaliação (ver
@@ -207,43 +317,92 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       // leva pro perfil público, onde a seção de avaliação
                       // de verdade mora (evita duplicar o formulário de
                       // estrelas em duas telas).
-                      footer: awaitingDecision
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                TextButton(
-                                  onPressed: () => _respond(budget, false),
-                                  style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-                                  child: const Text('Recusar'),
-                                ),
-                                const SizedBox(width: 8),
-                                FilledButton(
-                                  onPressed: () => _respond(budget, true),
-                                  child: const Text('Aprovar'),
-                                ),
-                              ],
-                            )
-                          : accepted && budget.providerDirectoryId != null
-                              ? Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: TextButton.icon(
-                                    onPressed: () =>
-                                        context.push('/prestador/${budget.providerDirectoryId}'),
-                                    icon: const Icon(Icons.star_outline, size: 16),
-                                    label: const Text('Avaliar este prestador'),
-                                    style: TextButton.styleFrom(
-                                      padding: EdgeInsets.zero,
-                                      minimumSize: const Size(0, 32),
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                  ),
-                                )
-                              : null,
+                      footer: _buildFooter(budget, awaitingDecision: awaitingDecision, accepted: accepted),
                     );
                   },
                 );
               },
             ),
+    );
+  }
+}
+
+/// QR Code Pix pronto (já montado pelo servidor — ver `Budget.
+/// paymentPixPayload`/`functions/src/jobs.ts`), mostrado direto em "Meus
+/// orçamentos" — pedido do Franck: "deve aparecer em meus orçamentos o
+/// qrcode pra pagar. deve ser enviado via app" (antes só dava pra pagar
+/// escaneando a tela do PRESTADOR presencialmente, ver
+/// JobDetailsSheet/_PaymentQrCode). Depois que o prestador confirma o
+/// recebimento (`Budget.paymentPaidAt`, serviço concluído), vira um aviso
+/// de "pago" em vez do QR Code — evita alguém pagar de novo por engano.
+class _PaymentSection extends StatelessWidget {
+  const _PaymentSection({required this.budget});
+
+  final Budget budget;
+
+  @override
+  Widget build(BuildContext context) {
+    if (budget.paymentPaidAt != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, size: 18, color: AppColors.success),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Pagamento confirmado pelo prestador.',
+                style: TextStyle(fontSize: 12.5, color: AppColors.success, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final payload = budget.paymentPixPayload;
+    if (payload == null) return const SizedBox.shrink();
+    final amountCents = budget.paymentAmountCents ?? budget.totalCents;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.muted.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          const Text('Pagamento via Pix disponível', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text(
+            'Escaneie com o app do seu banco ou copie o código abaixo.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11.5, color: AppColors.muted),
+          ),
+          const SizedBox(height: 12),
+          QrImageView(data: payload, size: 160, backgroundColor: Colors.white),
+          const SizedBox(height: 12),
+          Text(
+            formatCentsBRL(amountCents),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.primary),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: payload));
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(const SnackBar(content: Text('Código Pix copiado!')));
+            },
+            icon: const Icon(Icons.copy),
+            label: const Text('Copiar código Pix'),
+          ),
+        ],
+      ),
     );
   }
 }

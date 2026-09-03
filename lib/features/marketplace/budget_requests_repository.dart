@@ -110,6 +110,28 @@ class BudgetRequestsRepository {
     }
   }
 
+  /// Arquiva/desarquiva, só pro CLIENTE, um pedido de "Meus orçamentos"
+  /// (pedido do Franck) — não apaga nada, só marca `archivedByClient` pra
+  /// essa tela deixar de mostrar por padrão. Precisa de uma regra própria
+  /// em firestore.rules (fora da janela estreita de transição de
+  /// `status` que as outras respostas do cliente exigem — ver `_respond`
+  /// acima), porque este campo pode mudar em QUALQUER status, a qualquer
+  /// momento, nos dois sentidos.
+  Future<void> setArchivedByClient(Budget budget, bool archived) async {
+    final providerUid = budget.providerUid;
+    if (providerUid == null) {
+      throw ApiException(0, 'Este orçamento não tem um prestador associado.');
+    }
+    try {
+      await _budgetsOf(providerUid).doc(budget.id).set({
+        'archivedByClient': archived,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível arquivar o pedido.');
+    }
+  }
+
   /// Usado como condição pra liberar a avaliação por estrelas (ver
   /// `ProviderDirectoryRepository.rate`): só quem já teve um orçamento
   /// aceito com esse prestador pode avaliar — evita nota de quem nunca
