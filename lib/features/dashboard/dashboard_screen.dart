@@ -235,8 +235,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               for (final job in jobsSnapshot.data ?? const <Job>[])
                                 if (job.appointmentId != null) job.appointmentId!: job,
                             };
+                            // Pedido do Franck: "quando concluído os
+                            // serviços, pode saindo do Compromisso hoje" —
+                            // uma vez que o Job ligado já foi marcado como
+                            // concluído (pagamento confirmado, serviço
+                            // encerrado), o compromisso não precisa mais
+                            // aparecer aqui — quem quiser revisitar um
+                            // serviço antigo já concluído continua achando
+                            // ele em "Serviços" (Kanban) ou na própria
+                            // Agenda, só some deste atalho do Dashboard.
+                            final visibleToday = today
+                                .where((appointment) =>
+                                    jobsByAppointmentId[appointment.id]?.status != JobStatus.concluido)
+                                .toList();
+                            if (visibleToday.isEmpty) {
+                              return _TodayEmptyState(onGoToAgenda: () => context.push('/agenda'));
+                            }
                             return _TodayAppointmentsList(
-                              appointments: today,
+                              appointments: visibleToday,
                               jobsByAppointmentId: jobsByAppointmentId,
                             );
                           },

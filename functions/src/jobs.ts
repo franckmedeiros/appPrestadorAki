@@ -36,7 +36,22 @@ export const onJobStatusChanged = onDocumentUpdated(
 
     const beforeStatus = before.status as string | undefined;
     const afterStatus = after.status as string | undefined;
-    if (!afterStatus || beforeStatus === afterStatus) return;
+    if (!afterStatus) return;
+
+    // Pedido do Franck: depois de um aditivo num orçamento JÁ aceito
+    // (ver BudgetsRepository.acceptFinal — reconfirmação), o valor da
+    // cobrança precisa ser reenviado com o valor NOVO — inclusive quando
+    // o Job já estava em "aguardando_pagamento" (cobrança/QR Code Pix já
+    // mandados antes do aditivo, com o valor antigo). Sem este caso
+    // extra, `beforeStatus === afterStatus` faria essa function ignorar
+    // a atualização — o app só troca `totalCents`, nunca a raia, quando
+    // o Job já estava aguardando pagamento (ver
+    // JobsRepository.syncTotalFromAditivo).
+    const isRepriceWhileAwaitingPayment =
+      afterStatus === 'aguardando_pagamento' &&
+      beforeStatus === 'aguardando_pagamento' &&
+      (before.totalCents as number | undefined) !== (after.totalCents as number | undefined);
+    if (beforeStatus === afterStatus && !isRepriceWhileAwaitingPayment) return;
 
     // Só jobs vindos de um pedido de cliente pelo marketplace têm
     // `clientUid` pra avisar (ver `Job.clientUid`) — na prática hoje todo
@@ -102,8 +117,10 @@ export const onJobStatusChanged = onDocumentUpdated(
         }
         await notify(clientUid, {
           type: 'servico_aguardando_pagamento',
-          title: 'Pagamento disponível',
-          body: `${providerName} concluiu o serviço — pague pelo QR Code Pix direto em "Meus orçamentos".`,
+          title: isRepriceWhileAwaitingPayment ? 'Valor da cobrança atualizado' : 'Pagamento disponível',
+          body: isRepriceWhileAwaitingPayment
+            ? `${providerName} atualizou o valor do serviço — confira o novo QR Code Pix em "Meus orçamentos".`
+            : `${providerName} concluiu o serviço — pague pelo QR Code Pix direto em "Meus orçamentos".`,
           budgetId,
         });
         return;

@@ -76,6 +76,42 @@ class JobsRepository {
     }
   }
 
+  /// Atualiza o valor do Job já existente ligado a um orçamento — pedido
+  /// do Franck: "depois de aceito, preciso reenviar o valor do aditivo
+  /// via qrcode ou o valor total novamente para pagamento". Chamado só
+  /// por `BudgetsRepository.acceptFinal` quando o prestador reconfirma um
+  /// orçamento que já tinha sido aceito antes (um aditivo mudou o valor
+  /// e o cliente aprovou a revisão) — nesse caso NÃO nasce um Job novo
+  /// (ver `create` acima), só atualiza o valor do que já existe.
+  ///
+  /// Busca pelo `budgetId` (1:1 com o orçamento) em vez de exigir o id do
+  /// Job à parte — ninguém guarda essa referência fora daqui, então seria
+  /// só mais um campo cruzado pra manter sincronizado.
+  ///
+  /// Só atualizar `totalCents` já basta: se o Job ainda não chegou em
+  /// "aguardando pagamento", o valor novo é o que vai valer quando
+  /// chegar. Se JÁ estava em "aguardando pagamento" (cobrança/QR Code Pix
+  /// já enviados com o valor antigo), a escrita abaixo muda `totalCents`
+  /// mesmo sem trocar de raia — é exatamente essa mudança que
+  /// `functions/src/jobs.ts` (onJobStatusChanged) está de olho pra
+  /// regerar o QR Code com o valor novo e avisar o cliente de novo, sem
+  /// precisar de nenhuma tela nova aqui no app.
+  Future<void> syncTotalFromAditivo({
+    required String budgetId,
+    required int totalCents,
+  }) async {
+    try {
+      final snapshot = await _collection.where('budgetId', isEqualTo: budgetId).limit(1).get();
+      if (snapshot.docs.isEmpty) return;
+      await snapshot.docs.first.reference.update({
+        'totalCents': totalCents,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível atualizar o valor do serviço.');
+    }
+  }
+
   /// Avança (ou volta, ex.: interrompido -> em andamento) o serviço pra
   /// outra raia do Kanban — `paidAt`/`completedAt` só fazem sentido nas
   /// transições correspondentes (ver chamadas em JobsKanbanScreen).

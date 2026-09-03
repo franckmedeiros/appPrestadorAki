@@ -1058,6 +1058,14 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     }
 
     if (status == BudgetStatus.aprovado) {
+      // Pedido do Franck: depois de um aditivo em cima de um orçamento
+      // JÁ aceito, esta mesma tela volta pra `aprovado` de novo (cliente
+      // reaprovou a revisão) — mas dessa vez `acceptFinal` não cria um
+      // compromisso/Job novo, só atualiza os que já existem (ver
+      // `BudgetsRepository.acceptFinal`/`widget.budget!.appointmentId`).
+      // O rótulo muda pra deixar isso claro em vez de repetir "agendar"
+      // como se fosse a primeira vez.
+      final isReconfirmation = widget.budget?.appointmentId != null;
       return [
         SizedBox(
           width: double.infinity,
@@ -1071,7 +1079,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.event_available_outlined, size: 18),
-            label: const Text('Confirmar e agendar na agenda'),
+            label: Text(
+              isReconfirmation
+                  ? 'Confirmar revisão e atualizar agendamento'
+                  : 'Confirmar e agendar na agenda',
+            ),
           ),
         ),
         _registrarAditivoButton(busy),

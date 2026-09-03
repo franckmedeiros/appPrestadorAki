@@ -216,35 +216,70 @@ class BudgetsRepository {
   /// agendado para aquele dia/hora" / "Bloquear e pedir outro horário").
   /// A data/hora do serviço só é definida agora, neste passo — é o que o
   /// Franck escolheu quando perguntado ("No aceite final do prestador").
+  ///
+  /// RECONFIRMAÇÃO (`budget.appointmentId` já preenchido): acontece
+  /// quando um orçamento JÁ aceito antes recebe um aditivo (ver
+  /// `registerAditivo`), o cliente aprova a revisão, e o prestador passa
+  /// de novo por "Confirmar e agendar" — pedido do Franck: "Para os
+  /// aditivos não precisa ter essa trava" (a checagem de conflito não
+  /// pode barrar o compromisso contra ELE MESMO) + "depois de aceito,
+  /// preciso reenviar o valor do aditivo via qrcode ou o valor total
+  /// novamente para pagamento". Nesse caso o compromisso/Job que já
+  /// existem são ATUALIZADOS no lugar (nunca duplicados) e o valor do
+  /// Job é resincronizado — ver `JobsRepository.syncTotalFromAditivo`
+  /// pra como isso reabre a cobrança/QR Code Pix quando já tinha sido
+  /// enviada com o valor antigo.
   Future<void> acceptFinal(
     Budget budget, {
     required DateTime serviceScheduledAt,
     int serviceDurationMinutes = 60,
   }) async {
+    final isReconfirmation = budget.appointmentId != null;
     try {
       final conflict = await _appointments.hasConflict(
         scheduledAt: serviceScheduledAt,
         durationMinutes: serviceDurationMinutes,
+        excludeAppointmentId: budget.appointmentId,
       );
       if (conflict) throw BudgetScheduleConflictException();
 
-      final appointment = await _appointments.create(
-        customerId: budget.customerId,
-        customerName: budget.customerName,
-        type: AppointmentType.servico,
-        scheduledAt: serviceScheduledAt,
-        durationMinutes: serviceDurationMinutes,
-        addressText: budget.addressText,
-        observations: budget.requestDescription,
-        budgetId: budget.id,
-      );
+      // Na reconfirmação o id do compromisso não muda — é o MESMO
+      // compromisso, só atualizado no lugar (`update`), nunca um novo
+      // (`create`) — por isso não precisa reler o documento pra saber o
+      // id, já era conhecido (`budget.appointmentId`).
+      final String appointmentId;
+      if (isReconfirmation) {
+        appointmentId = budget.appointmentId!;
+        await _appointments.update(
+          appointmentId,
+          customerId: budget.customerId,
+          customerName: budget.customerName,
+          type: AppointmentType.servico,
+          scheduledAt: serviceScheduledAt,
+          durationMinutes: serviceDurationMinutes,
+          addressText: budget.addressText,
+          observations: budget.requestDescription,
+        );
+      } else {
+        final appointment = await _appointments.create(
+          customerId: budget.customerId,
+          customerName: budget.customerName,
+          type: AppointmentType.servico,
+          scheduledAt: serviceScheduledAt,
+          durationMinutes: serviceDurationMinutes,
+          addressText: budget.addressText,
+          observations: budget.requestDescription,
+          budgetId: budget.id,
+        );
+        appointmentId = appointment.id;
+      }
 
       await _collection.doc(budget.id).set({
         'providerUid': _auth.currentUser!.uid,
         'status': BudgetStatus.aceito.wireValue,
         'serviceScheduledAt': Timestamp.fromDate(serviceScheduledAt),
         'serviceDurationMinutes': serviceDurationMinutes,
-        'appointmentId': appointment.id,
+        'appointmentId': appointmentId,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -255,36 +290,46 @@ class BudgetsRepository {
       // `providerDirectoryId` pra alimentar as notificações de mudança de
       // etapa (ver functions/src/jobs.ts); um orçamento manual do
       // prestador não gera Job nenhum (não tem cliente do app pra
-      // acompanhar).
+      // acompanhar). Numa reconfirmação o Job já existe — só sincroniza o
+      // valor (ver `syncTotalFromAditivo`), nunca cria um segundo.
       //
       // Try/catch PRÓPRIO aqui (em vez de deixar cair no `on FirebaseException`
       // /genérico lá embaixo): nesse ponto o compromisso na Agenda e o
       // status "aceito" do orçamento JÁ foram gravados com sucesso — se a
-      // criação do Job falhar por qualquer motivo, o prestador precisa
-      // saber EXATAMENTE disso (e não só ver um "não foi possível
-      // confirmar o orçamento" genérico, que soa como se nada tivesse
-      // sido salvo, escondendo a causa real — mesmo cuidado que já
-      // tomamos antes com erro de Firestore engolido em outras telas).
+      // criação/atualização do Job falhar por qualquer motivo, o
+      // prestador precisa saber EXATAMENTE disso (e não só ver um "não
+      // foi possível confirmar o orçamento" genérico, que soa como se
+      // nada tivesse sido salvo, escondendo a causa real — mesmo cuidado
+      // que já tomamos antes com erro de Firestore engolido em outras
+      // telas).
       if (budget.isFromClientRequest) {
         try {
-          await _jobs.create(
-            customerName: budget.customerName,
-            totalCents: budget.totalCents,
-            budgetId: budget.id,
-            appointmentId: appointment.id,
-            clientUid: budget.clientUid,
-            providerDirectoryId: budget.providerDirectoryId,
-            providerName: budget.providerName,
-            category: budget.category,
-            addressText: budget.addressText,
-          );
+          if (isReconfirmation) {
+            await _jobs.syncTotalFromAditivo(budgetId: budget.id, totalCents: budget.totalCents);
+          } else {
+            await _jobs.create(
+              customerName: budget.customerName,
+              totalCents: budget.totalCents,
+              budgetId: budget.id,
+              appointmentId: appointmentId,
+              clientUid: budget.clientUid,
+              providerDirectoryId: budget.providerDirectoryId,
+              providerName: budget.providerName,
+              category: budget.category,
+              addressText: budget.addressText,
+            );
+          }
         } catch (e) {
-          debugPrint('BudgetsRepository.acceptFinal: falha ao criar o Job: $e');
+          debugPrint('BudgetsRepository.acceptFinal: falha ao sincronizar o Job: $e');
           throw ApiException(
             0,
-            'O serviço foi agendado e o orçamento foi aceito, mas não foi '
-            'possível criar o registro em "Serviços" ($e). Avise o suporte '
-            'com essa mensagem.',
+            isReconfirmation
+                ? 'O agendamento foi atualizado e o orçamento foi aceito, mas não '
+                    'foi possível atualizar o valor em "Serviços" ($e). Avise o '
+                    'suporte com essa mensagem.'
+                : 'O serviço foi agendado e o orçamento foi aceito, mas não foi '
+                    'possível criar o registro em "Serviços" ($e). Avise o suporte '
+                    'com essa mensagem.',
           );
         }
       }
