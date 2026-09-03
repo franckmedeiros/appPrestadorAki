@@ -124,6 +124,7 @@ class Budget {
     this.paymentRequestedAt,
     this.paymentPaidAt,
     this.archivedByClient = false,
+    this.revisionNumber = 0,
   });
 
   factory Budget.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -159,6 +160,7 @@ class Budget {
       paymentRequestedAt: (data['paymentRequestedAt'] as Timestamp?)?.toDate(),
       paymentPaidAt: (data['paymentPaidAt'] as Timestamp?)?.toDate(),
       archivedByClient: data['archivedByClient'] as bool? ?? false,
+      revisionNumber: (data['revisionNumber'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -245,6 +247,16 @@ class Budget {
   /// update do cliente exigem.
   final bool archivedByClient;
 
+  /// Contagem de aditivos já registrados neste orçamento (0 = nunca
+  /// revisado) — pedido do Franck: "quando o orçamento sofrer revisão,
+  /// realizar a opção de aditivo de orçamento". Cada aditivo grava uma
+  /// "foto" do estado anterior em `versions` (ver
+  /// `BudgetsRepository.registerAditivo`) e atualiza `date` pra data do
+  /// aditivo — é por isso que `date` (usado no PDF e no card do cliente)
+  /// sempre reflete a revisão mais recente, nunca a data de criação
+  /// original (essa fica só em `createdAt`, que nunca muda).
+  final int revisionNumber;
+
   /// Se veio de um pedido de cliente pelo marketplace (em vez de criado
   /// manualmente pelo prestador).
   bool get isFromClientRequest => clientUid != null;
@@ -279,6 +291,7 @@ class Budget {
         if (serviceDurationMinutes != null)
           'serviceDurationMinutes': serviceDurationMinutes,
         if (appointmentId != null) 'appointmentId': appointmentId,
+        'revisionNumber': revisionNumber,
       };
 
   Budget copyWith({
@@ -318,5 +331,6 @@ class Budget {
         paymentRequestedAt: paymentRequestedAt,
         paymentPaidAt: paymentPaidAt,
         archivedByClient: archivedByClient,
+        revisionNumber: revisionNumber,
       );
 }

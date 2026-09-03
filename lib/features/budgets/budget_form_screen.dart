@@ -134,6 +134,28 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   bool _generatingPdf = false;
   String? _error;
 
+  // Aditivo (pedido do Franck: "quando o orçamento sofrer revisão,
+  // realizar a opção de aditivo de orçamento") — reabre o formulário
+  // completo de itens/preço mesmo com `_isReadOnlyStatus == true`, só
+  // pra ESSE fluxo específico (ver `_startAditivo`/`_cancelAditivo`).
+  // Data separada de `_dateController` DE PROPÓSITO: em `aprovado`,
+  // `_dateController` já é reaproveitado por `_buildReadOnlySummary`
+  // pra outra coisa (a data do SERVIÇO, ver `_acceptFinal`) — misturar
+  // os dois ia confundir o valor de um com o do outro.
+  bool _editingAditivo = false;
+  late final _aditivoDateController =
+      TextEditingController(text: formatDateDdMmYyyy(DateTime.now()));
+
+  /// Campo de data "ativo" no formulário completo — o normal
+  /// (`_dateController`, data do orçamento) ou, durante um aditivo, o
+  /// dedicado (`_aditivoDateController`, data do aditivo). Único ponto
+  /// usado tanto por `_buildBudgetFromForm` (validação/PDF) quanto pelo
+  /// campo "Data" mostrado na tela — nunca diverge um do outro.
+  TextEditingController get _activeDateController =>
+      _editingAditivo ? _aditivoDateController : _dateController;
+
+  Future<void> _pickActiveDate() => _editingAditivo ? _pickAditivoDate() : _pickDate();
+
   @override
   void initState() {
     super.initState();
@@ -159,6 +181,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   void dispose() {
     _addressController.dispose();
     _dateController.dispose();
+    _aditivoDateController.dispose();
     _discountController.dispose();
     _observationsController.dispose();
     for (final row in _itemRows) {
@@ -188,6 +211,21 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       lastDate: DateTime(current.year + 2),
     );
     if (picked != null) setState(() => _dateController.text = formatDateDdMmYyyy(picked));
+  }
+
+  /// Mesma lógica de `_pickDate`, mas pro campo dedicado do aditivo (ver
+  /// `_aditivoDateController`) — permite ajustar pra uma data passada
+  /// (ex.: o acordo do aditivo foi fechado há alguns dias) sem mexer na
+  /// data original do orçamento.
+  Future<void> _pickAditivoDate() async {
+    final current = tryParseDateDdMmYyyy(_aditivoDateController.text) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(current.year - 2),
+      lastDate: DateTime(current.year + 2),
+    );
+    if (picked != null) setState(() => _aditivoDateController.text = formatDateDdMmYyyy(picked));
   }
 
   Future<void> _pickServiceTime() async {
@@ -237,9 +275,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       setState(() => _error = 'Selecione um cliente.');
       return null;
     }
-    final date = tryParseDateDdMmYyyy(_dateController.text.trim());
+    final date = tryParseDateDdMmYyyy(_activeDateController.text.trim());
     if (date == null) {
-      setState(() => _error = 'Data inválida.');
+      setState(() => _error = _editingAditivo ? 'Data do aditivo inválida.' : 'Data inválida.');
       return null;
     }
     final customers = await _customersFuture;
@@ -263,6 +301,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       items: items,
       discountCents: tryParseCentsFromText(_discountController.text) ?? 0,
       observations: _observationsController.text.trim(),
+      // Só pra o PDF (ver _generatePdf) já mostrar "ADITIVO Nº X" durante
+      // a edição, antes de salvar — o valor que realmente conta é o
+      // gravado por `registerAditivo` (ver `_save`).
+      revisionNumber:
+          _editingAditivo ? (widget.budget?.revisionNumber ?? 0) + 1 : (widget.budget?.revisionNumber ?? 0),
     );
   }
 
@@ -275,11 +318,19 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       final budget = await _buildBudgetFromForm();
       if (budget == null) return;
       final repository = context.read<BudgetsRepository>();
-      // `_buildBudgetFromForm` já preenche `id` com `widget.budget!.id`
-      // quando `_isEditing` — só falta escolher qual método do
-      // repositório usar (update ignora o id passado em `create`, e
-      // vice-versa não faria sentido).
-      if (_status == BudgetStatus.pendente) {
+      if (_editingAditivo) {
+        // Registra o aditivo (ver BudgetsRepository.registerAditivo) —
+        // NUNCA passa por update()/create(): itens/valor/data revisados
+        // vêm do form, mas status/clientUid/etc. do orçamento ORIGINAL
+        // (widget.budget!) é quem decide o que muda no documento.
+        await repository.registerAditivo(
+          widget.budget!,
+          items: budget.items,
+          discountCents: budget.discountCents,
+          observations: budget.observations ?? '',
+          aditivoDate: budget.date,
+        );
+      } else if (_status == BudgetStatus.pendente) {
         // Termina de preencher os itens/preço de um pedido de cliente e
         // manda pro cliente — pendente -> enviado (pedido do Franck: "vai
         // precisar terminar de preencher os dados para enviar o
@@ -298,6 +349,67 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// Reabre o formulário completo de itens/preço num orçamento já
+  /// enviado (`enviado`/`aprovado`/`aceito`) pra registrar um aditivo —
+  /// pedido do Franck. Confirma antes: mexer no valor de um orçamento já
+  /// enviado/aceito é uma ação com peso (o cliente vai ver e, se ainda
+  /// não tinha dado aceite final, vai precisar aprovar de novo).
+  Future<void> _startAditivo() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Registrar aditivo?'),
+        content: Text(
+          _status == BudgetStatus.aceito
+              ? 'Você vai poder alterar itens e valor deste orçamento. O '
+                  'agendamento do serviço não muda, mas o cliente será '
+                  'avisado do novo valor.'
+              : 'Você vai poder alterar itens e valor deste orçamento. O '
+                  'cliente vai precisar aprovar o valor revisado de novo.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Continuar')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _editingAditivo = true;
+      _aditivoDateController.text = formatDateDdMmYyyy(DateTime.now());
+    });
+  }
+
+  /// Sai do modo de aditivo sem salvar, voltando pro resumo — os
+  /// controllers de itens/desconto/observações já estavam preenchidos
+  /// com os dados de `widget.budget` desde o `initState`, mas podem ter
+  /// sido editados enquanto `_editingAditivo` estava ativo; refaz do
+  /// zero a partir do orçamento original pra não deixar rascunho preso
+  /// caso o prestador reabra o aditivo de novo sem sair da tela.
+  void _cancelAditivo() {
+    final budget = widget.budget;
+    if (budget == null) return;
+    setState(() {
+      _editingAditivo = false;
+      _discountController.text =
+          budget.discountCents > 0 ? formatCentsBRL(budget.discountCents).replaceAll('R\$ ', '') : '';
+      _observationsController.text = budget.observations ?? '';
+      for (final row in _itemRows) {
+        row.dispose();
+      }
+      _itemRows = budget.items.isNotEmpty
+          ? budget.items
+              .map((item) => _ItemRowControllers(
+                    description: item.description,
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    unitPriceCents: item.unitPriceCents,
+                  ))
+              .toList()
+          : [_ItemRowControllers()];
+    });
   }
 
   /// Prestador recusa/cancela um pedido de orçamento vindo do
@@ -395,7 +507,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         ),
       );
       if (!mounted) return;
-      await Printing.sharePdf(bytes: bytes, filename: 'orcamento_${budget.customerName}.pdf');
+      final suffix = budget.revisionNumber > 0 ? '_aditivo${budget.revisionNumber}' : '';
+      await Printing.sharePdf(bytes: bytes, filename: 'orcamento_${budget.customerName}$suffix.pdf');
     } catch (_) {
       if (mounted) setState(() => _error = 'Não foi possível gerar o PDF. Tenta de novo.');
     } finally {
@@ -523,7 +636,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         toolbarHeight: 64,
-        title: Text(_isEditing ? 'Editar orçamento' : 'Novo orçamento'),
+        title: Text(_editingAditivo ? 'Aditivo de orçamento' : (_isEditing ? 'Editar orçamento' : 'Novo orçamento')),
         titleTextStyle: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w700,
@@ -548,14 +661,18 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _isReadOnlyStatus
+            child: _isReadOnlyStatus && !_editingAditivo
                 ? _buildReadOnlySummary(widget.budget!)
                 : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_isClientRequest) ...[
+                  if (_editingAditivo) ...[
+                    _buildAditivoBanner(),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_isClientRequest && !_editingAditivo) ...[
                     _buildPendingBanner(widget.budget!),
                     const SizedBox(height: 12),
                   ],
@@ -610,9 +727,9 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         const SizedBox(height: 12),
                         _BudgetField(
                           icon: Icons.calendar_month_outlined,
-                          label: 'Data',
+                          label: _editingAditivo ? 'Data do aditivo' : 'Data',
                           child: TextField(
-                            controller: _dateController,
+                            controller: _activeDateController,
                             keyboardType: TextInputType.datetime,
                             inputFormatters: [_dateMask],
                             decoration: InputDecoration(
@@ -622,7 +739,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                                   Icons.edit_calendar_outlined,
                                   size: 18,
                                 ),
-                                onPressed: _pickDate,
+                                onPressed: _pickActiveDate,
                               ),
                             ),
                           ),
@@ -760,7 +877,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   List<Widget> _buildActions(bool busy) {
     final status = _status;
 
-    if (status == null || status == BudgetStatus.pendente) {
+    if (status == null || status == BudgetStatus.pendente || _editingAditivo) {
       return [
         SizedBox(
           width: double.infinity,
@@ -777,13 +894,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                     ),
                   )
                 : Icon(
-                    status == BudgetStatus.pendente ? Icons.send_outlined : Icons.save_outlined,
+                    _editingAditivo
+                        ? Icons.difference_outlined
+                        : (status == BudgetStatus.pendente ? Icons.send_outlined : Icons.save_outlined),
                     size: 18,
                   ),
             label: Text(
-              status == BudgetStatus.pendente
-                  ? 'Enviar orçamento pro cliente'
-                  : (_isEditing ? 'Salvar alterações' : 'Salvar orçamento'),
+              _editingAditivo
+                  ? 'Registrar aditivo e enviar pro cliente'
+                  : (status == BudgetStatus.pendente
+                      ? 'Enviar orçamento pro cliente'
+                      : (_isEditing ? 'Salvar alterações' : 'Salvar orçamento')),
             ),
           ),
         ),
@@ -801,7 +922,17 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 ),
           label: const Text('Gerar e compartilhar PDF'),
         ),
-        if (status == BudgetStatus.pendente)
+        if (_editingAditivo)
+          TextButton.icon(
+            onPressed: busy ? null : _cancelAditivo,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.danger,
+              minimumSize: const Size(0, 30),
+            ),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Cancelar aditivo'),
+          )
+        else if (status == BudgetStatus.pendente)
           TextButton.icon(
             onPressed: busy ? null : _rejectAsProvider,
             style: TextButton.styleFrom(
@@ -971,6 +1102,36 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     );
   }
 
+  /// Banner mostrado no topo do formulário completo enquanto
+  /// `_editingAditivo` está ativo (ver `_startAditivo`) — deixa claro que
+  /// isso não é a edição livre de um rascunho, é uma revisão formal de
+  /// algo que o cliente já viu.
+  Widget _buildAditivoBanner() {
+    final nextNumber = (widget.budget?.revisionNumber ?? 0) + 1;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.difference_outlined, size: 18, color: Colors.orange),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Registrando o aditivo nº $nextNumber deste orçamento. Ajuste itens/valor e a '
+              'data do aditivo abaixo — o cliente vai ver o valor atualizado.',
+              style: const TextStyle(fontSize: 12.5, color: AppColors.ink),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Resumo (sem edição de itens/preço) mostrado a partir do status
   /// `enviado` em diante — o orçamento já foi mandado pro cliente, então
   /// o formulário completo de itens deixa de fazer sentido; o que muda
@@ -978,12 +1139,49 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// serviço pro aceite final.
   Widget _buildReadOnlySummary(Budget budget) {
     final status = budget.status!;
+    // Aditivo (pedido do Franck) só faz sentido pra quem já viu o
+    // orçamento — não em `recusado` (fluxo encerrado, sem mais volta).
+    final canRegisterAditivo = status != BudgetStatus.recusado;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(children: [_statusChip(status)]),
+          Row(
+            children: [
+              _statusChip(status),
+              if (budget.revisionNumber > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Aditivo nº ${budget.revisionNumber}',
+                    style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (canRegisterAditivo) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _startAditivo,
+                icon: const Icon(Icons.difference_outlined, size: 16),
+                label: const Text('Registrar aditivo (revisar itens/valor)'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (status == BudgetStatus.recusado) ...[
             Text(_rejectedByLabel(budget.rejectedBy),

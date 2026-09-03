@@ -147,6 +147,61 @@ class BudgetsRepository {
     }
   }
 
+  /// Registra um ADITIVO — pedido do Franck: "quando o orçamento sofrer
+  /// revisão, realizar a opção de aditivo de orçamento" + "a data precisa
+  /// ser a do aditivo" (tanto no PDF quanto no envio pelo app, ver
+  /// `BudgetPdf`/`Budget.date`, os dois já leem direto de `Budget.date`,
+  /// que este método atualiza). Só faz sentido pra orçamento já enviado
+  /// ao cliente (`enviado`/`aprovado`/`aceito` — ver
+  /// `BudgetFormScreen._buildReadOnlySummary`, que é quem chama isso).
+  ///
+  /// Guarda uma "foto" do estado ANTES do aditivo na subcoleção
+  /// `versions` (reservada desde o desenho anterior do módulo, nunca
+  /// usada até agora — ver comentário em firestore.rules) antes de
+  /// sobrescrever, pra manter um histórico consultável de quantas vezes
+  /// (e como) o orçamento mudou.
+  ///
+  /// Status: se o cliente ainda não tinha dado aceite final
+  /// (`enviado`/`aprovado`), volta pra `enviado` — o novo valor precisa
+  /// ser aprovado de novo antes do prestador confirmar o serviço. Se o
+  /// serviço já foi agendado (`aceito`), o aditivo NÃO desfaz o
+  /// agendamento (seria estranho reabrir a negociação de um serviço já
+  /// em andamento) — só atualiza itens/valor/data e avisa o cliente (ver
+  /// `functions/src/notifications.ts`, checagem de `revisionNumber`).
+  Future<void> registerAditivo(
+    Budget original, {
+    required List<BudgetItem> items,
+    required int discountCents,
+    required String observations,
+    required DateTime aditivoDate,
+  }) async {
+    final newStatus =
+        original.status == BudgetStatus.aceito ? BudgetStatus.aceito : BudgetStatus.enviado;
+    try {
+      await _collection.doc(original.id).collection('versions').add({
+        'items': original.items.map((item) => item.toMap()).toList(),
+        'discountCents': original.discountCents,
+        if (original.observations != null && original.observations!.isNotEmpty)
+          'observations': original.observations,
+        'date': Timestamp.fromDate(original.date),
+        'revisionNumber': original.revisionNumber,
+        'recordedAt': FieldValue.serverTimestamp(),
+      });
+      await _collection.doc(original.id).set({
+        'providerUid': _auth.currentUser!.uid,
+        'items': items.map((item) => item.toMap()).toList(),
+        'discountCents': discountCents,
+        'observations': observations.trim().isEmpty ? FieldValue.delete() : observations.trim(),
+        'date': Timestamp.fromDate(aditivoDate),
+        'revisionNumber': original.revisionNumber + 1,
+        'status': newStatus.wireValue,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível registrar o aditivo.');
+    }
+  }
+
   /// Aceite final do prestador, depois que o cliente já aprovou o
   /// orçamento (`status == aprovado`) — lança automaticamente o serviço
   /// na agenda, verificando antes se já não tem outro compromisso pro

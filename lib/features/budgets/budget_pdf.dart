@@ -78,7 +78,15 @@ Future<Uint8List> buildBudgetPdf(Budget budget, BudgetPdfProvider provider) asyn
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                pw.Text('ORÇAMENTO', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+                pw.Text(
+                  // Pedido do Franck: "quando o orçamento sofrer revisão,
+                  // realizar a opção de aditivo" — o PDF de um orçamento
+                  // já revisado (ver BudgetsRepository.registerAditivo)
+                  // se identifica como tal, com a data abaixo já sendo a
+                  // do aditivo (budget.date é sempre a mais recente).
+                  budget.revisionNumber > 0 ? 'ORÇAMENTO — ADITIVO Nº ${budget.revisionNumber}' : 'ORÇAMENTO',
+                  style: pw.TextStyle(fontSize: budget.revisionNumber > 0 ? 15 : 20, fontWeight: pw.FontWeight.bold),
+                ),
                 pw.SizedBox(height: 2),
                 pw.Text(formatDateLong(budget.date), style: const pw.TextStyle(color: _mutedColor)),
               ],

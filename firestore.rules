@@ -116,9 +116,16 @@ service cloud.firestore {
 
         allow delete: if isOwner(providerId);
 
+        // Histórico de aditivos (ver BudgetsRepository.registerAditivo,
+        // pedido do Franck: "quando o orçamento sofrer revisão, realizar
+        // a opção de aditivo") — reservada desde o desenho anterior deste
+        // módulo (`allow write: if false`, nunca usada), agora ligada de
+        // verdade: só o próprio prestador grava, sempre uma "foto"
+        // imutável do estado anterior (a tela nunca edita/apaga uma
+        // versão já gravada, só cria novas).
         match /versions/{versionId} {
           allow read: if isOwner(providerId);
-          allow write: if false;
+          allow write: if isOwner(providerId);
         }
         match /changeRequests/{requestId} {
           allow read: if isOwner(providerId);

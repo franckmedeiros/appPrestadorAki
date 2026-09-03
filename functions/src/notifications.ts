@@ -141,9 +141,6 @@ export const onBudgetStatusChanged = onDocumentUpdated(
     const after = event.data?.after?.data();
     if (!before || !after) return;
 
-    const beforeStatus = before.status as string | undefined;
-    const afterStatus = after.status as string | undefined;
-    if (!afterStatus || beforeStatus === afterStatus) return;
     // Orçamento manual (sem `clientUid`) não tem cliente do app pra
     // avisar — só os que vieram de um pedido pelo marketplace chegam
     // aqui de verdade.
@@ -154,6 +151,37 @@ export const onBudgetStatusChanged = onDocumentUpdated(
     const budgetId = event.params.budgetId as string;
     const providerName = (after.providerName as string | undefined) || 'O prestador';
     const customerName = (after.customerName as string | undefined) || 'O cliente';
+
+    const beforeStatus = before.status as string | undefined;
+    const afterStatus = after.status as string | undefined;
+
+    // Aditivo (ver BudgetsRepository.registerAditivo, pedido do Franck:
+    // "quando o orçamento sofrer revisão, realizar a opção de aditivo") —
+    // checado ANTES do `return` por status igual logo abaixo, porque um
+    // aditivo pode muito bem deixar o status como estava (ex.: já estava
+    // `aceito`, o aditivo não desfaz o agendamento — ver o método citado)
+    // e mesmo assim precisa avisar o cliente do valor novo.
+    const beforeRevision = (before.revisionNumber as number | undefined) ?? 0;
+    const afterRevision = (after.revisionNumber as number | undefined) ?? 0;
+    if (afterRevision > beforeRevision) {
+      const items = (after.items as Array<{ quantity?: number; unitPriceCents?: number }> | undefined) ?? [];
+      const subtotalCents = items.reduce(
+        (sum, item) => sum + Math.round((item.quantity ?? 0) * (item.unitPriceCents ?? 0)),
+        0,
+      );
+      const discountCents = (after.discountCents as number | undefined) ?? 0;
+      const totalCents = Math.max(0, subtotalCents - discountCents);
+      const totalLabel = `R$ ${(totalCents / 100).toFixed(2).replace('.', ',')}`;
+      await notify(clientUid, {
+        type: 'orcamento_revisado',
+        title: 'Orçamento revisado',
+        body: `${providerName} registrou um aditivo no seu orçamento — novo valor: ${totalLabel}.`,
+        budgetId,
+      });
+      return;
+    }
+
+    if (!afterStatus || beforeStatus === afterStatus) return;
 
     switch (afterStatus) {
       case 'enviado':

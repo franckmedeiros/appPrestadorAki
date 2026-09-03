@@ -267,6 +267,20 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       leading: AppListCard.iconAvatar(category?.icon ?? Icons.handyman_rounded),
                       title: budget.providerName ?? 'Prestador',
                       subtitle: budget.requestDescription ?? '',
+                      // Pedido do Franck: "não consegue visualizar o
+                      // orçamento, somente se eu enviar o pdf" — antes
+                      // este card só mostrava um resumo (categoria/
+                      // valor/status), sem os itens. Agora toca em
+                      // qualquer parte do card (fora dos botões) pra ver
+                      // o orçamento completo, igual ao PDF.
+                      onTap: () => showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                        ),
+                        builder: (context) => _BudgetDetailSheet(budget: budget),
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,6 +416,151 @@ class _PaymentSection extends StatelessWidget {
             label: const Text('Copiar código Pix'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Orçamento completo (itens, quantidade, preço, desconto, total,
+/// observações) — pedido do Franck: "não consegue visualizar o
+/// orçamento, somente se eu enviar o pdf". Mesma informação do PDF
+/// (`buildBudgetPdf`), só que direto no app, sem precisar o prestador
+/// gerar/compartilhar nada.
+class _BudgetDetailSheet extends StatelessWidget {
+  const _BudgetDetailSheet({required this.budget});
+
+  final Budget budget;
+
+  @override
+  Widget build(BuildContext context) {
+    final category = budget.category != null ? serviceCategoryFromWire(budget.category!) : null;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.muted.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    budget.providerName ?? 'Prestador',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                  ),
+                ),
+                // Mesmo selo de "Aditivo nº X" que o prestador vê ao
+                // editar (ver BudgetFormScreen) — o cliente também
+                // precisa saber que o valor foi revisado desde o pedido
+                // original.
+                if (budget.revisionNumber > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Aditivo nº ${budget.revisionNumber}',
+                      style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w700, fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              category != null ? '${category.label} · ${formatDateDdMmYyyy(budget.date)}' : formatDateDdMmYyyy(budget.date),
+              style: const TextStyle(color: AppColors.muted, fontSize: 13),
+            ),
+            if ((budget.addressText ?? '').isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(Icons.location_on_outlined, size: 16, color: AppColors.muted),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(budget.addressText!, style: const TextStyle(fontSize: 13))),
+                ],
+              ),
+            ],
+            const SizedBox(height: 18),
+            const Text('Itens', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.ink)),
+            const SizedBox(height: 8),
+            for (final item in budget.items)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.description, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                          Text(item.quantityLabel, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                        ],
+                      ),
+                    ),
+                    Text(formatCentsBRL(item.totalCents), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Subtotal', style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                Text(formatCentsBRL(budget.subtotalCents), style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+              ],
+            ),
+            if (budget.discountCents > 0) ...[
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Desconto', style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                  Text('- ${formatCentsBRL(budget.discountCents)}', style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                ],
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Total', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                Text(
+                  formatCentsBRL(budget.totalCents),
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.primary),
+                ),
+              ],
+            ),
+            if ((budget.observations ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text('Observações', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink)),
+              const SizedBox(height: 4),
+              Text(budget.observations!.trim(), style: const TextStyle(fontSize: 13, color: AppColors.ink)),
+            ],
+          ],
+        ),
       ),
     );
   }
