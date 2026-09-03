@@ -139,7 +139,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Dashboard',
+                    'Gerenciamento',
                     style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
                   ),
                   IconTheme.merge(

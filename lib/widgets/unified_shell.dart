@@ -34,7 +34,7 @@ class UnifiedShell extends StatelessWidget {
   static const _requestsItem = AppNavItem(
       icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt, label: 'Meus orçamentos');
   static const _dashboardItem = AppNavItem(
-      icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Dashboard');
+      icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Gerenciamento');
   static const _profileItem =
       AppNavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Perfil');
 
