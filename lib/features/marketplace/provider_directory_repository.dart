@@ -170,6 +170,16 @@ class ProviderDirectoryRepository {
         'bio': (bio != null && bio.trim().isNotEmpty) ? bio.trim() : FieldValue.delete(),
         'whatsapp':
             (whatsapp != null && whatsapp.trim().isNotEmpty) ? whatsapp.trim() : FieldValue.delete(),
+        // Dígitos só do telefone — pedido do Franck: quando o prestador se
+        // cadastra de verdade (ou edita o WhatsApp depois), o sistema
+        // precisa achar/"reivindicar" pelo TELEFONE uma entrada "não
+        // reivindicada" da carga inicial (ver
+        // functions/src/subscription.ts, reivindicarListagemPorTelefone).
+        // Gravado aqui também (não só na criação via assinatura) pra nunca
+        // ficar desatualizado se a pessoa trocar de WhatsApp depois.
+        'phoneNormalized': (whatsapp != null && whatsapp.trim().isNotEmpty)
+            ? normalizePhoneDigits(whatsapp.trim())
+            : FieldValue.delete(),
         'claimed': true,
         'providerUid': uid,
         'updatedAt': now,

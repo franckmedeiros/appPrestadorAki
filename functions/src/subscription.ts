@@ -91,6 +91,87 @@ function lerCredenciais(): Record<string, unknown> {
   }
 }
 
+/** Só dígitos — mesma normalização usada em `phoneIndex`/`AuthController._normalizePhone` (lado do app, ver lib/core/text_normalize.dart normalizePhoneDigits). */
+function normalizarTelefone(telefone: string): string {
+  return telefone.replace(/[^0-9]/g, '');
+}
+
+/**
+ * "Carga inicial" (pedido do Franck): antes do prestador ter conta própria,
+ * ele já pode estar listado em `providerDirectory` com `claimed: false`
+ * (importação em massa/curadoria manual — só nome + WhatsApp, feita ANTES
+ * de convidar a pessoa pra assinar). Quando essa pessoa finalmente se
+ * cadastra e a assinatura é confirmada pela primeira vez, o único dado em
+ * comum entre o convite (nome + WhatsApp que o Franck já tinha) e a conta
+ * nova é o TELEFONE — o nome pode vir digitado diferente no cadastro, mas
+ * o WhatsApp é o mesmo. Por isso o casamento é feito por telefone, igual
+ * ao mesmo truque já usado pra achar cliente existente
+ * (CustomersRepository.findOrCreateForClient / phoneIndex).
+ *
+ * Só é chamada na criação do `providerDirectory/{uid}` pela primeira vez
+ * (ver `aplicarEstadoDaAssinatura` abaixo) — depois disso o dono já é o
+ * próprio uid, não tem mais o que "reivindicar". Quando acha uma entrada
+ * não reivindicada com o mesmo telefone: migra a reputação que a
+ * curadoria já tinha acumulado (bio + avaliações, com a subcoleção
+ * `ratings` inteira) pra debaixo do novo doc (uid) e apaga a entrada
+ * antiga — sem isso, ficariam DUAS entradas pra a mesma pessoa na busca
+ * (a antiga órfã "não reivindicada" e a nova "reivindicada").
+ *
+ * Nota honesta: exige que a entrada da carga inicial tenha os campos
+ * `claimed: false` (explícito — Firestore não casa `==` com campo
+ * ausente) e `phoneNormalized` (só dígitos, mesma normalização acima).
+ * Sem os dois, essa entrada nunca é encontrada aqui e fica órfã pra
+ * sempre, precisando de limpeza manual. Se mais de uma entrada não
+ * reivindicada tiver o mesmo telefone (duplicidade na carga inicial),
+ * só a primeira é reivindicada — as demais ficam pra trás (logado como
+ * aviso) e precisam de limpeza manual também.
+ */
+async function reivindicarListagemPorTelefone(
+  uid: string,
+  whatsapp: string | undefined,
+): Promise<{ bio?: string; ratingAverage?: number; ratingCount?: number } | null> {
+  if (!whatsapp) return null;
+  const normalizado = normalizarTelefone(whatsapp);
+  if (!normalizado) return null;
+
+  const query = await db
+    .collection('providerDirectory')
+    .where('claimed', '==', false)
+    .where('phoneNormalized', '==', normalizado)
+    .get();
+  if (query.empty) return null;
+  if (query.size > 1) {
+    logger.warn(
+      `reivindicarListagemPorTelefone: ${query.size} entradas não reivindicadas com o telefone ${normalizado} — reivindicando só a primeira (${query.docs[0].id}), as demais precisam de limpeza manual.`,
+    );
+  }
+
+  const antigaRef = query.docs[0].ref;
+  const antigaData = query.docs[0].data();
+  logger.info(
+    `Reivindicando listagem ${antigaRef.id} (carga inicial) pro novo prestador ${uid}, casados pelo telefone ${normalizado}.`,
+  );
+
+  // Migra as avaliações já feitas na entrada antiga — mesmo id de doc
+  // (chaveado pelo uid de quem avaliou), pra preservar "já avaliei esse
+  // prestador" e não deixar ninguém avaliar duas vezes.
+  const avaliacoesSnap = await antigaRef.collection('ratings').get();
+  const novaRef = db.collection('providerDirectory').doc(uid);
+  const batch = db.batch();
+  for (const avaliacaoDoc of avaliacoesSnap.docs) {
+    batch.set(novaRef.collection('ratings').doc(avaliacaoDoc.id), avaliacaoDoc.data());
+    batch.delete(avaliacaoDoc.ref);
+  }
+  batch.delete(antigaRef);
+  await batch.commit();
+
+  return {
+    bio: typeof antigaData.bio === 'string' ? antigaData.bio : undefined,
+    ratingAverage: typeof antigaData.ratingAverage === 'number' ? antigaData.ratingAverage : undefined,
+    ratingCount: typeof antigaData.ratingCount === 'number' ? antigaData.ratingCount : undefined,
+  };
+}
+
 /**
  * Aplica o estado já consultado na Play Developer API: liga/desliga
  * `providers/{uid}.listingStatus` e a visibilidade da entrada em
@@ -185,6 +266,14 @@ async function aplicarEstadoDaAssinatura(
     const provider = (await providerRef.get()).data() ?? {};
     if (provider.category && provider.city) {
       const directorySnap = await directoryRef.get();
+      // Só tenta "reivindicar" uma entrada da carga inicial na PRIMEIRA
+      // vez que este prestador ganha um `providerDirectory/{uid}` — uma
+      // renovação de assinatura (este mesmo bloco roda a cada notificação
+      // da Play Store) já encontra o doc existente, não tem mais o que
+      // procurar (ver reivindicarListagemPorTelefone acima).
+      const reivindicada = directorySnap.exists
+        ? null
+        : await reivindicarListagemPorTelefone(uid, provider.whatsapp);
       // `categories` (lista) é o formato novo — pedido do Franck:
       // prestador pode atuar em 2+ categorias. Cai pro `category`
       // singular antigo quando o documento ainda não tem o campo novo
@@ -208,7 +297,19 @@ async function aplicarEstadoDaAssinatura(
           // ProviderListingCard/lib) enquanto a assinatura estiver ativa -
           // pedido do Franck. Guardado no proprio doc publico (em vez de
           // so no app) pra ficar certo mesmo lido direto do Firestore.
-          ...(provider.whatsapp ? { whatsapp: provider.whatsapp } : { whatsapp: FieldValue.delete() }),
+          // `phoneNormalized` junto (só dígitos) é o que permite achar
+          // essa entrada de novo por telefone no futuro (ver
+          // reivindicarListagemPorTelefone).
+          ...(provider.whatsapp
+            ? { whatsapp: provider.whatsapp, phoneNormalized: normalizarTelefone(String(provider.whatsapp)) }
+            : { whatsapp: FieldValue.delete(), phoneNormalized: FieldValue.delete() }),
+          // Reputação herdada da entrada da carga inicial reivindicada
+          // agora (bio/avaliações que a curadoria já tinha acumulado) —
+          // só entra se achou uma pra reivindicar; do contrário este
+          // prestador começa do zero, como sempre foi.
+          ...(reivindicada?.bio ? { bio: reivindicada.bio } : {}),
+          ...(reivindicada?.ratingAverage != null ? { ratingAverage: reivindicada.ratingAverage } : {}),
+          ...(reivindicada?.ratingCount != null ? { ratingCount: reivindicada.ratingCount } : {}),
           claimed: true,
           providerUid: uid,
           visible: true,

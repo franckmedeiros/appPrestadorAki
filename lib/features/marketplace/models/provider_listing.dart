@@ -85,8 +85,14 @@ class ProviderListing {
   /// ProviderDirectoryRepository.upsertOwnListing e
   /// functions/src/subscription.ts): pedido do Franck pra so mostrar o
   /// contato direto de quem realmente assina, no card de busca/favoritos
-  /// (ver ProviderListingCard). Null/vazio pra quem nao assina (inclusive
-  /// listagens "nao reivindicadas", que nunca tem esse campo).
+  /// (ver ProviderListingCard). Null/vazio pra quem nao assina.
+  ///
+  /// Uma listagem "não reivindicada" (carga inicial, ver comentário da
+  /// classe) TAMBÉM pode ter esse campo preenchido — é justamente o que
+  /// permite achar essa entrada de novo quando a pessoa finalmente se
+  /// cadastra e assina de verdade, casando pelo telefone (não exibido
+  /// pro cliente enquanto não reivindicada; ver
+  /// `functions/src/subscription.ts`, `reivindicarListagemPorTelefone`).
   final String? whatsapp;
 
   /// `visible` cru do Firestore - null pra quem nunca passou pela

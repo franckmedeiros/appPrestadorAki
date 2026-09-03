@@ -18,3 +18,12 @@ String normalizeForSearch(String value) {
   }
   return result;
 }
+
+/// Só os dígitos de um telefone (ex.: "(48) 99999-0000" -> "48999990000")
+/// — mesma normalização de `AuthController._normalizePhone` (usada em
+/// `phoneIndex` pra achar cliente já cadastrado pelo telefone), extraída
+/// aqui pra reaproveitar também em `ProviderDirectoryRepository`/
+/// `functions/src/subscription.ts` (ver `phoneNormalized` em
+/// providerDirectory) sem duplicar a regex em três lugares nem arriscar
+/// os dois lados divergirem.
+String normalizePhoneDigits(String phone) => phone.replaceAll(RegExp(r'[^0-9]'), '');
