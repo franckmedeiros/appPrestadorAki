@@ -113,33 +113,48 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         formatCentsBRL(budget.totalCents),
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _statusColor(status).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              status.label,
-                              style: TextStyle(
-                                color: _statusColor(status),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 10,
+                    // `ConstrainedBox` aqui é o que impede um `status.label`
+                    // comprido (ex.: "Aditivo enviado — aguardando
+                    // aprovação", ou "Aprovado — falta confirmar") de pedir
+                    // largura ilimitada pro selo — sem isso, o Row deste
+                    // card sobrava quase nenhum espaço pro nome/data do
+                    // cliente (Expanded do AppListCard), que aparecia
+                    // espremido/quebrado letra por letra. Com a largura
+                    // travada, o texto do selo quebra em até 2 linhas em
+                    // vez de estourar a largura do card.
+                    : ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 128),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _statusColor(status).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                status.label,
+                                textAlign: TextAlign.right,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: _statusColor(status),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
-                          ),
-                          if (status != BudgetStatus.pendente && budget.totalCents > 0) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              formatCentsBRL(budget.totalCents),
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                            ),
+                            if (status != BudgetStatus.pendente && budget.totalCents > 0) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                formatCentsBRL(budget.totalCents),
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                 onTap: () => _openBudget(budget),
               );
