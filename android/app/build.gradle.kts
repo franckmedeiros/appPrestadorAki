@@ -90,7 +90,15 @@ android {
                 if (hasKeystoreProperties) {
                     keyAlias = keystoreProperties["keyAlias"] as String
                     keyPassword = keystoreProperties["keyPassword"] as String
-                    storeFile = file(keystoreProperties["storeFile"] as String)
+                    // `rootProject.file(...)` (não `file(...)`) é o que importa
+                    // aqui: o valor gravado em key.properties é só o NOME do
+                    // arquivo ("upload-keystore.jks", sem pasta), e dentro do
+                    // build.gradle.kts do módulo :app um `file(...)` sozinho
+                    // resolve relativo a android/app/ (onde o keystore NÃO
+                    // está), não a android/ (onde ele está de verdade) — foi
+                    // exatamente esse descompasso que deu "Keystore file ...
+                    // not found" no primeiro build de release do Franck.
+                    storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
                     storePassword = keystoreProperties["storePassword"] as String
                 } else {
                     keyAlias = System.getenv("CM_KEY_ALIAS")
