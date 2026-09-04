@@ -163,6 +163,17 @@ service cloud.firestore {
         // RECURSIVO — ver o comentário grande logo antes dele).
         allow get: if isOwner(providerId) ||
           (request.auth != null && request.auth.uid == resource.data.get('clientUid', null));
+
+        // `list` na PRÓPRIA subcoleção do prestador (ex.: JobsRepository
+        // listando os jobs dele pra tela "Serviços") — faltou na primeira
+        // versão desta regra (só `get` foi coberto) e quebrou a tela com
+        // PERMISSION_DENIED pro prestador, porque uma consulta (`list`)
+        // não é avaliada pela regra de `get` (mesma distinção explicada
+        // no comentário de `budgets` acima). Igual lá, isso NÃO cobre a
+        // `collectionGroup('jobs')` do cliente — essa segue no bloco
+        // `match /{path=**}/jobs/{jobId}` mais abaixo.
+        allow list: if isOwner(providerId);
+
         allow create, update: if isOwner(providerId);
         allow delete: if false;
       }
