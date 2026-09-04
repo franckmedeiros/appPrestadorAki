@@ -154,7 +154,7 @@ export const gerarDescricaoPrestador = onCall({ secrets: [groqApiKey] }, async (
           'O serviço de IA está com muita procura agora. Espere um minuto e tente de novo.',
         );
       }
-      throw new HttpsError('internal', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
+      throw new HttpsError('unavailable', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
     }
 
     const data = (await response.json()) as {
@@ -162,12 +162,12 @@ export const gerarDescricaoPrestador = onCall({ secrets: [groqApiKey] }, async (
     };
     const descricao = (data.choices?.[0]?.message?.content ?? '').trim();
     if (!descricao) {
-      throw new HttpsError('internal', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
+      throw new HttpsError('unavailable', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
     }
     return { descricao };
   } catch (error) {
     if (error instanceof HttpsError) throw error;
     logger.error('Falha ao gerar descrição com IA (Groq)', { uid, error });
-    throw new HttpsError('internal', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
+    throw new HttpsError('unavailable', 'Não foi possível gerar o texto agora. Tente de novo em instantes.');
   }
 });

@@ -85,7 +85,15 @@ export const excluirContaEDados = onCall(async (request) => {
     await apagarQuery(db.collectionGroup('budgets').where('clientUid', '==', uid));
   } catch (error) {
     logger.error('Falha ao apagar dados do Firestore na exclusão de conta', { uid, error });
-    throw new HttpsError('internal', 'Não foi possível apagar seus dados. Tente novamente.');
+    // NUNCA usar o código 'internal' (nem 'unknown') aqui — pedido do
+    // Franck: "qdo estou excluindo uma conta aparece o erro INTERNAL". O
+    // protocolo de Callable Functions do Firebase propositalmente
+    // DESCARTA a mensagem de erro nesses dois códigos específicos (pra
+    // não vazar detalhe interno sem querer) e troca por um texto opaco
+    // "INTERNAL" — o app nunca chega a ver a frase em português que a
+    // gente escreveu aqui. Qualquer outro código (como 'unavailable')
+    // entrega a mensagem certinha pro cliente.
+    throw new HttpsError('unavailable', 'Não foi possível apagar seus dados. Tente novamente.');
   }
 
   try {
@@ -93,7 +101,7 @@ export const excluirContaEDados = onCall(async (request) => {
   } catch (error) {
     logger.error('Falha ao apagar usuário do Firebase Auth na exclusão de conta', { uid, error });
     throw new HttpsError(
-      'internal',
+      'unavailable',
       'Seus dados foram apagados, mas houve um problema ao remover o login. Fale com o suporte.',
     );
   }

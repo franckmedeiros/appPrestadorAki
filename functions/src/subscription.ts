@@ -98,7 +98,7 @@ function lerCredenciais(): Record<string, unknown> {
     return JSON.parse(playServiceAccountKey.value());
   } catch (e) {
     logger.error('PLAY_SERVICE_ACCOUNT_KEY inválida/ausente', e);
-    throw new HttpsError('internal', 'Configuração da service account inválida no servidor.');
+    throw new HttpsError('unavailable', 'Configuração da service account inválida no servidor.');
   }
 }
 
@@ -428,7 +428,7 @@ export const confirmarAssinaturaPrestador = onCall(
       dadosAssinatura = await buscarAssinaturaNaPlayStore(purchaseToken, credentials);
     } catch (e) {
       logger.error('Falha ao consultar a Play Developer API', e);
-      throw new HttpsError('internal', 'Não foi possível confirmar a compra junto à Play Store.');
+      throw new HttpsError('unavailable', 'Não foi possível confirmar a compra junto à Play Store.');
     }
 
     await tokenRef.set(

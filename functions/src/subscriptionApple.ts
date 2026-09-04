@@ -104,7 +104,7 @@ function lerCredenciaisApple(): CredenciaisAppStoreConnect {
     return dados as CredenciaisAppStoreConnect;
   } catch (e) {
     logger.error('APPLE_APP_STORE_CONNECT_KEY inválida/ausente', e);
-    throw new HttpsError('internal', 'Configuração da App Store Connect inválida no servidor.');
+    throw new HttpsError('unavailable', 'Configuração da App Store Connect inválida no servidor.');
   }
 }
 
@@ -259,7 +259,7 @@ export const confirmarAssinaturaPrestadorApple = onCall(
       statusResponse = await buscarStatusNaAppStore(transactionId, credenciais);
     } catch (e) {
       logger.error('Falha ao consultar a App Store Server API', e);
-      throw new HttpsError('internal', 'Não foi possível confirmar a compra junto à App Store.');
+      throw new HttpsError('unavailable', 'Não foi possível confirmar a compra junto à App Store.');
     }
 
     const estado = paraEstadoNormalizado(extrairUltimaTransacao(statusResponse, productId));
