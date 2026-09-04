@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacidade PrestadorAki</title>
+<style>
+  :root{
+    --bg:#faf8f6; --card:#ffffff; --text:#2a231f; --muted:#6b6058;
+    --accent:#E7502E; --border:#ece5e0; --hl:#fef3ee;
+  }
+  body{
+    background:var(--bg); color:var(--text); margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:760px; margin:0 auto; padding:48px 24px 80px;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:40px;}
+  .brand{display:flex; align-items:center; gap:12px; margin-bottom:8px;}
+  .brand-dot{width:36px; height:36px; border-radius:10px; background:var(--accent); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:16px;}
+  h1{font-size:26px; margin:0 0 4px;}
+  .updated{color:var(--muted); font-size:14px; margin-bottom:32px;}
+  h2{font-size:17px; margin:32px 0 10px; color:var(--accent);}
+  p, li{color:var(--text); font-size:15px;}
+  ul{padding-left:20px; margin:8px 0;}
+  li{margin-bottom:6px;}
+  .box{background:var(--hl); border-radius:10px; padding:16px 18px; font-size:14px; color:var(--text); margin:12px 0;}
+  table{width:100%; border-collapse:collapse; margin:12px 0; font-size:14px;}
+  th, td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top;}
+  th{color:var(--muted); font-weight:600; width:38%;}
+  a{color:var(--accent);}
+  .contact{margin-top:8px; font-size:15px;}
+  footer{margin-top:40px; color:var(--muted); font-size:13px; text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <div class="brand-dot">PA</div>
+      <div>
+        <h1>Política de Privacidade — PrestadorAki</h1>
+      </div>
+    </div>
+    <div class="updated">Última atualização: 4 de setembro de 2026</div>
+
+    <p>
+      Esta Política de Privacidade descreve como o aplicativo <strong>PrestadorAki</strong>
+      (aqui referido como "o App"), desenvolvido e operado por <strong>OPOutSourcing Brasil</strong>
+      ("nós"), coleta, usa, armazena e protege os dados pessoais dos usuários — tanto de quem
+      contrata serviços ("Cliente") quanto de quem os presta ("Prestador"). Ao usar o App, você
+      concorda com as práticas descritas aqui, em conformidade com a Lei Geral de Proteção de
+      Dados (Lei nº 13.709/2018 — LGPD).
+    </p>
+
+    <h2>1. Quais dados coletamos</h2>
+    <p>Coletamos apenas os dados necessários para o funcionamento do App:</p>
+    <table>
+      <tr><th>Dados de cadastro</th><td>Nome, e-mail, telefone e senha (autenticação via Firebase Authentication).</td></tr>
+      <tr><th>Dados de perfil</th><td>Cidade, estado, categorias de serviço, biografia, foto/logo do Prestador.</td></tr>
+      <tr><th>Localização</th><td>Localização aproximada ou precisa do dispositivo, usada para busca de prestadores por proximidade e preenchimento de endereço.</td></tr>
+      <tr><th>Fotos e imagens</th><td>Imagens enviadas pelo usuário (ex.: foto de perfil/logo), armazenadas no Firebase Storage.</td></tr>
+      <tr><th>Dados de uso</th><td>Orçamentos, agendamentos, avaliações, favoritos e histórico de interações dentro do App.</td></tr>
+      <tr><th>Notificações</th><td>Token de identificação do dispositivo (Firebase Cloud Messaging), usado apenas para envio de notificações push.</td></tr>
+      <tr><th>Assinatura</th><td>Status da assinatura do Prestador (ativa/inativa), processada pelo Google Play Billing. Não temos acesso a dados de cartão de crédito.</td></tr>
+      <tr><th>Autenticação biométrica</th><td>Usada apenas localmente no aparelho (ex.: desbloqueio por digital/rosto) para proteger o acesso ao App — não é enviada nem armazenada em nossos servidores.</td></tr>
+    </table>
+
+    <h2>2. Como usamos os dados</h2>
+    <ul>
+      <li>Criar e gerenciar sua conta e perfil no App;</li>
+      <li>Conectar Clientes e Prestadores com base em localização e categoria de serviço;</li>
+      <li>Processar e exibir orçamentos, agendamentos e avaliações;</li>
+      <li>Enviar notificações relevantes (novo orçamento, mensagem, lembrete de compromisso);</li>
+      <li>Validar e manter o status de assinatura dos Prestadores;</li>
+      <li>Melhorar a segurança, estabilidade e funcionamento do App.</li>
+    </ul>
+
+    <h2>3. Compartilhamento de dados</h2>
+    <p>Não vendemos dados pessoais. Compartilhamos dados apenas nas seguintes situações:</p>
+    <ul>
+      <li><strong>Entre usuários do App:</strong> informações de perfil público do Prestador (nome, cidade, categorias, avaliações, foto e WhatsApp, quando assinante ativo) ficam visíveis a Clientes que buscam serviços.</li>
+      <li><strong>Provedores de infraestrutura:</strong> utilizamos serviços do Google (Firebase Authentication, Firestore, Firebase Storage, Firebase Cloud Messaging, Google Play Billing) para operar o App, sujeitos à própria política de privacidade do Google.</li>
+      <li><strong>Obrigação legal:</strong> quando exigido por lei ou ordem judicial.</li>
+    </ul>
+
+    <h2>4. Armazenamento e segurança</h2>
+    <p>
+      Os dados são armazenados em servidores do Firebase/Google Cloud, protegidos por regras de
+      acesso que garantem que cada usuário só acesse seus próprios dados ou dados públicos de
+      perfil. Adotamos medidas técnicas razoáveis para proteger as informações contra acesso não
+      autorizado, perda ou alteração indevida.
+    </p>
+
+    <h2>5. Seus direitos (LGPD)</h2>
+    <p>Como titular dos dados, você pode a qualquer momento solicitar:</p>
+    <ul>
+      <li>Confirmação da existência de tratamento e acesso aos seus dados;</li>
+      <li>Correção de dados incompletos, inexatos ou desatualizados;</li>
+      <li>Exclusão dos seus dados pessoais e da sua conta;</li>
+      <li>Portabilidade dos dados a outro fornecedor de serviço;</li>
+      <li>Revogação do consentimento e informações sobre com quem seus dados são compartilhados.</li>
+    </ul>
+    <p>Para exercer qualquer um desses direitos, entre em contato pelo e-mail abaixo.</p>
+
+    <h2>6. Retenção e exclusão de dados</h2>
+    <p>
+      Mantemos seus dados enquanto sua conta estiver ativa ou pelo tempo necessário para cumprir
+      finalidades legais e contratuais. Ao solicitar a exclusão da conta, seus dados pessoais são
+      removidos ou anonimizados, exceto quando a manutenção for exigida por lei.
+    </p>
+
+    <h2>7. Menores de idade</h2>
+    <p>
+      O PrestadorAki não é direcionado a menores de 18 anos e não coletamos intencionalmente
+      dados de crianças ou adolescentes.
+    </p>
+
+    <h2>8. Alterações desta política</h2>
+    <p>
+      Podemos atualizar esta Política periodicamente. A data da última atualização está indicada
+      no topo desta página. Mudanças relevantes serão comunicadas dentro do próprio App.
+    </p>
+
+    <h2>9. Contato</h2>
+    <div class="box">
+      <div class="contact">
+        <strong>OPOutSourcing Brasil</strong><br>
+        E-mail: <a href="mailto:opoutsourcingbr@gmail.com">opoutsourcingbr@gmail.com</a>
+      </div>
+    </div>
+
+    <footer>PrestadorAki — Política de Privacidade</footer>
+  </div>
+</div>
+</body>
+</html>
