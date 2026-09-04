@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exclusão de Conta — PrestadorAki</title>
+<style>
+  :root{
+    --bg:#faf8f6; --card:#ffffff; --text:#2a231f; --muted:#6b6058;
+    --accent:#E7502E; --border:#ece5e0; --hl:#fef3ee;
+  }
+  body{
+    background:var(--bg); color:var(--text); margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:760px; margin:0 auto; padding:48px 24px 80px;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:40px;}
+  .brand{display:flex; align-items:center; gap:12px; margin-bottom:8px;}
+  .brand-dot{width:36px; height:36px; border-radius:10px; background:var(--accent); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:16px;}
+  h1{font-size:24px; margin:0 0 4px;}
+  .updated{color:var(--muted); font-size:14px; margin-bottom:32px;}
+  h2{font-size:17px; margin:32px 0 10px; color:var(--accent);}
+  p, li{color:var(--text); font-size:15px;}
+  ol, ul{padding-left:20px; margin:8px 0;}
+  li{margin-bottom:6px;}
+  .box{background:var(--hl); border-radius:10px; padding:16px 18px; font-size:14px; color:var(--text); margin:12px 0;}
+  table{width:100%; border-collapse:collapse; margin:12px 0; font-size:14px;}
+  th, td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top;}
+  th{color:var(--muted); font-weight:600; width:34%;}
+  a{color:var(--accent);}
+  footer{margin-top:40px; color:var(--muted); font-size:13px; text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <div class="brand-dot">PA</div>
+      <div><h1>Exclusão de Conta e Dados — PrestadorAki</h1></div>
+    </div>
+    <div class="updated">App: prestadorAki · Desenvolvedor: OPOutSourcing Brasil</div>
+
+    <p>
+      Esta página explica como solicitar a exclusão da sua conta e dos dados associados a ela
+      no aplicativo <strong>PrestadorAki</strong>, desenvolvido por <strong>OPOutSourcing Brasil</strong>,
+      tanto para contas de Cliente quanto de Prestador.
+    </p>
+
+    <h2>Como excluir sua conta</h2>
+    <p><strong>Opção 1 — Direto pelo aplicativo (recomendado, exclusão imediata):</strong></p>
+    <ol>
+      <li>Abra o app PrestadorAki e faça login na sua conta;</li>
+      <li>Toque no seu perfil (ícone/menu "Perfil");</li>
+      <li>Role até o final da tela e toque em <strong>"Excluir minha conta"</strong>;</li>
+      <li>Confirme digitando sua senha atual;</li>
+      <li>Pronto — a conta e os dados são apagados imediatamente.</li>
+    </ol>
+
+    <p><strong>Opção 2 — Sem acesso ao app:</strong></p>
+    <p>
+      Envie um e-mail para
+      <a href="mailto:opoutsourcingbr@gmail.com">opoutsourcingbr@gmail.com</a>
+      solicitando a exclusão, informando o e-mail ou telefone cadastrado na conta. O pedido é
+      processado em até 7 dias úteis.
+    </p>
+
+    <h2>Quais dados são excluídos</h2>
+    <table>
+      <tr><th>Dados de cadastro</th><td>Nome, e-mail, telefone e login (Firebase Authentication).</td></tr>
+      <tr><th>Perfil e configurações</th><td>Foto/logo, biografia, cidade, categorias de serviço.</td></tr>
+      <tr><th>Dados de uso</th><td>Clientes cadastrados, agendamentos, orçamentos, visitas técnicas e histórico de localização salvos na sua conta.</td></tr>
+      <tr><th>Perfil público (Prestador)</th><td>Listagem no diretório de busca e as avaliações recebidas de clientes são removidas.</td></tr>
+      <tr><th>Orçamentos como Cliente</th><td>Pedidos de orçamento feitos a outros prestadores são apagados.</td></tr>
+    </table>
+
+    <h2>Quais dados são mantidos, e por quê</h2>
+    <table>
+      <tr>
+        <th>Registros de compra/assinatura</th>
+        <td>
+          O histórico de assinatura processado pelo Google Play é mantido como registro fiscal/de
+          faturamento, associado ao token de compra (não ao seu perfil), pelo prazo exigido pela
+          legislação fiscal aplicável.
+        </td>
+      </tr>
+      <tr>
+        <th>Avaliações que você deixou em outros prestadores</th>
+        <td>
+          Se sua conta, como Cliente, avaliou outros prestadores, esse comentário/nota permanece
+          visível no perfil do prestador avaliado (sem outros dados pessoais associados). Para
+          solicitar a remoção também dessas avaliações, inclua esse pedido no e-mail acima.
+        </td>
+      </tr>
+    </table>
+
+    <footer>PrestadorAki — Exclusão de Conta e Dados</footer>
+  </div>
+</div>
+</body>
+</html>
