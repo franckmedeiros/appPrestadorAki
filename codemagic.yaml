@@ -28,6 +28,62 @@ workflows:
           success: true
           failure: true
 
+  android-release:
+    name: Android - build assinado e publicar (Play Console, teste interno)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    # Não roda sozinho a cada push (mesmo motivo do ios-release acima) —
+    # esse workflow ASSINA de verdade (chave de upload real, não a de
+    # debug) e ENVIA pro Google Play, então só deve rodar quando você
+    # mandar manualmente (Codemagic > Start new build > escolher
+    # "android-release").
+    #
+    # Duas coisas precisam existir ANTES do primeiro build deste
+    # workflow, nenhuma das duas fica neste arquivo (são segredos):
+    #  1. Team settings > codemagic.yaml settings > Code signing
+    #     identities > Android keystores > subir o
+    #     `android/upload-keystore.jks` gerado localmente, com o mesmo
+    #     alias/senhas de `android/key.properties` (ambos os arquivos
+    #     nunca são commitados — ver .gitignore) e dar a ele o nome de
+    #     referência EXATO usado abaixo em `android_signing`.
+    #  2. Uma variável de ambiente SECRETA
+    #     `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS` com o conteúdo
+    #     inteiro do JSON da conta de serviço do Google Cloud (criada com
+    #     acesso "Release apps to testing tracks" em Play Console > Users
+    #     and permissions), num grupo de variáveis (ex.: chamado
+    #     `google_play_credentials`, referenciado abaixo).
+    #
+    # IMPORTANTE: o Google Play não aceita a PRIMEIRA versão de um app
+    # via API — o primeiro upload (mesmo pra teste interno) precisa ser
+    # manual, direto no Play Console. Depois desse primeiro upload
+    # manual, os próximos podem vir daqui.
+    environment:
+      flutter: stable
+      android_signing:
+        - prestadoraki_upload
+      groups:
+        - google_play_credentials
+      vars:
+        PACKAGE_NAME: "com.opoutsourcing.prestadoraki"
+    scripts:
+      - name: Instalar dependências
+        script: flutter pub get
+      - name: Build AAB assinado (release)
+        script: flutter build appbundle --release
+    artifacts:
+      - build/app/outputs/**/*.aab
+      - build/app/outputs/**/mapping.txt
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+      email:
+        recipients:
+          - franck.medeiros.silva@gmail.com
+        notify:
+          success: true
+          failure: true
+
   ios-release:
     name: iOS - build assinado e publicar (TestFlight)
     max_build_duration: 120

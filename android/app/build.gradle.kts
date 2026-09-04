@@ -7,6 +7,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Assinatura de release de verdade (ver https://flutter.dev/to/reference-keystore)
+// — sem isso, o build de release usava a chave de DEBUG (placeholder do
+// template do Flutter), que o Google Play recusa pra qualquer upload.
+// `android/key.properties` + `android/upload-keystore.jks` nunca são
+// commitados (ver android/.gitignore) — no Codemagic, esses dois arquivos
+// são reconstituídos a partir de um "Android keystore" configurado em
+// Team settings > Code signing identities antes do build rodar (ver
+// workflow `android-release` em codemagic.yaml).
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = java.util.Properties()
+val hasKeystoreProperties = keystorePropertiesFile.exists()
+if (hasKeystoreProperties) {
+    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.opoutsourcing.prestadoraki"
     // Travado em 36 (em vez de usar flutter.compileSdkVersion, que essa
@@ -57,11 +72,46 @@ android {
         versionName = flutter.versionName
     }
 
+    // No Codemagic (workflow `android-release`), o keystore vem do
+    // `android_signing` do YAML — Codemagic injeta o arquivo e as 4
+    // variáveis abaixo sozinho, NUNCA lê `key.properties` (esse é só pra
+    // build local, na sua máquina). Local tem prioridade pro
+    // key.properties se por acaso as duas coisas existirem ao mesmo
+    // tempo (não deveria, mas evita ambiguidade).
+    val cmKeystorePath = System.getenv("CM_KEYSTORE_PATH")
+    val hasReleaseSigning = hasKeystoreProperties || cmKeystorePath != null
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                if (hasKeystoreProperties) {
+                    keyAlias = keystoreProperties["keyAlias"] as String
+                    keyPassword = keystoreProperties["keyPassword"] as String
+                    storeFile = file(keystoreProperties["storeFile"] as String)
+                    storePassword = keystoreProperties["storePassword"] as String
+                } else {
+                    keyAlias = System.getenv("CM_KEY_ALIAS")
+                    keyPassword = System.getenv("CM_KEY_PASSWORD")
+                    storeFile = file(cmKeystorePath!!)
+                    storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Sem key.properties NEM variáveis CM_* (ex.: clone novo da
+            // máquina de alguém, sem o keystore) cai pra chave de debug,
+            // só pra `flutter run --release`/`flutter build apk --debug`
+            // continuarem funcionando localmente sem configuração
+            // nenhuma — build de release de VERDADE (o que vai pro Play
+            // Console) só sai assinado certo com um dos dois.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
