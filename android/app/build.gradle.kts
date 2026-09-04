@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -16,10 +19,10 @@ plugins {
 // Team settings > Code signing identities antes do build rodar (ver
 // workflow `android-release` em codemagic.yaml).
 val keystorePropertiesFile = rootProject.file("key.properties")
-val keystoreProperties = java.util.Properties()
+val keystoreProperties = Properties()
 val hasKeystoreProperties = keystorePropertiesFile.exists()
 if (hasKeystoreProperties) {
-    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
