@@ -87,13 +87,21 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        # Sem isso, o build sobe e processa mas fica "solto" — precisa
-        # vincular na mão em App Store Connect > TestFlight toda vez.
-        # "Tester" é o grupo de teste interno que você já tem criado lá
-        # (não precisa de revisão da Apple, aparece na hora pra quem
-        # estiver nesse grupo).
-        beta_groups:
-          - Tester
+        # NÃO listar "Tester" (ou qualquer outro grupo INTERNO) aqui em
+        # `beta_groups` — build 22 (03/09) terminou com
+        # "post-processing failed": a App Store Connect API não deixa
+        # atribuir build a um grupo INTERNO por essa chamada ("Cannot add
+        # internal group to a build" / "Build is not in an externally
+        # assignable state") — grupo interno não funciona por atribuição
+        # explícita de build, é automático: TODO membro de um grupo
+        # interno já enxerga QUALQUER build novo assim que a Apple termina
+        # de processar, sem precisar (e sem PODER) vincular via
+        # `beta_groups`. Essa chave só existe pra grupos EXTERNOS de
+        # verdade (link público/testadores convidados por e-mail, que aí
+        # sim exigem Beta App Review no primeiro build). Como "Tester" é
+        # interno, o upload sozinho (`submit_to_testflight: true`) já
+        # basta — nada a vincular na mão.
+        #
         # Deixa false até você decidir de propósito mandar pra revisão da
         # Apple pela primeira vez — evita enviar sem querer antes de ter
         # screenshots/descrição prontos na ficha da loja.
