@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -13,11 +15,20 @@ import 'models/budget.dart';
 /// Lista de orçamentos do módulo formal — inclui tanto os criados
 /// manualmente pelo prestador quanto os que nasceram de um pedido de
 /// cliente pelo marketplace (ver `Budget.isFromClientRequest`/
-/// `BudgetStatus`); esses últimos aparecem sempre no topo, com um selo de
-/// status, até saírem de `pendente` (pedido do Franck: "ficar como
-/// pendente para fazer/enviar o orçamento"). Mais recente primeiro dentro
-/// de cada grupo (ver BudgetsRepository.watchAll); tocar num card abre
-/// pra editar/tramitar, o botão flutuante cria um novo manualmente.
+/// `BudgetStatus`). Ordenados por PRIORIDADE de ação (ver `_priority`
+/// abaixo, pedido do Franck: "ordenar pelos status que precisa de
+/// execução") — primeiro quem precisa do prestador agora (`pendente`/
+/// `aprovado`), depois quem está esperando o cliente (`enviado`/
+/// `aditivoEnviado`/orçamento manual sem status), por último quem já foi
+/// resolvido (`aceito`/`recusado`); mais recente primeiro dentro de cada
+/// grupo (ver BudgetsRepository.watchAll). Tocar num card abre pra
+/// editar/tramitar, o botão flutuante cria um novo manualmente.
+///
+/// Orçamentos já resolvidos (`aceito`/`recusado`) podem ser arquivados
+/// (deslizar o card — pedido do Franck: "criar a opção de arquivar") pra
+/// sair desta lista sem apagar nada; o botão no topo alterna pra ver os
+/// arquivados e desarquivar (ver `Budget.archivedByProvider`/
+/// `BudgetsRepository.setArchivedByProvider`).
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
 
@@ -27,10 +38,72 @@ class BudgetsScreen extends StatefulWidget {
 
 class _BudgetsScreenState extends State<BudgetsScreen> {
   late Stream<List<Budget>> _stream = context.read<BudgetsRepository>().watchAll();
+  bool _showArchived = false;
+
+  /// Ids arquivando/desarquivando "otimisticamente" — escondidos da lista
+  /// assim que o usuário desliza, mesmo antes do Firestore confirmar (a
+  /// atualização ao vivo do stream demora um instante). Sem isso, se
+  /// nada mais mudasse a lista antes do stream reemitir, o
+  /// `Dismissible` recém-removido reapareceria com a MESMA `key` e o
+  /// Flutter derruba o app com "A dismissed Dismissible widget is still
+  /// part of the tree".
+  final Set<String> _pendingArchiveIds = {};
 
   Future<void> _retry() async {
     setState(() => _stream = context.read<BudgetsRepository>().watchAll());
   }
+
+  /// Só orçamentos com um status "resolvido" fazem sentido arquivar (ver
+  /// pedido do Franck respondido: "só os já concluídos") — um orçamento
+  /// manual (sem status) ou ainda em aberto continua sem essa opção.
+  bool _canArchive(Budget budget) =>
+      budget.status == BudgetStatus.aceito || budget.status == BudgetStatus.recusado;
+
+  void _archive(Budget budget, bool archived) {
+    setState(() => _pendingArchiveIds.add(budget.id));
+    unawaited(_setArchived(budget, archived));
+  }
+
+  Future<void> _setArchived(Budget budget, bool archived) async {
+    try {
+      await context.read<BudgetsRepository>().setArchivedByProvider(budget.id, archived);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _pendingArchiveIds.remove(budget.id));
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(archived
+                ? 'Não foi possível arquivar: $e'
+                : 'Não foi possível desarquivar: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _pendingArchiveIds.remove(budget.id));
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(content: Text(archived ? 'Orçamento arquivado.' : 'Orçamento desarquivado.')),
+      );
+  }
+
+  /// Ordem de prioridade pra quem precisa de ação — pedido do Franck:
+  /// "ordenar pelos status que precisa de execução". 0 = precisa do
+  /// PRESTADOR agora; 1 = esperando o CLIENTE (ou orçamento manual, sem
+  /// fluxo nenhum); 2 = já resolvido.
+  int _priority(BudgetStatus? status) => switch (status) {
+        null => 1,
+        BudgetStatus.pendente => 0,
+        BudgetStatus.aprovado => 0,
+        BudgetStatus.enviado => 1,
+        BudgetStatus.aditivoEnviado => 1,
+        BudgetStatus.aceito => 2,
+        BudgetStatus.recusado => 2,
+      };
 
   /// Abre o formulário e, se ele fechar depois de um aceite final bem
   /// sucedido (ver `BudgetFormScreen._acceptFinal`/`BudgetAcceptedResult`),
@@ -69,11 +142,22 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Orçamentos')),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openBudget(null),
-        child: const Icon(Icons.add),
+      appBar: AppBar(
+        title: Text(_showArchived ? 'Orçamentos arquivados' : 'Orçamentos'),
+        actions: [
+          IconButton(
+            tooltip: _showArchived ? 'Ver orçamentos ativos' : 'Ver arquivados',
+            icon: Icon(_showArchived ? Icons.inbox_outlined : Icons.archive_outlined),
+            onPressed: () => setState(() => _showArchived = !_showArchived),
+          ),
+        ],
       ),
+      floatingActionButton: _showArchived
+          ? null
+          : FloatingActionButton(
+              onPressed: () => _openBudget(null),
+              child: const Icon(Icons.add),
+            ),
       body: StreamBuilder<List<Budget>>(
         stream: _stream,
         builder: (context, snapshot) {
@@ -92,27 +176,36 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               ],
             );
           }
-          final budgets = [...(snapshot.data ?? const <Budget>[])];
+          final budgets = (snapshot.data ?? const <Budget>[])
+              .where((budget) =>
+                  budget.archivedByProvider == _showArchived &&
+                  !_pendingArchiveIds.contains(budget.id))
+              .toList();
           if (budgets.isEmpty) {
             return ListView(
-              children: const [
-                SizedBox(height: 80),
-                Icon(Icons.description_outlined, size: 48, color: AppColors.muted),
-                SizedBox(height: 12),
+              children: [
+                const SizedBox(height: 80),
+                Icon(
+                  _showArchived ? Icons.archive_outlined : Icons.description_outlined,
+                  size: 48,
+                  color: AppColors.muted,
+                ),
+                const SizedBox(height: 12),
                 Text(
-                  'Nenhum orçamento ainda. Toque no + pra criar o primeiro.',
+                  _showArchived
+                      ? 'Nenhum orçamento arquivado.'
+                      : 'Nenhum orçamento ainda. Toque no + pra criar o primeiro.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.muted),
+                  style: const TextStyle(color: AppColors.muted),
                 ),
               ],
             );
           }
-          // Pedidos ainda pendentes de envio sempre no topo — são os que
-          // precisam de ação do prestador (ver comentário da classe).
+          // Quem precisa de ação primeiro, mais recente primeiro dentro de
+          // cada grupo (ver `_priority`/comentário da classe).
           budgets.sort((a, b) {
-            final aPending = a.status == BudgetStatus.pendente ? 0 : 1;
-            final bPending = b.status == BudgetStatus.pendente ? 0 : 1;
-            if (aPending != bPending) return aPending.compareTo(bPending);
+            final diff = _priority(a.status).compareTo(_priority(b.status));
+            if (diff != 0) return diff;
             return b.date.compareTo(a.date);
           });
           return ListView.separated(
@@ -122,7 +215,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             itemBuilder: (context, index) {
               final budget = budgets[index];
               final status = budget.status;
-              return AppListCard(
+              final card = AppListCard(
                 leading: AppListCard.iconAvatar(
                   status == BudgetStatus.pendente
                       ? Icons.mark_email_unread_outlined
@@ -181,6 +274,31 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         ),
                       ),
                 onTap: () => _openBudget(budget),
+              );
+
+              // Arquivado: sempre pode desarquivar. Ativo: só desliza
+              // quem já foi resolvido (ver `_canArchive`) — em aberto
+              // continua só tocável, pra não sumir por engano.
+              if (!_showArchived && !_canArchive(budget)) return card;
+
+              final archiving = !_showArchived;
+              return Dismissible(
+                key: ValueKey(budget.id),
+                direction: DismissDirection.endToStart,
+                onDismissed: (_) => _archive(budget, archiving),
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: (archiving ? AppColors.muted : AppColors.primary).withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    archiving ? Icons.archive_outlined : Icons.unarchive_outlined,
+                    color: archiving ? AppColors.muted : AppColors.primary,
+                  ),
+                ),
+                child: card,
               );
             },
           );

@@ -99,6 +99,26 @@ class BudgetsRepository {
     }
   }
 
+  /// Arquivar/desarquivar do lado do PRESTADOR (ver comentário de
+  /// `Budget.archivedByProvider`) — pedido do Franck: "criar a opção de
+  /// arquivar" na tela "Orçamentos". Independente do campo irmão
+  /// `archivedByClient` (esse é gravado pelo cliente, via
+  /// BudgetRequestsRepository.setArchivedByClient); aqui é sempre o
+  /// prestador mexendo no próprio orçamento, já coberto por
+  /// `isOwner(providerId)` em firestore.rules — não precisou de regra
+  /// nova.
+  Future<void> setArchivedByProvider(String id, bool archived) async {
+    try {
+      await _collection.doc(id).update({
+        'archivedByProvider': archived,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (e) {
+      throw ApiException(
+          0, e.message ?? 'Não foi possível arquivar o orçamento.');
+    }
+  }
+
   /// Orçamentos que vieram de um pedido de cliente pelo marketplace e
   /// ainda não foram enviados (`status == pendente`) — usado pra destacar
   /// esses itens na tela de Orçamentos (ver pedido do Franck: "ficar como

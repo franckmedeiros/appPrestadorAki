@@ -153,6 +153,7 @@ class Budget {
     this.paymentRequestedAt,
     this.paymentPaidAt,
     this.archivedByClient = false,
+    this.archivedByProvider = false,
     this.revisionNumber = 0,
   });
 
@@ -189,6 +190,7 @@ class Budget {
       paymentRequestedAt: (data['paymentRequestedAt'] as Timestamp?)?.toDate(),
       paymentPaidAt: (data['paymentPaidAt'] as Timestamp?)?.toDate(),
       archivedByClient: data['archivedByClient'] as bool? ?? false,
+      archivedByProvider: data['archivedByProvider'] as bool? ?? false,
       revisionNumber: (data['revisionNumber'] as num?)?.toInt() ?? 0,
     );
   }
@@ -276,6 +278,14 @@ class Budget {
   /// update do cliente exigem.
   final bool archivedByClient;
 
+  /// Mesma ideia de `archivedByClient`, só que do lado do PRESTADOR —
+  /// pedido do Franck: "criar a opção de arquivar" na tela "Orçamentos"
+  /// (ver BudgetsScreen/BudgetsRepository.setArchivedByProvider), pra
+  /// tirar da lista principal orçamentos já resolvidos (`aceito`/
+  /// `recusado`) sem apagar nada. Independente de `archivedByClient` —
+  /// cada lado arquiva (ou não) por conta própria.
+  final bool archivedByProvider;
+
   /// Contagem de aditivos já registrados neste orçamento (0 = nunca
   /// revisado) — pedido do Franck: "quando o orçamento sofrer revisão,
   /// realizar a opção de aditivo de orçamento". Cada aditivo grava uma
@@ -360,6 +370,7 @@ class Budget {
         paymentRequestedAt: paymentRequestedAt,
         paymentPaidAt: paymentPaidAt,
         archivedByClient: archivedByClient,
+        archivedByProvider: archivedByProvider,
         revisionNumber: revisionNumber,
       );
 }
