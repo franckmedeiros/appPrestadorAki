@@ -54,28 +54,45 @@ class NotificationService {
     if (_started) return;
 
     try {
-      await _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(_channel);
+      // Isolado num try/catch PRÓPRIO, separado do pedido de permissão/
+      // token abaixo — bug real visto em produção (relatado pelo Franck:
+      // "quando eu abro o app ele não pergunta se permite as
+      // notificações"): antes, isso e o `_messaging.requestPermission`
+      // estavam no MESMO try, então se a inicialização do plugin de
+      // notificação local desse qualquer problema (ex.: plugin/versão
+      // nativa desalinhada num aparelho específico), a exceção pulava
+      // direto pro catch de fora e `requestPermission` NUNCA rodava — daí
+      // o app nunca pedir permissão nenhuma (nem Android 13+, nem iOS) e
+      // nunca salvar token, sem log nenhum visível pra quem está usando o
+      // app. Notificação manual em primeiro plano (`_showLocalNotification`
+      // abaixo) é um extra; não pode derrubar o que faz o push funcionar
+      // de verdade.
+      try {
+        await _localNotifications
+            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(_channel);
 
-      await _localNotifications.initialize(
-        const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-          // Sem isso, o lado Darwin do plugin nunca é inicializado — a
-          // notificação manual que a gente mostra com o app aberto (ver
-          // `_showLocalNotification` logo abaixo) simplesmente não
-          // aparecia no iPhone, silenciosamente (nenhum erro, nenhum
-          // log — só não tinha efeito nenhum). Não pede permissão de
-          // novo aqui (`request...Permission: false`) porque isso já é
-          // feito explicitamente logo abaixo, via
-          // `_messaging.requestPermission`.
-          iOS: DarwinInitializationSettings(
-            requestAlertPermission: false,
-            requestBadgePermission: false,
-            requestSoundPermission: false,
+        await _localNotifications.initialize(
+          const InitializationSettings(
+            android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+            // Sem isso, o lado Darwin do plugin nunca é inicializado — a
+            // notificação manual que a gente mostra com o app aberto (ver
+            // `_showLocalNotification` logo abaixo) simplesmente não
+            // aparecia no iPhone, silenciosamente (nenhum erro, nenhum
+            // log — só não tinha efeito nenhum). Não pede permissão de
+            // novo aqui (`request...Permission: false`) porque isso já é
+            // feito explicitamente logo abaixo, via
+            // `_messaging.requestPermission`.
+            iOS: DarwinInitializationSettings(
+              requestAlertPermission: false,
+              requestBadgePermission: false,
+              requestSoundPermission: false,
+            ),
           ),
-        ),
-      );
+        );
+      } catch (e) {
+        debugPrint('Não foi possível inicializar flutter_local_notifications: $e');
+      }
 
       await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
