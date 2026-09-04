@@ -21,9 +21,29 @@ class NotificationsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Notificações'),
         actions: [
-          TextButton(
-            onPressed: repository.markAllAsRead,
-            child: const Text('Marcar tudo como lida'),
+          // Pedido do Franck: "adicionar a opção marcar todas como
+          // lidas" — o botão já existia, mas ficava sempre clicável
+          // mesmo sem nada pra marcar (parecia não fazer nada) e não
+          // dava nenhuma confirmação depois de tocar. Agora some/
+          // desabilita quando já está tudo lido e avisa quando termina.
+          StreamBuilder<int>(
+            stream: repository.watchUnreadCount(),
+            builder: (context, snapshot) {
+              final hasUnread = (snapshot.data ?? 0) > 0;
+              return TextButton(
+                onPressed: hasUnread
+                    ? () async {
+                        await repository.markAllAsRead();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Todas as notificações foram marcadas como lidas.')),
+                          );
+                        }
+                      }
+                    : null,
+                child: const Text('Marcar tudo como lida'),
+              );
+            },
           ),
         ],
       ),

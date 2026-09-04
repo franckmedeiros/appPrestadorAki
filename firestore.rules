@@ -148,7 +148,22 @@ service cloud.firestore {
       // Apagar um serviço não faz sentido no fluxo (só avança de etapa,
       // até "concluído") — continua não permitido.
       match /jobs/{jobId} {
-        allow read, create, update: if isOwner(providerId);
+        // `create`/`update` continuam só do prestador (o Job nasce e
+        // avança só pelo app dele — ver JobsRepository) — a novidade é o
+        // CLIENTE poder LER (get) o próprio job, pra "Meus orçamentos"
+        // mostrar a etapa de execução do serviço e só liberar a avaliação
+        // quando ele realmente concluir, em vez de assim que o orçamento
+        // é aceito — pedido do Franck: "o tramite do serviço precisa
+        // aparecer no card do cliente e a avaliação, só quando concluir
+        // todo o processo" (ver BudgetRequestsRepository.
+        // watchMyJobsByBudgetId/hasAcceptedBudgetWith e MyRequestsScreen).
+        // Mesma ressalva de `budgets` acima sobre `get` (um documento por
+        // vez, seguro com OR) vs. `list`/`collectionGroup` (precisa do
+        // bloco `match /{path=**}/jobs/{jobId}` lá embaixo, com wildcard
+        // RECURSIVO — ver o comentário grande logo antes dele).
+        allow get: if isOwner(providerId) ||
+          (request.auth != null && request.auth.uid == resource.data.get('clientUid', null));
+        allow create, update: if isOwner(providerId);
         allow delete: if false;
       }
     }
@@ -280,6 +295,16 @@ service cloud.firestore {
       allow list: if request.auth != null &&
         (request.auth.uid == resource.data.providerUid ||
          request.auth.uid == resource.data.clientUid);
+    }
+
+    // Mesma razão do bloco acima (`collectionGroup` só é avaliada por um
+    // wildcard RECURSIVO) — agora pra `collectionGroup('jobs')`, usada
+    // pelo cliente em "Meus orçamentos" (ver
+    // BudgetRequestsRepository.watchMyJobsByBudgetId/
+    // hasAcceptedBudgetWith) pra achar os próprios jobs por `clientUid`,
+    // já que eles moram na subcoleção do PRESTADOR.
+    match /{path=**}/jobs/{jobId} {
+      allow list: if request.auth != null && request.auth.uid == resource.data.get('clientUid', null);
     }
 
     // Nenhuma outra coleção é acessível pelo cliente. `publicBudgetTokens`

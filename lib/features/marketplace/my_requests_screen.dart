@@ -11,6 +11,8 @@ import '../../core/date_text_utils.dart';
 import '../../widgets/app_list_card.dart';
 import '../budgets/models/budget.dart';
 import '../budgets/widgets/aditivo_badge.dart';
+import '../jobs/job_status_chip.dart';
+import '../jobs/models/job.dart';
 import 'budget_requests_repository.dart';
 import 'client_auth_gate.dart';
 import 'models/service_category.dart';
@@ -41,6 +43,13 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   Stream<List<Budget>>? _stream;
   String? _streamForUid;
 
+  // Pedido do Franck: "o tramite do serviço precisa aparecer no card do
+  // cliente e a avaliação, só quando concluir todo o processo" — sem
+  // isso, esta tela não sabia de nada depois que o orçamento virava
+  // "aceito" (o Job/execução do serviço mora na subcoleção do
+  // PRESTADOR, ver `BudgetRequestsRepository.watchMyJobsByBudgetId`).
+  Stream<Map<String, Job>>? _jobsStream;
+
   // Pedido do Franck: opção de arquivar pedidos antigos em "Meus
   // orçamentos" — não é uma consulta separada (só um filtro local em
   // cima do mesmo `_stream`, ver `archivedByClient` em Budget), porque a
@@ -51,6 +60,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     if (_streamForUid == uid) return;
     _streamForUid = uid;
     _stream = context.read<BudgetRequestsRepository>().watchMine();
+    _jobsStream = context.read<BudgetRequestsRepository>().watchMyJobsByBudgetId();
   }
 
   /// Cria uma consulta NOVA de verdade, ignorando o cache de
@@ -117,7 +127,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   /// ver `Budget.paymentPixPayload`/`functions/src/jobs.ts`) com o que já
   /// existia no rodapé do card (aprovar/recusar, ou o link pra avaliar) —
   /// os dois podem coexistir (ex.: já pagou mas ainda não avaliou).
-  Widget? _buildFooter(Budget budget, {required bool awaitingDecision, required bool accepted}) {
+  Widget? _buildFooter(Budget budget, {required bool awaitingDecision, required bool canRate}) {
     final Widget? decisionOrRating = awaitingDecision
         ? Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -134,7 +144,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               ),
             ],
           )
-        : accepted && budget.providerDirectoryId != null
+        : canRate && budget.providerDirectoryId != null
             ? Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
@@ -177,6 +187,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     } else {
       _stream = null;
       _streamForUid = null;
+      _jobsStream = null;
     }
 
     return Scaffold(
@@ -253,13 +264,24 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     ],
                   );
                 }
-                return ListView.separated(
+                // Pedido do Franck: "o tramite do serviço precisa aparecer
+                // no card do cliente e a avaliação, só quando concluir
+                // todo o processo" — junta o Job de cada orçamento (se
+                // já existir um, ver `_jobsStream`) só nesta camada mais
+                // interna, sem duplicar os estados de carregamento/erro
+                // já tratados acima pro stream de orçamentos.
+                return StreamBuilder<Map<String, Job>>(
+                  stream: _jobsStream,
+                  builder: (context, jobsSnapshot) {
+                    final jobsByBudgetId = jobsSnapshot.data ?? const <String, Job>{};
+                    return ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: budgets.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final budget = budgets[index];
                     final status = budget.status;
+                    final job = jobsByBudgetId[budget.id];
                     // Pedido do Franck: quando o prestador reenvia um
                     // aditivo, o cliente precisa poder aprovar/recusar
                     // igual a um orçamento comum enviado -- não fica
@@ -267,7 +289,14 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     // disponível (ver BudgetsRepository.registerAditivo).
                     final awaitingDecision =
                         status == BudgetStatus.enviado || status == BudgetStatus.aditivoEnviado;
-                    final accepted = status == BudgetStatus.aceito;
+                    // Avaliação só libera quando o SERVIÇO concluir de
+                    // verdade (Job.status == concluido) — não basta o
+                    // orçamento estar "aceito", que acontece bem antes do
+                    // serviço começar/terminar (ver
+                    // BudgetRequestsRepository.hasAcceptedBudgetWith, que
+                    // aplica a mesma regra na tela de avaliação de
+                    // verdade).
+                    final canRate = job?.status == JobStatus.concluido;
                     final category =
                         budget.category != null ? serviceCategoryFromWire(budget.category!) : null;
                     return AppListCard(
@@ -309,6 +338,15 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                               const SizedBox(height: 2),
                               Text(status?.label ?? '',
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                              // Pedido do Franck: "o tramite do serviço
+                              // precisa aparecer no card do cliente" — só
+                              // existe um Job depois do aceite final do
+                              // prestador (ver BudgetsRepository.
+                              // acceptFinal/JobsRepository.create).
+                              if (job != null) ...[
+                                const SizedBox(height: 3),
+                                JobStatusChip(status: job.status),
+                              ],
                               if (status != null &&
                                   status != BudgetStatus.pendente &&
                                   budget.totalCents > 0)
@@ -333,12 +371,14 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                           ),
                         ],
                       ),
-                      // Só orçamentos aceitos liberam avaliação (ver
+                      // Só serviço CONCLUÍDO libera avaliação (ver
                       // BudgetRequestsRepository.hasAcceptedBudgetWith) —
                       // leva pro perfil público, onde a seção de avaliação
                       // de verdade mora (evita duplicar o formulário de
                       // estrelas em duas telas).
-                      footer: _buildFooter(budget, awaitingDecision: awaitingDecision, accepted: accepted),
+                      footer: _buildFooter(budget, awaitingDecision: awaitingDecision, canRate: canRate),
+                    );
+                  },
                     );
                   },
                 );

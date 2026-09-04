@@ -41,11 +41,14 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
   // voltando pro estado de carregando sem necessidade.
   late final Stream<List<ProviderRating>> _ratingsStream;
 
-  // Gamificação por estrelas: só um cliente com pelo menos um orçamento
-  // aceito com ESSE prestador pode avaliar (ver
+  // Gamificação por estrelas: só um cliente com pelo menos um SERVIÇO
+  // CONCLUÍDO com ESSE prestador pode avaliar (ver
   // BudgetRequestsRepository.hasAcceptedBudgetWith) — evita nota de
-  // quem nunca contratou. `_myRating` != null vira edição em vez de uma
-  // segunda avaliação (ver ProviderDirectoryRepository.rate).
+  // quem nunca contratou, e evita liberar cedo demais (pedido do
+  // Franck: a avaliação só deve liberar quando o processo concluir de
+  // verdade, não assim que o orçamento é aceito). `_myRating` != null
+  // vira edição em vez de uma segunda avaliação (ver
+  // ProviderDirectoryRepository.rate).
   bool _canRate = false;
   // true quando a própria checagem de elegibilidade falhou (ex.:
   // collectionGroup('budgets') sem índice/rule) — sem isso, um erro

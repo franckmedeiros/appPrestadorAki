@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/api_exception.dart';
 import '../budgets/models/budget.dart';
+import '../jobs/models/job.dart';
 import 'models/provider_listing.dart';
 
 /// Lado do CLIENTE no fluxo de pedido de orçamento pelo marketplace.
@@ -85,6 +86,28 @@ class BudgetRequestsRepository {
         .map((snapshot) => snapshot.docs.map(Budget.fromFirestore).toList());
   }
 
+  /// Ao vivo, o Job (execução do serviço — ver `lib/features/jobs/`)
+  /// ligado a cada orçamento deste cliente, indexado por `budgetId` —
+  /// pedido do Franck: "o tramite do serviço precisa aparecer no card do
+  /// cliente e a avaliação, só quando concluir todo o processo". Antes
+  /// disso "Meus orçamentos" não sabia de nada depois que o prestador
+  /// dava o aceite final — `Job` mora na subcoleção do PRESTADOR
+  /// (`providers/{uid}/jobs`), então só dá pra achar via
+  /// `collectionGroup`, filtrando por `clientUid` (mesma razão/mesma
+  /// regra de `watchMine` acima, ver o comentário grande em
+  /// firestore.rules sobre `collectionGroup` precisar do wildcard
+  /// recursivo `{path=**}`).
+  Stream<Map<String, Job>> watchMyJobsByBudgetId() {
+    return _firestore
+        .collectionGroup('jobs')
+        .where('clientUid', isEqualTo: _auth.currentUser!.uid)
+        .snapshots()
+        .map((snapshot) => <String, Job>{
+              for (final doc in snapshot.docs)
+                if (doc.data()['budgetId'] is String) doc.data()['budgetId'] as String: Job.fromFirestore(doc),
+            });
+  }
+
   /// Cliente aprova um orçamento que o prestador enviou (`status ==
   /// enviado`) — volta pro prestador, que ainda precisa dar o aceite
   /// final pra virar compromisso na agenda (pedido do Franck: "Se
@@ -133,17 +156,21 @@ class BudgetRequestsRepository {
   }
 
   /// Usado como condição pra liberar a avaliação por estrelas (ver
-  /// `ProviderDirectoryRepository.rate`): só quem já teve um orçamento
-  /// aceito com esse prestador pode avaliar — evita nota de quem nunca
-  /// contratou. Três filtros de igualdade sem `orderBy` não exigem
-  /// índice composto no Firestore.
+  /// `ProviderDirectoryRepository.rate`): só quem já teve um SERVIÇO
+  /// CONCLUÍDO com esse prestador pode avaliar — evita nota de quem
+  /// nunca contratou, e evita liberar cedo demais (pedido do Franck:
+  /// "não esta errado, o tramite do serviço precisa aparecer no card do
+  /// cliente e a avaliação, só quando concluir todo o processo"; antes
+  /// disso checava só `Budget.status == aceito`, que acontece bem antes
+  /// do serviço de fato começar/terminar). Três filtros de igualdade sem
+  /// `orderBy` não exigem índice composto no Firestore.
   Future<bool> hasAcceptedBudgetWith(String providerDirectoryId) async {
     try {
       final snapshot = await _firestore
-          .collectionGroup('budgets')
+          .collectionGroup('jobs')
           .where('clientUid', isEqualTo: _auth.currentUser!.uid)
           .where('providerDirectoryId', isEqualTo: providerDirectoryId)
-          .where('status', isEqualTo: BudgetStatus.aceito.wireValue)
+          .where('status', isEqualTo: JobStatus.concluido.wireValue)
           .limit(1)
           .get();
       return snapshot.docs.isNotEmpty;
