@@ -94,7 +94,59 @@ class NotificationService {
         debugPrint('Não foi possível inicializar flutter_local_notifications: $e');
       }
 
-      await _messaging.requestPermission(alert: true, badge: true, sound: true);
+      // Só pede a permissão quando ainda não há NENHUMA decisão registrada
+      // no sistema (`notDetermined`) — tanto no Android 13+ (runtime
+      // permission POST_NOTIFICATIONS) quanto no iOS, o próprio SO só
+      // mostra o diálogo de verdade nesse caso; chamando `requestPermission`
+      // de novo depois de já decidido (autorizado OU negado) ele NUNCA
+      // reabre o pop-up, só devolve a decisão antiga silenciosamente — daí
+      // o relato mais comum de "o app não pergunta mais": não é bug, é o
+      // comportamento normal do Android/iOS quando essa MESMA instalação
+      // já passou por essa pergunta uma vez (mesmo numa versão antiga,
+      // antes de qualquer correção aqui). Atualizar o app por cima (sem
+      // desinstalar) NUNCA reabre essa pergunta. Checar aqui, em vez de só
+      // chamar `requestPermission` direto, deixa isso explícito e — mais
+      // importante — deixa um rastro no log (`adb logcat` / `flutter logs`,
+      // filtrando por "NotificationService") pra confirmar com certeza qual
+      // dos três estados o aparelho já está: nunca perguntado, autorizado,
+      // ou negado.
+      final statusAntes = await _messaging.getNotificationSettings();
+      debugPrint(
+          '[NotificationService] Status de permissão antes: ${statusAntes.authorizationStatus}');
+
+      switch (statusAntes.authorizationStatus) {
+        case AuthorizationStatus.notDetermined:
+          try {
+            final statusDepois = await _messaging.requestPermission(
+              alert: true,
+              badge: true,
+              sound: true,
+            );
+            debugPrint(
+                '[NotificationService] Usuário respondeu ao pedido de permissão: ${statusDepois.authorizationStatus}');
+          } catch (e) {
+            // Isolado num try/catch próprio (mesma lógica do plugin de
+            // notificação local acima) pra distinguir no log "o SO nem
+            // deixou perguntar" de "algo quebrou ao perguntar" — sem isso,
+            // os dois caiam no mesmo catch genérico lá embaixo, com a
+            // mesma mensagem, impossível de diferenciar sem debugar ao
+            // vivo.
+            debugPrint('[NotificationService] requestPermission() lançou uma exceção: $e');
+          }
+          break;
+        case AuthorizationStatus.denied:
+          debugPrint(
+              '[NotificationService] Usuário já negou a permissão antes nesta instalação — '
+              'não peço de novo (o Android/iOS não reabririam o diálogo mesmo se eu pedisse). '
+              'Pra testar o pedido de novo, desinstale o app por completo (não só atualize por '
+              'cima) e instale de novo.');
+          break;
+        case AuthorizationStatus.authorized:
+        case AuthorizationStatus.provisional:
+          debugPrint(
+              '[NotificationService] Permissão já concedida anteriormente — nada a pedir.');
+          break;
+      }
 
       await _saveCurrentToken();
       _messaging.onTokenRefresh.listen(
