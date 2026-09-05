@@ -30,6 +30,16 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Sem isso, o app não se registra pra push em segundo plano/fechado
+	     (mensagens "data-only" da FCM, e o refresh silencioso de token) —
+	     sem essa entrada, o iOS nunca acorda o app pra processar uma
+	     notificação remota chegando fora do primeiro plano. Ver
+	     core/notification_service.dart e Runner.entitlements
+	     (aps-environment). -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
