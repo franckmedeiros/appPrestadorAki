@@ -36,9 +36,10 @@ WhatsApp ou e-mail, só nome, categoria e cidade. Ver a ressalva de LGPD no
    cp providers_seed.example.csv providers_seed.csv
    ```
    Formato (cabeçalho obrigatório, nessa ordem): `name,category,city,state`
-   — `state` é opcional. `category` precisa ser um destes valores (iguais
-   ao app): `eletricista, encanador, pedreiro, pintor, jardineiro,
-   limpeza, marceneiro, serralheiro, climatizacao, vidraceiro, azulejista, outro`.
+   — `state` é opcional. `category` precisa ser um dos ids do catálogo
+   completo em `assets/data/service_categories.json` (o mesmo catálogo do
+   app, mais de cem subcategorias — o script lê esse arquivo direto pra
+   validar, então nunca fica desatualizado com o app).
 
 4. Rodar (o script mostra tudo que vai gravar e pede confirmação antes de
    tocar no banco de verdade):

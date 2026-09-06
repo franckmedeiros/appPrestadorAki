@@ -36,10 +36,10 @@
  * providers_seed.example.csv):
  *   name,category,city,state
  *
- * `category` precisa ser um destes valores (os mesmos do enum
- * ServiceCategory do app — lib/features/marketplace/models/service_category.dart):
- *   eletricista, encanador, pedreiro, pintor, jardineiro, limpeza,
- *   marceneiro, serralheiro, climatizacao, vidraceiro, azulejista, outro
+ * `category` precisa ser um dos ids do catálogo completo em
+ * assets/data/service_categories.json (o mesmo que o app usa — mais de
+ * cem subcategorias; o script valida contra esse arquivo direto, não
+ * mantém lista própria) ou 'outro'.
  * `state` é opcional (sigla, ex.: SC).
  */
 
@@ -48,10 +48,27 @@ const path = require('path');
 const readline = require('readline');
 const admin = require('firebase-admin');
 
-const VALID_CATEGORIES = new Set([
-  'eletricista', 'encanador', 'pedreiro', 'pintor', 'jardineiro',
-  'limpeza', 'marceneiro', 'serralheiro', 'climatizacao', 'vidraceiro', 'azulejista', 'outro',
-]);
+/**
+ * Carrega o catálogo de categorias válidas a partir do mesmo JSON que o
+ * app usa (`assets/data/service_categories.json`), em vez de manter uma
+ * lista fixa aqui duplicada — essa lista já ficou desatualizada uma vez
+ * (o catálogo cresceu de 12 pra mais de 100 subcategorias) e voltaria a
+ * ficar sempre que o app ganhasse categorias novas.
+ */
+function loadValidCategories() {
+  const catalogPath = path.resolve(__dirname, '..', 'assets', 'data', 'service_categories.json');
+  const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+  const ids = new Set();
+  for (const group of catalog.groups) {
+    for (const sub of group.subcategories) {
+      ids.add(sub.id);
+    }
+  }
+  ids.add('outro');
+  return ids;
+}
+
+const VALID_CATEGORIES = loadValidCategories();
 
 /** Parser de CSV simples que respeita campos entre aspas (nomes com vírgula). */
 function splitCsvLine(line) {
