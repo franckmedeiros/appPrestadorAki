@@ -6,6 +6,7 @@ import '../../core/validators.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
+import '../../widgets/password_requirements_hint.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 
 /// Cadastro (decisão combinada com o Franck): toda conta nasce como
@@ -165,12 +166,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       LabeledTextField(
                         label: 'Senha',
                         controller: _passwordController,
-                        hintText: 'Mínimo de 8 caracteres',
+                        hintText: 'Senha forte',
                         obscureText: _obscurePassword,
                         prefixIcon: Icons.lock_outline,
                         textInputAction: TextInputAction.done,
-                        validator: (value) =>
-                            (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
+                        validator: validateStrongPassword,
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -180,6 +180,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                       ),
+                      PasswordRequirementsHint(controller: _passwordController),
                       if (_biometricAvailable == true) ...[
                         const SizedBox(height: 18),
                         _BiometricCheckbox(

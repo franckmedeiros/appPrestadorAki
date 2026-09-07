@@ -3,6 +3,7 @@ import '../core/auth_controller.dart';
 import '../features/auth/biometric_unlock_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
+import '../features/auth/forgot_password_screen.dart';
 import '../features/customers/customer_form_screen.dart';
 import '../features/customers/customers_list_screen.dart';
 import '../features/agenda/agenda_screen.dart';
@@ -29,7 +30,7 @@ import '../widgets/unified_shell.dart';
 // Telas de autenticação — cadastro/login continuam existindo pra quem
 // quer entrar com conta (ex.: a partir do gate de favoritar/solicitar
 // orçamento) — nunca são obrigatórias só pra buscar (ver ClientAuthGate).
-const _authScreens = {'/welcome', '/login', '/register'};
+const _authScreens = {'/welcome', '/login', '/register', '/esqueci-senha'};
 
 // Rotas que só fazem sentido pra quem tem a capacidade de prestador
 // (`auth.isProvider`) — conta unificada (ver AuthController): não são mais
@@ -91,6 +92,7 @@ GoRouter buildAppRouter(AuthController authController) {
       GoRoute(path: '/welcome', builder: (context, state) => const WelcomeScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
+      GoRoute(path: '/esqueci-senha', builder: (context, state) => const ForgotPasswordScreen()),
       GoRoute(path: '/unlock', builder: (context, state) => const BiometricUnlockScreen()),
       // Telas do lado do prestador que antes viviam em abas próprias
       // (AppShell antigo) — depois da conta unificada, são alcançadas a partir de

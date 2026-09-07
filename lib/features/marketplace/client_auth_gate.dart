@@ -4,6 +4,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/validators.dart';
 import '../../widgets/mask_text_input_formatter.dart';
+import '../../widgets/password_requirements_hint.dart';
 
 /// Ponto único de "gate" pro lado do cliente do marketplace, depois da
 /// mudança de ideia: buscar e ver o perfil público de um prestador NÃO
@@ -183,10 +184,13 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
               TextFormField(
                 controller: _passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Senha (mínimo 8 caracteres)'),
-                validator: (value) =>
-                    (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
+                decoration: InputDecoration(
+                  labelText: _mode == _Mode.register ? 'Senha forte' : 'Senha',
+                ),
+                validator:
+                    _mode == _Mode.register ? validateStrongPassword : validateLoginPassword,
               ),
+              if (_mode == _Mode.register) PasswordRequirementsHint(controller: _passwordController),
               if (auth.errorMessage != null) ...[
                 const SizedBox(height: 12),
                 Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),

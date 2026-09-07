@@ -138,8 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscurePassword,
                         prefixIcon: Icons.lock_outline,
                         textInputAction: TextInputAction.done,
-                        validator: (value) =>
-                            (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
+                        validator: validateLoginPassword,
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -147,6 +146,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             size: 20,
                           ),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => context.push('/esqueci-senha'),
+                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                          child: const Text(
+                            'Esqueci minha senha',
+                            style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
                         ),
                       ),
                       if (auth.errorMessage != null) ...[

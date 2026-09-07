@@ -67,6 +67,17 @@ class AuthController extends ChangeNotifier {
 
   Future<bool> get biometricAvailable => _biometric.isAvailable;
 
+  /// `true` quando o Firebase confirmou (clique no link do e-mail) que o
+  /// endereço cadastrado existe de verdade — ver `sendEmailVerification`/
+  /// `reloadCurrentUser` abaixo. De propósito NÃO bloqueia nada sozinho
+  /// (nenhuma tela usa isto pra impedir login): o app já tem contas reais
+  /// criadas antes desse recurso existir, todas com este campo `false` no
+  /// Firebase — travar o app pra elas de uma hora pra outra seria trocar
+  /// "sem confirmação de e-mail" por "usuário antigo trancado pra fora".
+  /// Por enquanto só alimenta um lembrete não-bloqueante (ver
+  /// UserProfileScreen).
+  bool get emailVerified => _auth.currentUser?.emailVerified ?? false;
+
   /// UID do usuário logado — usado pelos repositórios do Firestore para
   /// montar caminhos como `providers/{uid}/...` ou `clients/{uid}/...`.
   /// Só deve ser lido quando `status == AuthStatus.authenticated`; isso é
@@ -241,6 +252,19 @@ class AuthController extends ChangeNotifier {
             state: state,
           );
           isProvider = true;
+        }
+
+        // Try/catch próprio: se o envio do e-mail de verificação falhar
+        // (rede instável logo após criar a conta, limite de envio do
+        // Firebase etc.), o cadastro em si JÁ terminou com sucesso — não
+        // faz sentido a pessoa ver "não foi possível cadastrar" e achar
+        // que precisa tentar de novo (criaria conta duplicada com o
+        // mesmo e-mail, que o Firebase Auth rejeitaria). Reenviar depois
+        // é só reabrir o lembrete em UserProfileScreen.
+        try {
+          await credential.user?.sendEmailVerification();
+        } catch (e) {
+          debugPrint('AuthController.register: falha ao enviar e-mail de verificação: $e');
         }
 
         status = AuthStatus.authenticated;
@@ -561,6 +585,54 @@ class AuthController extends ChangeNotifier {
     isProvider = false;
     status = AuthStatus.unauthenticated;
     notifyListeners();
+  }
+
+  /// Manda o e-mail de verificação do Firebase pro endereço já cadastrado
+  /// na conta logada — chamado sozinho logo depois de `register` (ver
+  /// abaixo) e reaproveitado no lembrete de "confirme seu e-mail" (ver
+  /// UserProfileScreen) pra reenviar quando a pessoa pedir.
+  Future<bool> sendEmailVerification() => _submit(() async {
+        final user = _auth.currentUser;
+        if (user == null || user.emailVerified) return;
+        await user.sendEmailVerification();
+      });
+
+  /// Recarrega os dados do usuário direto do Firebase (o SDK não atualiza
+  /// `emailVerified` sozinho depois que a pessoa clica no link — só numa
+  /// nova sessão/reload explícito) — chamado pelo botão "Já confirmei" do
+  /// lembrete.
+  Future<void> reloadCurrentUser() async {
+    await _auth.currentUser?.reload();
+    notifyListeners();
+  }
+
+  /// Manda o e-mail de redefinição de senha do Firebase. De propósito
+  /// SEMPRE retorna sucesso pro chamador, mesmo quando o e-mail não
+  /// corresponde a nenhuma conta (`user-not-found`) — contar a diferença
+  /// pra quem está pedindo a redefinição é um jeito clássico de descobrir,
+  /// por tentativa, quais e-mails têm conta no app (enumeração de
+  /// usuários); pedido do Franck de segurança "nível nacional" é
+  /// justamente pra fechar esse tipo de brecha, não só senha forte. A
+  /// mensagem que a tela mostra é sempre a mesma, exista a conta ou não.
+  Future<bool> sendPasswordResetEmail(String email) async {
+    isBusy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+      return true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') return true;
+      errorMessage = _messageFor(e.code);
+      return false;
+    } catch (e) {
+      debugPrint('AuthController.sendPasswordResetEmail: erro inesperado: $e');
+      errorMessage = 'Não foi possível conectar ao servidor.';
+      return false;
+    } finally {
+      isBusy = false;
+      notifyListeners();
+    }
   }
 
   /// Descobre se a conta também é prestador, olhando se `providers/{uid}`

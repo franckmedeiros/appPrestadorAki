@@ -7,6 +7,7 @@ import '../../core/validators.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/mask_text_input_formatter.dart';
+import '../../widgets/password_requirements_hint.dart';
 
 /// Aba "Meu perfil" pra quem ainda não tem sessão - login/cadastro
 /// embutidos direto na tela (sem precisar abrir uma folha/modal), a
@@ -158,7 +159,7 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
                       const SizedBox(height: 14),
                       _PanelField(
                         controller: _passwordController,
-                        hintText: 'Senha (mínimo 8 caracteres)',
+                        hintText: isRegister ? 'Senha forte' : 'Senha',
                         icon: Icons.lock_outline,
                         obscureText: _obscurePassword,
                         suffixIcon: IconButton(
@@ -169,9 +170,9 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
                           ),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
-                        validator: (value) =>
-                            (value == null || value.length < 8) ? 'Mínimo de 8 caracteres' : null,
+                        validator: isRegister ? validateStrongPassword : validateLoginPassword,
                       ),
+                      if (isRegister) PasswordRequirementsHint(controller: _passwordController),
                       if (auth.errorMessage != null) ...[
                         const SizedBox(height: 12),
                         Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
