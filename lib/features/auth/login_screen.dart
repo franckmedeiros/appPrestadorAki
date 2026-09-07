@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/validators.dart';
 import '../../core/biometric_service.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
@@ -127,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         prefixIcon: Icons.mail_outline,
                         textInputAction: TextInputAction.next,
                         validator: (value) =>
-                            (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                            validateEmail(value),
                       ),
                       const SizedBox(height: 18),
                       LabeledTextField(

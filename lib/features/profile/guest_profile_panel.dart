@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/validators.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/mask_text_input_formatter.dart';
@@ -152,7 +153,7 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
                         icon: Icons.mail_outline,
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) =>
-                            (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                            validateEmail(value),
                       ),
                       const SizedBox(height: 14),
                       _PanelField(

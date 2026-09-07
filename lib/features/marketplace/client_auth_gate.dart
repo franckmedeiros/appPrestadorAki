@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/validators.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 
 /// Ponto único de "gate" pro lado do cliente do marketplace, depois da
@@ -176,7 +177,7 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(labelText: 'E-mail'),
                 validator: (value) =>
-                    (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                    validateEmail(value),
               ),
               const SizedBox(height: 12),
               TextFormField(

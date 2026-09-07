@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/validators.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
@@ -138,7 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         prefixIcon: Icons.mail_outline,
                         textInputAction: TextInputAction.next,
                         validator: (value) =>
-                            (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                            validateEmail(value),
                       ),
                       const SizedBox(height: 18),
                       // Pedido do Franck: obrigar o telefone no cadastro —

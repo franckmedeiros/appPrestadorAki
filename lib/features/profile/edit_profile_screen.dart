@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/validators.dart';
 import '../../core/provider_logo_service.dart';
 import '../../core/provider_bio_ai_service.dart';
 import '../../widgets/mask_text_input_formatter.dart';
@@ -507,7 +508,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
                   validator: (value) =>
-                      (value == null || !value.contains('@')) ? 'Informe um e-mail válido' : null,
+                      validateEmail(value),
                 ),
                 const SizedBox(height: 4),
                 const Text(
