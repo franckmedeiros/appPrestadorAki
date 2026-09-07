@@ -220,10 +220,19 @@ class NotificationService {
             'de novo no próximo init() (troca de aba).');
         return;
       }
+      // Log explícito do valor (não só "chegou"/"não chegou") — pedido
+      // direto do Franck pra confirmar na prática, olhando o
+      // `flutter logs`/console do Xcode, se a APNs de fato respondeu
+      // nesse aparelho específico antes de seguir pro token FCM abaixo.
+      debugPrint('[NotificationService] APNs Token: $apnsToken');
     }
 
     final token = await _messaging.getToken();
-    if (token == null) return;
+    if (token == null) {
+      debugPrint('[NotificationService] getToken() (FCM) devolveu null.');
+      return;
+    }
+    debugPrint('[NotificationService] FCM Token: $token');
 
     final firestore = FirebaseFirestore.instance;
     final now = FieldValue.serverTimestamp();
