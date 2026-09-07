@@ -31,6 +31,43 @@ class JobDetailsSheet extends StatefulWidget {
 class _JobDetailsSheetState extends State<JobDetailsSheet> {
   bool _busy = false;
 
+  /// Confere se o prestador já tem uma chave Pix cadastrada ANTES de
+  /// deixar o serviço ir pra "Aguardando pagamento" — pedido do Franck:
+  /// "quando o prestador for enviar o pagamento e não ter configurado a
+  /// chave pix, avisar pro usuário para ajustar e não envia o pagamento".
+  /// Antes disso a checagem só acontecia depois, dentro do QR Code
+  /// (`_PaymentQrCode` — mostra um aviso em vez de QR vazio), mas a
+  /// transição de status já tinha acontecido: o cliente via "Aguardando
+  /// pagamento" sem ter como pagar de verdade. Mesmo `fetchOwnProfileData`
+  /// que `_PaymentQrCode` usa, então lê o mesmo campo `pixKey`.
+  Future<void> _startCharging() async {
+    final profile = await context.read<AuthController>().fetchOwnProfileData();
+    final pixKey = profile['pixKey'] as String?;
+    if (pixKey == null || pixKey.trim().isEmpty) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Cadastre sua chave Pix'),
+          content: const Text(
+            'Antes de cobrar esse serviço, configure sua chave Pix em '
+            '"Editar perfil" — sem ela não dá pra gerar o QR Code de '
+            'cobrança e o cliente não vai conseguir pagar.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Entendi'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    await _changeStatus(JobStatus.aguardandoPagamento);
+  }
+
   Future<void> _changeStatus(
     JobStatus status, {
     bool markPaidNow = false,
@@ -86,7 +123,15 @@ class _JobDetailsSheetState extends State<JobDetailsSheet> {
               _DetailRow(icon: Icons.place_outlined, text: job.addressText!),
             _DetailRow(icon: Icons.payments_outlined, text: formatCentsBRL(job.totalCents)),
             const SizedBox(height: 20),
-            if (job.status == JobStatus.aguardandoPagamento) ...[
+            // Pedido do Franck: "ter a opção de reenviar o pagamento e
+            // ficar disponível sempre que o cliente/prestador precisar
+            // ver" — antes sumia assim que o Job virava "concluído", sem
+            // jeito de conferir/copiar o código Pix de novo depois (ex.:
+            // cliente perdeu a mensagem, ou quer conferir o valor
+            // cobrado). Continua não aparecendo nas etapas anteriores
+            // (novo/em andamento/interrompido), só faz sentido depois que
+            // a cobrança já foi gerada pelo menos uma vez.
+            if (job.status == JobStatus.aguardandoPagamento || job.status == JobStatus.concluido) ...[
               _PaymentQrCode(job: job),
               const SizedBox(height: 20),
             ],
@@ -113,7 +158,7 @@ class _JobDetailsSheetState extends State<JobDetailsSheet> {
       case JobStatus.emAndamento:
         return [
           ElevatedButton.icon(
-            onPressed: () => _changeStatus(JobStatus.aguardandoPagamento),
+            onPressed: _startCharging,
             icon: const Icon(Icons.qr_code),
             label: const Text('Concluir execução e cobrar'),
           ),
@@ -228,7 +273,10 @@ class _PaymentQrCode extends StatelessWidget {
           ),
           child: Column(
             children: [
-              const Text('Cobrança via Pix', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text(
+                job.status == JobStatus.concluido ? 'Pagamento confirmado — Pix pra conferência' : 'Cobrança via Pix',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 12),
               QrImageView(data: payload, size: 180, backgroundColor: Colors.white),
               const SizedBox(height: 12),

@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -190,6 +192,36 @@ class NotificationService {
   Future<void> _saveCurrentToken() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+
+    // No iOS, `getToken()` depende do token da APNs (Apple) já ter
+    // chegado no app — e esse registro junto da Apple é assíncrono, roda
+    // por fora do `requestPermission()` (que só resolve a PERGUNTA, não
+    // espera a Apple responder). Chamando `getToken()` cedo demais logo
+    // depois de conceder a permissão (o caso mais comum: primeira
+    // instalação, primeiro `init()`), a Apple às vezes ainda não tinha
+    // entregue esse token — o plugin então falha ou devolve null, o
+    // `fcmToken` nunca é salvo, e a pessoa nunca recebe push nenhum
+    // (mesmo tendo apertado "Permitir" no diálogo) até o próximo `init()`
+    // (troca de aba) tentar de novo e dar sorte da Apple já ter
+    // respondido. Esperar aqui, com um retry curto, evita depender dessa
+    // sorte — normalmente a Apple responde em menos de 1s.
+    if (!kIsWeb && Platform.isIOS) {
+      var apnsToken = await _messaging.getAPNSToken();
+      var tentativas = 0;
+      while (apnsToken == null && tentativas < 5) {
+        await Future<void>.delayed(const Duration(seconds: 1));
+        apnsToken = await _messaging.getAPNSToken();
+        tentativas++;
+      }
+      if (apnsToken == null) {
+        debugPrint(
+            '[NotificationService] Token da APNs ainda não chegou depois de '
+            '${tentativas}s — não dá pra pedir o token FCM agora. Vai tentar '
+            'de novo no próximo init() (troca de aba).');
+        return;
+      }
+    }
+
     final token = await _messaging.getToken();
     if (token == null) return;
 
