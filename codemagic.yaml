@@ -110,12 +110,19 @@ workflows:
       xcode: latest
       cocoapods: default
       # Referências nomeadas criadas manualmente em Team settings >
-      # Code signing identities (certificado "prestadoraki_distribution"
-      # e perfil "prestadoraki_app_store", já conferidos e com o
-      # casamento certo entre os dois — ver histórico do chat).
+      # Code signing identities (certificado "PrestadorAki App Store" e
+      # perfil "PrestadorAki Distribution" — esse último foi regenerado
+      # em setembro/2026 pra incluir a capacidade Push Notifications, que
+      # tinha ficado de fora do profile antigo "prestadoraki_app_store"
+      # (causa raiz do push nunca chegar via TestFlight: o app nunca
+      # conseguia nem o token da APNs). O profile novo, reenviado ao
+      # Codemagic, ficou com esse nome de referência diferente — nome
+      # antigo abaixo tinha ficado "órfão" e derrubava o build com "No
+      # provisioning profile with reference 'prestadoraki_app_store' were
+      # found".
       ios_signing:
         provisioning_profiles:
-          - prestadoraki_app_store
+          - "PrestadorAki Distribution"
         certificates:
           - "PrestadorAki App Store"
       vars:
