@@ -29,6 +29,27 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {}
 /// Cloud Functions escolhem de qual dessas coleções ler o token conforme
 /// quem está sendo avisado (o prestador que recebeu um pedido novo, ou o
 /// cliente que recebeu uma resposta).
+/// Erro "esperado" de tentar de novo depois (APNs ainda não respondeu,
+/// FCM devolveu null momentaneamente) — nunca é um bug de verdade, só
+/// existe pra fazer `_saveCurrentToken()` terminar com uma EXCEÇÃO (não
+/// um `return` normal) nesses dois casos. Ver o comentário grande em
+/// `init()` sobre `_started`: se `_saveCurrentToken()` retornasse
+/// normalmente aqui, `init()` marcaria `_started = true` mesmo sem o
+/// token ter sido salvo — e como essa flag nunca mais volta a `false`
+/// sozinha, o app pararia de tentar de novo PRA SEMPRE (até matar o
+/// processo de verdade), mesmo trocando de aba centenas de vezes depois.
+/// Esse era um bug real e silencioso: bastava a Apple demorar mais que 5s
+/// pra responder UMA vez (comum logo após instalar) pra nunca mais tentar
+/// de novo naquela sessão do app. Distinta de `_debugLog(..., 'step')` —
+/// que já registra a etapa específica — pra não deixar o catch genérico
+/// de baixo sobrescrever esse registro com uma mensagem menos útil.
+class _PushRetryLater implements Exception {
+  const _PushRetryLater(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -217,7 +238,12 @@ class NotificationService {
       // funcionando normal, só sem push. `_started` continua false de
       // propósito (ver comentário acima) pra tentar de novo depois.
       debugPrint('Não foi possível configurar notificações: $e');
-      await _debugLog(uid, 'init_exception', {'error': e.toString()});
+      // Mesma lógica do catch de `_saveCurrentToken()` acima: pra
+      // `_PushRetryLater` a etapa específica já foi registrada, não
+      // sobrescreve com "init_exception" genérico.
+      if (e is! _PushRetryLater) {
+        await _debugLog(uid, 'init_exception', {'error': e.toString()});
+      }
     }
   }
 
@@ -262,7 +288,9 @@ class NotificationService {
               '${tentativas}s — não dá pra pedir o token FCM agora. Vai tentar '
               'de novo no próximo init() (troca de aba).');
           await _debugLog(uid, 'apns_timeout', {'tentativas': tentativas});
-          return;
+          // `throw`, não `return` — ver doc de `_PushRetryLater` acima.
+          throw _PushRetryLater(
+              'Token da APNs não chegou depois de $tentativas tentativas.');
         }
         // Log explícito do valor (não só "chegou"/"não chegou") — pedido
         // direto do Franck pra confirmar na prática, olhando o
@@ -276,7 +304,8 @@ class NotificationService {
       if (token == null) {
         debugPrint('[NotificationService] getToken() (FCM) devolveu null.');
         await _debugLog(uid, 'fcm_token_null');
-        return;
+        // `throw`, não `return` — mesmo motivo do bloco da APNs acima.
+        throw const _PushRetryLater('getToken() (FCM) devolveu null.');
       }
       debugPrint('[NotificationService] FCM Token: $token');
       await _debugLog(uid, 'fcm_token_ok');
@@ -303,8 +332,12 @@ class NotificationService {
       // isso, um erro nessa etapa (ex.: PERMISSION_DENIED da regra do
       // Firestore) só aparecia no `debugPrint` genérico do catch de
       // `init()`, invisível pra quem não tem como olhar o console/log do
-      // aparelho.
-      await _debugLog(uid, 'save_token_exception', {'error': e.toString()});
+      // aparelho. `_PushRetryLater` já registrou a etapa específica
+      // (`apns_timeout`/`fcm_token_null`) alguns milissegundos atrás —
+      // não sobrescreve com essa mensagem genérica nesse caso.
+      if (e is! _PushRetryLater) {
+        await _debugLog(uid, 'save_token_exception', {'error': e.toString()});
+      }
       rethrow;
     }
   }
