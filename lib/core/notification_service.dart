@@ -29,20 +29,18 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {}
 /// Cloud Functions escolhem de qual dessas coleções ler o token conforme
 /// quem está sendo avisado (o prestador que recebeu um pedido novo, ou o
 /// cliente que recebeu uma resposta).
-/// Erro "esperado" de tentar de novo depois (APNs ainda não respondeu,
-/// FCM devolveu null momentaneamente) — nunca é um bug de verdade, só
-/// existe pra fazer `_saveCurrentToken()` terminar com uma EXCEÇÃO (não
-/// um `return` normal) nesses dois casos. Ver o comentário grande em
-/// `init()` sobre `_started`: se `_saveCurrentToken()` retornasse
-/// normalmente aqui, `init()` marcaria `_started = true` mesmo sem o
-/// token ter sido salvo — e como essa flag nunca mais volta a `false`
-/// sozinha, o app pararia de tentar de novo PRA SEMPRE (até matar o
-/// processo de verdade), mesmo trocando de aba centenas de vezes depois.
-/// Esse era um bug real e silencioso: bastava a Apple demorar mais que 5s
-/// pra responder UMA vez (comum logo após instalar) pra nunca mais tentar
-/// de novo naquela sessão do app. Distinta de `_debugLog(..., 'step')` —
-/// que já registra a etapa específica — pra não deixar o catch genérico
-/// de baixo sobrescrever esse registro com uma mensagem menos útil.
+/// Erro "esperado" de tentar de novo depois (FCM devolveu null
+/// momentaneamente, comum logo após instalar) — nunca é um bug de
+/// verdade, só existe pra fazer `_saveCurrentToken()` terminar com uma
+/// EXCEÇÃO (não um `return` normal). Ver o comentário grande em `init()`
+/// sobre `_started`: se `_saveCurrentToken()` retornasse normalmente
+/// aqui, `init()` marcaria `_started = true` mesmo sem o token ter sido
+/// salvo — e como essa flag nunca mais volta a `false` sozinha, o app
+/// pararia de tentar de novo PRA SEMPRE (até matar o processo de
+/// verdade), mesmo trocando de aba centenas de vezes depois. Esse era um
+/// bug real e silencioso. Distinta de `_debugLog(..., 'step')` — que já
+/// registra a etapa específica — pra não deixar o catch genérico de
+/// baixo sobrescrever esse registro com uma mensagem menos útil.
 class _PushRetryLater implements Exception {
   const _PushRetryLater(this.message);
   final String message;
@@ -254,6 +252,25 @@ class NotificationService {
   /// marcado `_started = true` e nunca mais tentava de novo, mesmo com o
   /// token do aparelho nunca tendo sido salvo — o cenário mais provável
   /// por trás de "desinstalei e instalei de novo e não gerou token".
+  ///
+  /// IMPORTANTE (correção depois de comparar com o app Resenha, que
+  /// funciona no mesmo iPhone): esta versão TINHA um laço aqui esperando
+  /// `_messaging.getAPNSToken()` responder antes de chamar `getToken()`,
+  /// com até 5 tentativas de 1s. Essa espera não existe no Resenha — lá
+  /// o código chama `getToken()` direto, sem nunca checar
+  /// `getAPNSToken()` antes — e mesmo assim funciona nesse aparelho.
+  /// Removido porque é a causa mais provável do `apns_timeout` que
+  /// travava aqui pra sempre: `getAPNSToken()` só LÊ um valor já
+  /// registrado nativamente (não força nada a acontecer), enquanto
+  /// `getToken()` é o método que de fato aciona
+  /// `registerForRemoteNotifications()` no iOS e espera a resposta da
+  /// Apple internamente antes de devolver o token FCM. Ou seja: ficar
+  /// checando `getAPNSToken()` ANTES de nunca ter chamado `getToken()`
+  /// podia ficar esperando um registro que o próprio código nunca tinha
+  /// disparado — daí nunca chegar, em NENHUMA tentativa, mesmo com
+  /// permissão concedida, entitlement e provisioning corretos (tudo isso
+  /// já verificado e descartado como causa). Chamar `getToken()` direto,
+  /// como o Resenha faz, deixa o próprio plugin cuidar dessa espera.
   Future<void> _saveCurrentToken() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -261,50 +278,11 @@ class NotificationService {
     await _debugLog(uid, 'save_token_start');
 
     try {
-      // No iOS, `getToken()` depende do token da APNs (Apple) já ter
-      // chegado no app — e esse registro junto da Apple é assíncrono,
-      // roda por fora do `requestPermission()` (que só resolve a
-      // PERGUNTA, não espera a Apple responder). Chamando `getToken()`
-      // cedo demais logo depois de conceder a permissão (o caso mais
-      // comum: primeira instalação, primeiro `init()`), a Apple às vezes
-      // ainda não tinha entregue esse token — o plugin então falha ou
-      // devolve null, o `fcmToken` nunca é salvo, e a pessoa nunca
-      // recebe push nenhum (mesmo tendo apertado "Permitir" no diálogo)
-      // até o próximo `init()` (troca de aba) tentar de novo e dar sorte
-      // da Apple já ter respondido. Esperar aqui, com um retry curto,
-      // evita depender dessa sorte — normalmente a Apple responde em
-      // menos de 1s.
-      if (!kIsWeb && Platform.isIOS) {
-        var apnsToken = await _messaging.getAPNSToken();
-        var tentativas = 0;
-        while (apnsToken == null && tentativas < 5) {
-          await Future<void>.delayed(const Duration(seconds: 1));
-          apnsToken = await _messaging.getAPNSToken();
-          tentativas++;
-        }
-        if (apnsToken == null) {
-          debugPrint(
-              '[NotificationService] Token da APNs ainda não chegou depois de '
-              '${tentativas}s — não dá pra pedir o token FCM agora. Vai tentar '
-              'de novo no próximo init() (troca de aba).');
-          await _debugLog(uid, 'apns_timeout', {'tentativas': tentativas});
-          // `throw`, não `return` — ver doc de `_PushRetryLater` acima.
-          throw _PushRetryLater(
-              'Token da APNs não chegou depois de $tentativas tentativas.');
-        }
-        // Log explícito do valor (não só "chegou"/"não chegou") — pedido
-        // direto do Franck pra confirmar na prática, olhando o
-        // `flutter logs`/console do Xcode, se a APNs de fato respondeu
-        // nesse aparelho específico antes de seguir pro token FCM abaixo.
-        debugPrint('[NotificationService] APNs Token: $apnsToken');
-        await _debugLog(uid, 'apns_ok', {'tentativas': tentativas});
-      }
-
       final token = await _messaging.getToken();
       if (token == null) {
         debugPrint('[NotificationService] getToken() (FCM) devolveu null.');
         await _debugLog(uid, 'fcm_token_null');
-        // `throw`, não `return` — mesmo motivo do bloco da APNs acima.
+        // `throw`, não `return` — ver doc de `_PushRetryLater` acima.
         throw const _PushRetryLater('getToken() (FCM) devolveu null.');
       }
       debugPrint('[NotificationService] FCM Token: $token');
@@ -333,8 +311,8 @@ class NotificationService {
       // Firestore) só aparecia no `debugPrint` genérico do catch de
       // `init()`, invisível pra quem não tem como olhar o console/log do
       // aparelho. `_PushRetryLater` já registrou a etapa específica
-      // (`apns_timeout`/`fcm_token_null`) alguns milissegundos atrás —
-      // não sobrescreve com essa mensagem genérica nesse caso.
+      // (`fcm_token_null`) alguns milissegundos atrás — não sobrescreve
+      // com essa mensagem genérica nesse caso.
       if (e is! _PushRetryLater) {
         await _debugLog(uid, 'save_token_exception', {'error': e.toString()});
       }
