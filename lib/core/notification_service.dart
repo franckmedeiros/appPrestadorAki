@@ -45,6 +45,33 @@ class NotificationService {
 
   bool _started = false;
 
+  /// Grava um rastro do que está acontecendo em `clients/{uid}.pushDebug`
+  /// — criado pra debugar o push no iPhone do Franck sem precisar de
+  /// cabo/Console.app (ele não tem acesso a USB nesse computador): o
+  /// Firebase Console → Firestore já é a ferramenta que ele consegue
+  /// abrir, então em vez de só `debugPrint` (que ele não tem como ver
+  /// numa build de TestFlight sem USB), cada etapa importante do processo
+  /// de pedir permissão/pegar token também fica registrada aqui, um campo
+  /// só que vai sendo sobrescrito a cada passo (não uma lista — não
+  /// precisamos de histórico, só do ÚLTIMO estado conhecido). Nunca deixa
+  /// uma falha AQUI derrubar o fluxo de verdade — por isso o try/catch
+  /// próprio, silencioso.
+  Future<void> _debugLog(String? uid, String step, [Map<String, dynamic>? extra]) async {
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('clients').doc(uid).set({
+        'pushDebug': {
+          'step': step,
+          'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
+          'at': FieldValue.serverTimestamp(),
+          ...?extra,
+        },
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[NotificationService] Não foi possível gravar pushDebug ($step): $e');
+    }
+  }
+
   /// Chamado toda vez que o UnifiedShell (a casca única do app,
   /// alcançada por qualquer conta logada, prestador ou não) reconstrói —
   /// antes só rodava dentro de ClientHomeScreen (aba "Buscar"), e um
@@ -54,6 +81,9 @@ class NotificationService {
   /// uma vez — só faz efeito na primeira.
   Future<void> init() async {
     if (_started) return;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    await _debugLog(uid, 'init_start');
 
     try {
       // Isolado num try/catch PRÓPRIO, separado do pedido de permissão/
@@ -115,6 +145,8 @@ class NotificationService {
       final statusAntes = await _messaging.getNotificationSettings();
       debugPrint(
           '[NotificationService] Status de permissão antes: ${statusAntes.authorizationStatus}');
+      await _debugLog(uid, 'permission_status_before',
+          {'status': statusAntes.authorizationStatus.toString()});
 
       switch (statusAntes.authorizationStatus) {
         case AuthorizationStatus.notDetermined:
@@ -126,6 +158,8 @@ class NotificationService {
             );
             debugPrint(
                 '[NotificationService] Usuário respondeu ao pedido de permissão: ${statusDepois.authorizationStatus}');
+            await _debugLog(uid, 'permission_result',
+                {'status': statusDepois.authorizationStatus.toString()});
           } catch (e) {
             // Isolado num try/catch próprio (mesma lógica do plugin de
             // notificação local acima) pra distinguir no log "o SO nem
@@ -134,6 +168,7 @@ class NotificationService {
             // mesma mensagem, impossível de diferenciar sem debugar ao
             // vivo.
             debugPrint('[NotificationService] requestPermission() lançou uma exceção: $e');
+            await _debugLog(uid, 'permission_exception', {'error': e.toString()});
           }
           break;
         case AuthorizationStatus.denied:
@@ -142,11 +177,14 @@ class NotificationService {
               'não peço de novo (o Android/iOS não reabririam o diálogo mesmo se eu pedisse). '
               'Pra testar o pedido de novo, desinstale o app por completo (não só atualize por '
               'cima) e instale de novo.');
+          await _debugLog(uid, 'permission_denied_before');
           break;
         case AuthorizationStatus.authorized:
         case AuthorizationStatus.provisional:
           debugPrint(
               '[NotificationService] Permissão já concedida anteriormente — nada a pedir.');
+          await _debugLog(uid, 'permission_already_granted',
+              {'status': statusAntes.authorizationStatus.toString()});
           break;
       }
 
@@ -179,6 +217,7 @@ class NotificationService {
       // funcionando normal, só sem push. `_started` continua false de
       // propósito (ver comentário acima) pra tentar de novo depois.
       debugPrint('Não foi possível configurar notificações: $e');
+      await _debugLog(uid, 'init_exception', {'error': e.toString()});
     }
   }
 
@@ -193,62 +232,80 @@ class NotificationService {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    // No iOS, `getToken()` depende do token da APNs (Apple) já ter
-    // chegado no app — e esse registro junto da Apple é assíncrono, roda
-    // por fora do `requestPermission()` (que só resolve a PERGUNTA, não
-    // espera a Apple responder). Chamando `getToken()` cedo demais logo
-    // depois de conceder a permissão (o caso mais comum: primeira
-    // instalação, primeiro `init()`), a Apple às vezes ainda não tinha
-    // entregue esse token — o plugin então falha ou devolve null, o
-    // `fcmToken` nunca é salvo, e a pessoa nunca recebe push nenhum
-    // (mesmo tendo apertado "Permitir" no diálogo) até o próximo `init()`
-    // (troca de aba) tentar de novo e dar sorte da Apple já ter
-    // respondido. Esperar aqui, com um retry curto, evita depender dessa
-    // sorte — normalmente a Apple responde em menos de 1s.
-    if (!kIsWeb && Platform.isIOS) {
-      var apnsToken = await _messaging.getAPNSToken();
-      var tentativas = 0;
-      while (apnsToken == null && tentativas < 5) {
-        await Future<void>.delayed(const Duration(seconds: 1));
-        apnsToken = await _messaging.getAPNSToken();
-        tentativas++;
+    await _debugLog(uid, 'save_token_start');
+
+    try {
+      // No iOS, `getToken()` depende do token da APNs (Apple) já ter
+      // chegado no app — e esse registro junto da Apple é assíncrono,
+      // roda por fora do `requestPermission()` (que só resolve a
+      // PERGUNTA, não espera a Apple responder). Chamando `getToken()`
+      // cedo demais logo depois de conceder a permissão (o caso mais
+      // comum: primeira instalação, primeiro `init()`), a Apple às vezes
+      // ainda não tinha entregue esse token — o plugin então falha ou
+      // devolve null, o `fcmToken` nunca é salvo, e a pessoa nunca
+      // recebe push nenhum (mesmo tendo apertado "Permitir" no diálogo)
+      // até o próximo `init()` (troca de aba) tentar de novo e dar sorte
+      // da Apple já ter respondido. Esperar aqui, com um retry curto,
+      // evita depender dessa sorte — normalmente a Apple responde em
+      // menos de 1s.
+      if (!kIsWeb && Platform.isIOS) {
+        var apnsToken = await _messaging.getAPNSToken();
+        var tentativas = 0;
+        while (apnsToken == null && tentativas < 5) {
+          await Future<void>.delayed(const Duration(seconds: 1));
+          apnsToken = await _messaging.getAPNSToken();
+          tentativas++;
+        }
+        if (apnsToken == null) {
+          debugPrint(
+              '[NotificationService] Token da APNs ainda não chegou depois de '
+              '${tentativas}s — não dá pra pedir o token FCM agora. Vai tentar '
+              'de novo no próximo init() (troca de aba).');
+          await _debugLog(uid, 'apns_timeout', {'tentativas': tentativas});
+          return;
+        }
+        // Log explícito do valor (não só "chegou"/"não chegou") — pedido
+        // direto do Franck pra confirmar na prática, olhando o
+        // `flutter logs`/console do Xcode, se a APNs de fato respondeu
+        // nesse aparelho específico antes de seguir pro token FCM abaixo.
+        debugPrint('[NotificationService] APNs Token: $apnsToken');
+        await _debugLog(uid, 'apns_ok', {'tentativas': tentativas});
       }
-      if (apnsToken == null) {
-        debugPrint(
-            '[NotificationService] Token da APNs ainda não chegou depois de '
-            '${tentativas}s — não dá pra pedir o token FCM agora. Vai tentar '
-            'de novo no próximo init() (troca de aba).');
+
+      final token = await _messaging.getToken();
+      if (token == null) {
+        debugPrint('[NotificationService] getToken() (FCM) devolveu null.');
+        await _debugLog(uid, 'fcm_token_null');
         return;
       }
-      // Log explícito do valor (não só "chegou"/"não chegou") — pedido
-      // direto do Franck pra confirmar na prática, olhando o
-      // `flutter logs`/console do Xcode, se a APNs de fato respondeu
-      // nesse aparelho específico antes de seguir pro token FCM abaixo.
-      debugPrint('[NotificationService] APNs Token: $apnsToken');
-    }
+      debugPrint('[NotificationService] FCM Token: $token');
+      await _debugLog(uid, 'fcm_token_ok');
 
-    final token = await _messaging.getToken();
-    if (token == null) {
-      debugPrint('[NotificationService] getToken() (FCM) devolveu null.');
-      return;
-    }
-    debugPrint('[NotificationService] FCM Token: $token');
+      final firestore = FirebaseFirestore.instance;
+      final now = FieldValue.serverTimestamp();
 
-    final firestore = FirebaseFirestore.instance;
-    final now = FieldValue.serverTimestamp();
+      await firestore
+          .collection('clients')
+          .doc(uid)
+          .set({'fcmToken': token, 'fcmTokenUpdatedAt': now}, SetOptions(merge: true));
+      await _debugLog(uid, 'saved_ok');
 
-    await firestore
-        .collection('clients')
-        .doc(uid)
-        .set({'fcmToken': token, 'fcmTokenUpdatedAt': now}, SetOptions(merge: true));
-
-    // Só atualiza providers/{uid} se ele já existir — nunca cria essa
-    // coleção sozinho a partir daqui (quem cria é a Cloud Function de
-    // assinatura, ver DATA_MODEL.md).
-    final providerRef = firestore.collection('providers').doc(uid);
-    final snapshot = await providerRef.get();
-    if (snapshot.exists) {
-      await providerRef.set({'fcmToken': token, 'fcmTokenUpdatedAt': now}, SetOptions(merge: true));
+      // Só atualiza providers/{uid} se ele já existir — nunca cria essa
+      // coleção sozinho a partir daqui (quem cria é a Cloud Function de
+      // assinatura, ver DATA_MODEL.md).
+      final providerRef = firestore.collection('providers').doc(uid);
+      final snapshot = await providerRef.get();
+      if (snapshot.exists) {
+        await providerRef.set({'fcmToken': token, 'fcmTokenUpdatedAt': now}, SetOptions(merge: true));
+      }
+    } catch (e) {
+      // Registrado aqui ANTES de deixar subir (ver doc do método) — sem
+      // isso, um erro nessa etapa (ex.: PERMISSION_DENIED da regra do
+      // Firestore) só aparecia no `debugPrint` genérico do catch de
+      // `init()`, invisível pra quem não tem como olhar o console/log do
+      // aparelho.
+      await _debugLog(uid, 'save_token_exception', {'error': e.toString()});
+      rethrow;
     }
   }
 
