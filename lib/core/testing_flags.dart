@@ -14,4 +14,4 @@
 /// `UserProfileScreen._BecomeProviderSheet._submit`) voltam sozinhos a
 /// exigir a assinatura de verdade — não precisa reverter mais nada além
 /// de trocar esse valor aqui.
-const bool kBypassProviderSubscriptionGate = true;
+const bool kBypassProviderSubscriptionGate = false;
