@@ -16,6 +16,16 @@
     },
     {
       "collectionGroup": "budgets",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "clientUid",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "budgets",
       "queryScope": "COLLECTION",
       "fields": [
         {
