@@ -382,11 +382,18 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: TextButton(
-                onPressed: () => context.push(
-                  context.read<AuthController>().status == AuthStatus.authenticated
-                      ? '/perfil'
-                      : '/welcome',
-                ),
+                // `go('/perfil')` (não `push('/welcome')`, como era
+                // antes): o push abria a tela de boas-vindas POR CIMA de
+                // tudo, em tela cheia, sem a barra de navegação embaixo —
+                // o Franck reparou ("mas ele abre a tela fora"). Indo pra
+                // aba "Perfil", a pessoa vê a MESMA tela de boas-vindas
+                // (é o que UserProfileScreen mostra pra quem não tem
+                // conta), só que dentro da casca do app, com a barra de
+                // baixo no lugar e a aba certa marcada. Serve pros dois
+                // casos sem precisar checar a sessão aqui: quem já tem
+                // conta cai no próprio perfil, quem não tem cai nas
+                // boas-vindas.
+                onPressed: () => context.go('/perfil'),
                 child: const Text('É prestador de serviços? Cadastre-se aqui'),
               ),
             ),

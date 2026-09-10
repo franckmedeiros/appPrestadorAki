@@ -237,7 +237,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // LoginScreen de verdade — em vez do formulário de login embutido
       // que ficava aqui antes (GuestProfilePanel, que segue no projeto
       // sem uso caso a gente queira voltar atrás).
-      return const WelcomeScreen();
+      // Rotas do próprio branch (ver app_router.dart): assim "Entrar" e
+      // "Criar conta" abrem DENTRO da aba, com a barra de navegação
+      // embaixo, em vez de cobrir o app inteiro.
+      return const WelcomeScreen(
+        rotaEntrar: '/perfil/entrar',
+        rotaCriarConta: '/perfil/criar-conta',
+      );
     }
 
     // Depois de entrar pela WelcomeScreen, este State continua vivo (a

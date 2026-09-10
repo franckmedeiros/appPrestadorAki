@@ -72,10 +72,22 @@ class _LoginScreenState extends State<LoginScreen> {
     await auth.login(_emailController.text.trim(), _passwordController.text);
   }
 
+  /// Esta tela é usada por dois caminhos: a rota de topo '/login' (tela
+  /// cheia, cobrindo o app) e a sub-rota '/perfil/entrar' (dentro da aba
+  /// "Perfil", com a barra de navegação embaixo — ver app_router.dart).
+  /// Os links daqui pra "Cadastre-se"/"Esqueci minha senha" precisam
+  /// seguir o mesmo caminho de quem abriu esta tela, senão a pessoa que
+  /// entrou pela aba seria jogada pra fora da casca do app no meio do
+  /// fluxo. Descobre isso pela própria rota atual em vez de exigir um
+  /// parâmetro de quem constrói a tela.
+  bool get _dentroDaAbaPerfil =>
+      GoRouterState.of(context).matchedLocation.startsWith('/perfil');
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
     final canPop = context.canPop();
+    final naAba = _dentroDaAbaPerfil;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -151,7 +163,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () => context.push('/esqueci-senha'),
+                          onPressed: () =>
+                              context.push(naAba ? '/perfil/esqueci-senha' : '/esqueci-senha'),
                           style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                           child: const Text(
                             'Esqueci minha senha',
@@ -182,7 +195,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           const Text('Não tem conta? ', style: TextStyle(color: AppColors.muted)),
                           GestureDetector(
-                            onTap: () => context.push('/register'),
+                            onTap: () =>
+                                context.push(naAba ? '/perfil/criar-conta' : '/register'),
                             child: const Text(
                               'Cadastre-se',
                               style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),

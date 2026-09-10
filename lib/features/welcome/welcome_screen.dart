@@ -14,7 +14,22 @@ import '../../widgets/prestadoraki_mark.dart';
 /// embutido (GuestProfilePanel); o Franck preferiu esta tela, com o
 /// "Entrar" levando pra LoginScreen de verdade.
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
+  const WelcomeScreen({
+    super.key,
+    this.rotaEntrar = '/login',
+    this.rotaCriarConta = '/register',
+  });
+
+  /// Pra onde os dois botões levam. O padrão são as rotas de topo (tela
+  /// cheia, cobrindo o app inteiro) — é o certo quando esta tela também
+  /// está em tela cheia, como na rota '/welcome'. Já quando ela aparece
+  /// DENTRO da aba "Perfil" (ver UserProfileScreen), quem usa passa as
+  /// sub-rotas do próprio branch ('/perfil/entrar', '/perfil/criar-conta'),
+  /// pra tela de login/cadastro abrir dentro da casca do app, com a barra
+  /// de navegação embaixo — pedido do Franck: "precisa ficar dentro do
+  /// espaço e não fora assim".
+  final String rotaEntrar;
+  final String rotaCriarConta;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +76,7 @@ class WelcomeScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                     ),
-                    onPressed: () => context.push('/login'),
+                    onPressed: () => context.push(rotaEntrar),
                     child: const Text('Entrar', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
@@ -75,7 +90,7 @@ class WelcomeScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                     ),
-                    onPressed: () => context.push('/register'),
+                    onPressed: () => context.push(rotaCriarConta),
                     child: const Text('Criar conta', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),

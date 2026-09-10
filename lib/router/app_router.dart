@@ -32,6 +32,19 @@ import '../widgets/unified_shell.dart';
 // orçamento) — nunca são obrigatórias só pra buscar (ver ClientAuthGate).
 const _authScreens = {'/welcome', '/login', '/register', '/esqueci-senha'};
 
+// As MESMAS telas de login/cadastro/esqueci-senha, só que penduradas
+// debaixo do branch "Perfil" do shell — então elas abrem DENTRO da casca
+// do app, com a barra de navegação embaixo, em vez de cobrir a tela
+// inteira. Pedido do Franck ("quando eu clicar em Entrar ou Criar Conta,
+// ele precisa ficar dentro do espaço e não fora assim"): quem chega na
+// aba "Perfil" sem conta vê a tela de boas-vindas ali dentro, e continuar
+// dali não pode "sair" do app visualmente.
+//
+// As rotas de cima (/login, /register, ...) continuam existindo pra quem
+// abre essas telas de fora do shell — hoje ninguém faz isso, mas são o
+// destino natural de um link/atalho externo e não custam nada mantidas.
+const _authScreensNaAba = {'/perfil/entrar', '/perfil/criar-conta', '/perfil/esqueci-senha'};
+
 // Rotas que só fazem sentido pra quem tem a capacidade de prestador
 // (`auth.isProvider`) — conta unificada (ver AuthController): não são mais
 // "o outro lado do app", só telas extras habilitadas por cima da mesma
@@ -82,6 +95,11 @@ GoRouter buildAppRouter(AuthController authController) {
           if (_providerOnlyRoutes.contains(location)) return '/welcome';
           return null;
         case AuthStatus.authenticated:
+          // Entrou/criou conta a partir da aba "Perfil": fica na própria
+          // aba (mostrando agora o perfil de verdade) em vez de ser
+          // jogado pra `home` — a pessoa estava mexendo ali, não faz
+          // sentido acordar noutra aba.
+          if (_authScreensNaAba.contains(location)) return '/perfil';
           if (isSplash || isUnlock || isAuthScreen) return home;
           if (!isProvider && _providerOnlyRoutes.contains(location)) return home;
           return null;
@@ -167,7 +185,25 @@ GoRouter buildAppRouter(AuthController authController) {
             GoRoute(path: '/dashboard', builder: (context, state) => const DashboardScreen()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/perfil', builder: (context, state) => const UserProfileScreen()),
+            GoRoute(
+              path: '/perfil',
+              builder: (context, state) => const UserProfileScreen(),
+              // Sub-rotas do próprio branch (ver `_authScreensNaAba`
+              // acima): empilham DENTRO da aba, mantendo a barra de
+              // navegação visível. São as mesmas telas de '/login',
+              // '/register' e '/esqueci-senha', só que alcançadas por
+              // dentro — quem manda pra cá é a tela de boas-vindas que a
+              // aba mostra pra quem ainda não tem conta (ver
+              // UserProfileScreen/WelcomeScreen).
+              routes: [
+                GoRoute(path: 'entrar', builder: (context, state) => const LoginScreen()),
+                GoRoute(path: 'criar-conta', builder: (context, state) => const RegisterScreen()),
+                GoRoute(
+                  path: 'esqueci-senha',
+                  builder: (context, state) => const ForgotPasswordScreen(),
+                ),
+              ],
+            ),
           ]),
         ],
       ),
