@@ -109,22 +109,32 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      # Referências nomeadas criadas manualmente em Team settings >
-      # Code signing identities (certificado "PrestadorAki App Store" e
-      # perfil "PrestadorAki Distribution" — esse último foi regenerado
-      # em setembro/2026 pra incluir a capacidade Push Notifications, que
-      # tinha ficado de fora do profile antigo "prestadoraki_app_store"
-      # (causa raiz do push nunca chegar via TestFlight: o app nunca
-      # conseguia nem o token da APNs). O profile novo, reenviado ao
-      # Codemagic, ficou com esse nome de referência diferente — nome
-      # antigo abaixo tinha ficado "órfão" e derrubava o build com "No
-      # provisioning profile with reference 'prestadoraki_app_store' were
-      # found".
+      # ASSINATURA AUTOMÁTICA — igual ao app Resenha, e é essa a diferença
+      # que fez o push funcionar lá e não aqui.
+      #
+      # Antes isto apontava pra arquivos ENVIADOS À MÃO pro Codemagic
+      # (`provisioning_profiles: ["PrestadorAki Distribution"]` +
+      # `certificates: ["PrestadorAki App Store"]`). O problema desse
+      # modelo é que o build usa a CÓPIA guardada no Codemagic, não o
+      # perfil que está no portal da Apple hoje: quando a capacidade Push
+      # Notifications foi ligada no App ID, o perfil precisou ser regerado,
+      # e a cópia antiga (sem `aps-environment`) seguiu sendo a usada nos
+      # builds. App assinado sem esse entitlement não consegue se
+      # registrar na APNs — o iPhone nunca recebia o token e o `getToken()`
+      # do FCM falhava pra sempre com "[firebase_messaging/apns-token-not-set]".
+      #
+      # A pista veio de comparar os dois perfis no portal da Apple: o do
+      # Resenha aparece como "Created By: API Key" (criado pelo próprio
+      # Codemagic via App Store Connect API — o modo automático), e o do
+      # PrestadorAki aparecia como criado à mão.
+      #
+      # No modo automático o Codemagic busca/cria o perfil na hora do
+      # build usando a integração `app_store_connect` declarada acima, de
+      # modo que ele sempre reflete as capacidades que o App ID tem HOJE —
+      # e nunca mais fica defasado quando uma capacidade nova for ligada.
       ios_signing:
-        provisioning_profiles:
-          - "PrestadorAki Distribution"
-        certificates:
-          - "PrestadorAki App Store"
+        distribution_type: app_store
+        bundle_identifier: com.opoutsourcing.prestadoraki
       vars:
         # Apple ID numérico do app (não é o Bundle ID) — aparece na página
         # do app em App Store Connect, em "Informações do App", assim que
