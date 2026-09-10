@@ -34,6 +34,14 @@
           "label": "Reforma Geral"
         },
         {
+          "id": "cacambeiro",
+          "label": "Caçamba de Entulho / Caçambeiro"
+        },
+        {
+          "id": "tele_entulho",
+          "label": "Tele-entulho / Remoção de Entulho"
+        },
+        {
           "id": "construcao_civil",
           "label": "Construção Civil / Engenheiro"
         },
