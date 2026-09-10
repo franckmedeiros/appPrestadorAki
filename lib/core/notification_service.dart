@@ -192,35 +192,56 @@ class NotificationService {
       await _debugLog(uid, 'permission_status_before',
           {'status': statusAntes.authorizationStatus.toString()});
 
+      // CHAMADO SEMPRE, qualquer que seja o status anterior — mudança
+      // importante depois de caçar o "APNS token has not been received on
+      // the device yet" no iPhone do Franck.
+      //
+      // A versão anterior só chamava `requestPermission` quando o status
+      // era `notDetermined`, com um raciocínio que está CERTO do ponto de
+      // vista da PERGUNTA (o iOS/Android realmente nunca reabrem o pop-up
+      // depois de uma decisão tomada, então pedir de novo não mostra nada)
+      // mas que ignorava um efeito colateral essencial no iOS: é dentro
+      // do `requestPermission` que o plugin chama o
+      // `registerForRemoteNotifications` do iOS — o passo que de fato
+      // manda o aparelho se registrar na Apple e receber o token APNs.
+      // Pulando essa chamada, o registro nunca era disparado, o token
+      // APNs nunca chegava, e o `getToken()` do FCM falhava pra sempre com
+      // aquele erro — mesmo com a permissão JÁ concedida, entitlement
+      // certo e chave .p8 no lugar.
+      //
+      // Chamar sempre é seguro: com a decisão já tomada, o SO devolve a
+      // resposta antiga em silêncio (nenhum pop-up a mais pro usuário),
+      // e o registro na APNs acontece do mesmo jeito.
+      try {
+        final statusDepois = await _messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        debugPrint(
+            '[NotificationService] Permissão após requestPermission: ${statusDepois.authorizationStatus}');
+        await _debugLog(uid, 'permission_result', {
+          'status': statusDepois.authorizationStatus.toString(),
+          'statusAntes': statusAntes.authorizationStatus.toString(),
+        });
+      } catch (e) {
+        // Try/catch próprio pra distinguir no rastro "o SO nem deixou
+        // perguntar" de "algo quebrou ao perguntar" — sem isso, os dois
+        // cairiam no mesmo catch genérico lá embaixo, com a mesma
+        // mensagem, impossível de diferenciar sem debugar ao vivo.
+        debugPrint('[NotificationService] requestPermission() lançou uma exceção: $e');
+        await _debugLog(uid, 'permission_exception', {'error': e.toString()});
+      }
+
       switch (statusAntes.authorizationStatus) {
         case AuthorizationStatus.notDetermined:
-          try {
-            final statusDepois = await _messaging.requestPermission(
-              alert: true,
-              badge: true,
-              sound: true,
-            );
-            debugPrint(
-                '[NotificationService] Usuário respondeu ao pedido de permissão: ${statusDepois.authorizationStatus}');
-            await _debugLog(uid, 'permission_result',
-                {'status': statusDepois.authorizationStatus.toString()});
-          } catch (e) {
-            // Isolado num try/catch próprio (mesma lógica do plugin de
-            // notificação local acima) pra distinguir no log "o SO nem
-            // deixou perguntar" de "algo quebrou ao perguntar" — sem isso,
-            // os dois caiam no mesmo catch genérico lá embaixo, com a
-            // mesma mensagem, impossível de diferenciar sem debugar ao
-            // vivo.
-            debugPrint('[NotificationService] requestPermission() lançou uma exceção: $e');
-            await _debugLog(uid, 'permission_exception', {'error': e.toString()});
-          }
           break;
         case AuthorizationStatus.denied:
           debugPrint(
               '[NotificationService] Usuário já negou a permissão antes nesta instalação — '
-              'não peço de novo (o Android/iOS não reabririam o diálogo mesmo se eu pedisse). '
-              'Pra testar o pedido de novo, desinstale o app por completo (não só atualize por '
-              'cima) e instale de novo.');
+              'o pop-up não reabre (nem no Android nem no iOS). Pra testar a pergunta de novo, '
+              'desinstale o app por completo (não só atualize por cima) e instale de novo, ou '
+              'ligue na mão em Ajustes > Notificações.');
           await _debugLog(uid, 'permission_denied_before');
           break;
         case AuthorizationStatus.authorized:
