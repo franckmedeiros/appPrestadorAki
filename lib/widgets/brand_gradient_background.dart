@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 
-/// Fundo da marca: gradiente em três paradas (primaryDark → primary →
-/// ink) com círculos brancos translúcidos soltos por cima.
+/// Fundo da marca: o gradiente laranja padrão do app
+/// (`AppColors.primaryGradient`) com círculos brancos translúcidos
+/// soltos por cima.
 ///
 /// Nasceu dentro da WelcomeScreen (o layout que o Franck aprovou) e virou
 /// um widget próprio quando ele pediu que a SplashScreen tivesse o MESMO
-/// fundo — antes a splash usava um gradiente diferente, de duas paradas e
-/// sem os círculos, então o fundo "trocava" no meio do caminho entre
-/// abrir o app e cair na tela de boas-vindas. Com as duas telas usando
-/// este widget, a transição fica contínua e qualquer ajuste futuro na
-/// marca vale pras duas de uma vez.
+/// fundo — antes a splash usava um gradiente diferente, então o fundo
+/// "trocava" no meio do caminho entre abrir o app e cair na tela de
+/// boas-vindas.
+///
+/// Segundo ajuste, também a pedido dele ("preciso que fique com o mesmo
+/// fundo das demais telas, pra mim está diferente"): o gradiente daqui
+/// tinha uma TERCEIRA parada em `AppColors.ink` (o quase-preto da marca),
+/// que escurecia bastante a parte de baixo e destoava de todo o resto do
+/// app — login, cadastro e o cabeçalho de "Meu perfil" usam
+/// `AppColors.primaryGradient`, que é só laranja. Agora este widget usa
+/// exatamente esse mesmo gradiente, então TODAS as telas com fundo de
+/// marca combinam, e mudar a cor num lugar só (app_theme.dart) muda em
+/// todas de uma vez.
 class BrandGradientBackground extends StatelessWidget {
   const BrandGradientBackground({super.key, required this.child});
 
@@ -24,13 +33,7 @@ class BrandGradientBackground extends StatelessWidget {
       children: [
         const Positioned.fill(
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.primaryDark, AppColors.primary, AppColors.ink],
-              ),
-            ),
+            decoration: BoxDecoration(gradient: AppColors.primaryGradient),
           ),
         ),
         const _DecorativeBlob(top: -60, left: -60, size: 220),
