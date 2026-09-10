@@ -64,6 +64,19 @@ class NotificationService {
 
   bool _started = false;
 
+  /// Trava de reentrada: `init()` é chamado a CADA rebuild do UnifiedShell
+  /// (troca de aba, notifyListeners do AuthController...) e só marca
+  /// `_started = true` no fim, quando tudo deu certo. Como agora a espera
+  /// pelo token APNs no iOS pode levar alguns segundos (ver
+  /// `_obterTokenFcm`), sem essa trava dois ou três `init()` rodariam ao
+  /// mesmo tempo, cada um pedindo permissão/token em paralelo e
+  /// atropelando o `pushDebug` um do outro.
+  bool _rodando = false;
+
+  /// `onTokenRefresh` é registrado UMA vez só, mesmo que `init()` seja
+  /// repetido depois de uma falha.
+  bool _ouvindoRefresh = false;
+
   /// Grava um rastro do que está acontecendo em `clients/{uid}.pushDebug`
   /// — criado pra debugar o push no iPhone do Franck sem precisar de
   /// cabo/Console.app (ele não tem acesso a USB nesse computador): o
@@ -99,7 +112,8 @@ class NotificationService {
   /// só a entrada na central de notificações. Seguro de chamar mais de
   /// uma vez — só faz efeito na primeira.
   Future<void> init() async {
-    if (_started) return;
+    if (_started || _rodando) return;
+    _rodando = true;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     await _debugLog(uid, 'init_start');
@@ -207,11 +221,27 @@ class NotificationService {
           break;
       }
 
+      // Registrado ANTES da primeira tentativa de salvar (antes era
+      // depois) — essa ordem é a rede de segurança do caso do iPhone: no
+      // iOS o token FCM só passa a existir depois que a Apple devolve o
+      // token APNs pro aparelho, o que pode acontecer DEPOIS da nossa
+      // primeira tentativa (justamente no cadastro, que é quando o
+      // usuário acabou de aceitar a permissão). Quando isso acontece, o
+      // próprio FCM dispara `onTokenRefresh` assim que consegue gerar o
+      // token — com o listener já ligado, ele é salvo sozinho, sem
+      // depender de o app tentar de novo. Na ordem antiga, se
+      // `_saveCurrentToken()` lançasse (é o que faz quando o token vem
+      // null), o listener NUNCA chegava a ser registrado.
+      if (!_ouvindoRefresh) {
+        _ouvindoRefresh = true;
+        _messaging.onTokenRefresh.listen((_) async {
+          await _debugLog(FirebaseAuth.instance.currentUser?.uid, 'token_refresh_recebido');
+          await _saveCurrentToken()
+              .catchError((e) => debugPrint('Não foi possível salvar o token renovado: $e'));
+        });
+      }
+
       await _saveCurrentToken();
-      _messaging.onTokenRefresh.listen(
-        (_) => _saveCurrentToken()
-            .catchError((e) => debugPrint('Não foi possível salvar o token renovado: $e')),
-      );
 
       // Com o app ABERTO, o Android não mostra a notificação sozinho —
       // aqui a gente escuta e exibe manualmente com o mesmo visual de uma
@@ -242,6 +272,10 @@ class NotificationService {
       if (e is! _PushRetryLater) {
         await _debugLog(uid, 'init_exception', {'error': e.toString()});
       }
+    } finally {
+      // Sempre libera a trava — com `_started` ainda false quando deu
+      // errado, a próxima reconstrução do shell tenta tudo de novo.
+      _rodando = false;
     }
   }
 
@@ -278,7 +312,7 @@ class NotificationService {
     await _debugLog(uid, 'save_token_start');
 
     try {
-      final token = await _messaging.getToken();
+      final token = await _obterTokenFcm(uid);
       if (token == null) {
         debugPrint('[NotificationService] getToken() (FCM) devolveu null.');
         await _debugLog(uid, 'fcm_token_null');
@@ -318,6 +352,74 @@ class NotificationService {
       }
       rethrow;
     }
+  }
+
+  /// Pega o token FCM, tratando o caso do iOS (o motivo de "cadastrei pelo
+  /// iPhone e o fcmToken não foi gravado").
+  ///
+  /// No Android o token existe assim que o Google Play Services responde,
+  /// e `getToken()` resolve na primeira. No iOS existe um passo a mais no
+  /// meio: o token FCM só pode ser gerado DEPOIS que a Apple devolveu o
+  /// token APNs pro aparelho, e esse registro é assíncrono — começa quando
+  /// o usuário aceita a permissão e pode levar de milissegundos a vários
+  /// segundos (rede ruim, primeira instalação, aparelho acabando de sair
+  /// do avião...). Como a permissão é pedida no MESMO instante do cadastro,
+  /// a primeira tentativa cai justamente nessa janela: `getToken()` ou
+  /// devolve null, ou lança `[firebase_messaging/apns-token-not-set]`.
+  ///
+  /// Uma versão antiga daqui esperava o APNs com no máximo 5 tentativas de
+  /// 1s e DESISTIA de vez (`apns_timeout`) se não viesse — e foi removida
+  /// por isso. Esta volta a esperar, mas com duas diferenças que resolvem
+  /// o problema de antes: espera bem mais (até ~20s) e, principalmente,
+  /// NUNCA desiste por causa disso — se o APNs não chegar, ainda assim
+  /// tenta o `getToken()`, e o resultado (inclusive a mensagem de erro
+  /// exata) fica registrado no `pushDebug` pra diferenciar as duas causas
+  /// possíveis:
+  ///   • `apns_token_ausente` → o aparelho nem chegou a se registrar na
+  ///     Apple: problema de entitlement/provisioning/capability do app
+  ///     (nada que o Firebase resolva).
+  ///   • `apns_token_ok` + `fcm_token_erro` → o registro na Apple foi bem,
+  ///     mas o Firebase não conseguiu emitir o token: quase sempre é a
+  ///     chave de autenticação APNs (.p8) que falta no Firebase Console
+  ///     (Configurações do projeto → Cloud Messaging → app da Apple).
+  Future<String?> _obterTokenFcm(String uid) async {
+    if (!kIsWeb && Platform.isIOS) {
+      var apns = await _messaging.getAPNSToken();
+      var tentativas = 0;
+      while (apns == null && tentativas < 20) {
+        await Future.delayed(const Duration(seconds: 1));
+        apns = await _messaging.getAPNSToken();
+        tentativas++;
+      }
+      await _debugLog(
+        uid,
+        apns == null ? 'apns_token_ausente' : 'apns_token_ok',
+        {'segundosEsperando': tentativas},
+      );
+    }
+
+    // Até 3 tentativas espaçadas: mesmo com o APNs no lugar, a primeira
+    // chamada logo depois de instalar às vezes falha por rede.
+    for (var tentativa = 1; tentativa <= 3; tentativa++) {
+      try {
+        final token = await _messaging.getToken();
+        if (token != null) return token;
+        await _debugLog(uid, 'fcm_token_null_tentativa', {'tentativa': tentativa});
+      } catch (e) {
+        // A mensagem já vem com o código do plugin no começo (ex.:
+        // "[firebase_messaging/apns-token-not-set] ..."), que é
+        // exatamente o que precisamos ver pra saber o que está faltando.
+        debugPrint('[NotificationService] getToken() falhou (tentativa $tentativa): $e');
+        await _debugLog(uid, 'fcm_token_erro', {
+          'tentativa': tentativa,
+          'error': e.toString(),
+        });
+      }
+      if (tentativa < 3) {
+        await Future.delayed(Duration(seconds: 3 * tentativa));
+      }
+    }
+    return null;
   }
 
   void _showLocalNotification(RemoteMessage message) {
