@@ -5,6 +5,7 @@ import '../../core/auth_controller.dart';
 import '../../core/testing_flags.dart';
 import 'guest_profile_panel.dart';
 import '../../widgets/decorative_header.dart';
+import '../../widgets/prestadoraki_mark.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
@@ -255,10 +256,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const DecorativeHeader(
-              height: 150,
-              child: Text(
-                'Meu perfil',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+              // Mesmo tratamento visual da tela de boas-vindas (que o
+              // Franck gostou) — logo do app + título, sobre o gradiente
+              // com bolhas do DecorativeHeader (que já usa as mesmas
+              // cores da marca). Altura maior que antes (150) pra caber
+              // a marca sem apertar o título.
+              height: 210,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  PrestadorAkiMark(size: 56),
+                  SizedBox(height: 12),
+                  Text(
+                    'Meu perfil',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                ],
               ),
             ),
             Transform.translate(
@@ -306,10 +319,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                       ? Image.network(
                                           logoUrl,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              const Icon(Icons.person, size: 42, color: AppColors.primary),
+                                          errorBuilder: (context, error, stackTrace) => const Center(
+                                            child: PrestadorAkiMark(
+                                              size: 44,
+                                              pinColor: AppColors.primary,
+                                              circleColor: Colors.white,
+                                            ),
+                                          ),
                                         )
-                                      : const Icon(Icons.person, size: 42, color: AppColors.primary),
+                                      // Sem foto/logo cadastrada ainda: mostra a
+                                      // marca do app em vez do ícone genérico de
+                                      // pessoa — reforça a identidade visual
+                                      // (mesma logo da tela de boas-vindas).
+                                      : const Center(
+                                          child: PrestadorAkiMark(
+                                            size: 44,
+                                            pinColor: AppColors.primary,
+                                            circleColor: Colors.white,
+                                          ),
+                                        ),
                                 ),
                                 Positioned(
                                   right: -2,
