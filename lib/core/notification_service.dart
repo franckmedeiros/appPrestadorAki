@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Handler de mensagens recebidas com o app em segundo plano ou fechado.
@@ -428,6 +429,24 @@ class NotificationService {
         apns == null ? 'apns_token_ausente' : 'apns_token_ok',
         {'segundosEsperando': tentativas},
       );
+
+      // O que o iOS respondeu ao pedido de registro, direto do
+      // AppDelegate (ver ios/Runner/AppDelegate.swift). É este registro
+      // que separa os três cenários possíveis quando o token não vem:
+      //
+      //   APNS_TOKEN_RECEBIDO → a Apple aceitou e entregou o token; se
+      //     mesmo assim o FCM falha, o problema está na ponte APNs →
+      //     Firebase (registro do app no Firebase, chave .p8, bundle id).
+      //   ERRO_AO_REGISTRAR   → a Apple recusou; o `erro`/`dominio`/
+      //     `codigo` dizem exatamente o quê (entitlement, App ID, rede).
+      //   NENHUM_CALLBACK     → o app nunca chegou a pedir o registro; o
+      //     problema está na inicialização/ciclo de vida nativo.
+      final diagnostico = await _lerDiagnosticoApnsNativo();
+      await _debugLog(
+        uid,
+        'apns_callback_nativo',
+        diagnostico.isEmpty ? {'resultado': 'NENHUM_CALLBACK'} : diagnostico,
+      );
     }
 
     // Até 3 tentativas espaçadas: mesmo com o APNs no lugar, a primeira
@@ -455,6 +474,28 @@ class NotificationService {
       }
     }
     return null;
+  }
+
+  /// Canal só de leitura pro diagnóstico gravado pelo AppDelegate — ver
+  /// `prestadoraki/apns` em ios/Runner/AppDelegate.swift.
+  static const _canalApns = MethodChannel('prestadoraki/apns');
+
+  /// Pergunta ao lado nativo o que aconteceu com o registro na APNs.
+  ///
+  /// Devolve um mapa vazio quando não há nada gravado — o que já é uma
+  /// resposta: significa que NENHUM dos dois callbacks do iOS foi
+  /// chamado, ou seja, o app nunca chegou a pedir o registro. Nunca
+  /// lança: no Android (ou se o canal não estiver registrado) só devolve
+  /// vazio, porque isso aqui é diagnóstico, não pode derrubar o push.
+  Future<Map<String, dynamic>> _lerDiagnosticoApnsNativo() async {
+    if (kIsWeb || !Platform.isIOS) return const {};
+    try {
+      final resposta = await _canalApns.invokeMapMethod<String, dynamic>('lerDiagnostico');
+      return resposta ?? const {};
+    } catch (e) {
+      debugPrint('[NotificationService] Não foi possível ler o diagnóstico da APNs: $e');
+      return {'erroAoLerDiagnostico': e.toString()};
+    }
   }
 
   /// Lê o token APNs devolvendo `null` quando ele ainda não chegou.
