@@ -63,11 +63,22 @@ class NotificationService {
     importance: Importance.high,
   );
 
-  bool _started = false;
+  /// UID da conta pra qual o token JÁ foi salvo com sucesso — null
+  /// enquanto nenhuma conta terminou o processo.
+  ///
+  /// Era um `bool _started`, e isso escondia um bug que só apareceu
+  /// quando o push finalmente funcionou: com uma flag booleana, o token
+  /// era salvo pra PRIMEIRA conta usada no processo e nunca mais. Saindo
+  /// da conta e entrando/cadastrando outra no mesmo app aberto, a conta
+  /// nova ficava sem `fcmToken` (foi o que o Franck viu: dois documentos
+  /// em `clients`, um com o token e outro sem), e a conta antiga
+  /// continuava com o token DESTE aparelho — ou seja, receberia pushes
+  /// que não são mais dela. Guardando o uid, a troca de conta é detectada
+  /// sozinha e o processo roda de novo pra conta certa.
+  String? _uidComTokenSalvo;
 
   /// Trava de reentrada: `init()` é chamado a CADA rebuild do UnifiedShell
-  /// (troca de aba, notifyListeners do AuthController...) e só marca
-  /// `_started = true` no fim, quando tudo deu certo. Como agora a espera
+  /// (troca de aba, notifyListeners do AuthController...). Como a espera
   /// pelo token APNs no iOS pode levar alguns segundos (ver
   /// `_obterTokenFcm`), sem essa trava dois ou três `init()` rodariam ao
   /// mesmo tempo, cada um pedindo permissão/token em paralelo e
@@ -122,12 +133,18 @@ class NotificationService {
   /// prestador que nunca abrisse essa aba nunca tinha o token FCM salvo,
   /// então nunca recebia o push (com som) de "novo pedido de orçamento",
   /// só a entrada na central de notificações. Seguro de chamar mais de
-  /// uma vez — só faz efeito na primeira.
+  /// uma vez — só faz trabalho de verdade quando a conta logada ainda não
+  /// tem o token deste aparelho salvo (ver `_uidComTokenSalvo`).
   Future<void> init() async {
-    if (_started || _rodando) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    // Sem sessão não há onde salvar o token — quem chama já checa isso,
+    // mas a checagem aqui também protege quem chamar de outro lugar.
+    if (uid == null) return;
+    // Compara com o UID (não uma flag booleana): assim, trocar de conta
+    // no mesmo app aberto refaz o processo pra conta nova.
+    if (_uidComTokenSalvo == uid || _rodando) return;
     _rodando = true;
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
     await _debugLog(uid, 'init_start');
 
     try {
@@ -281,23 +298,18 @@ class NotificationService {
       // notificação normal.
       FirebaseMessaging.onMessage.listen(_showLocalNotification);
 
-      // Só marca como "pronto" DEPOIS de tudo ter funcionado de verdade —
-      // antes `_started = true` era setado logo no início, então se
-      // `getToken()`/o salvamento no Firestore falhasse uma vez (ex: sem
-      // internet ainda bem no instante em que o app acabou de abrir, ou o
-      // Google Play Services ainda inicializando logo depois de uma
-      // instalação nova), o app nunca mais tentava de novo dentro do
-      // mesmo processo — só resolvia matando o app de verdade (não
-      // bastava fechar pelos recentes e reabrir, o processo continua
-      // vivo). Agora, como `init()` já é chamado de novo a cada rebuild
-      // do UnifiedShell (troca de aba, por exemplo — ver ali), uma falha
-      // aqui simplesmente tenta de novo na próxima vez sozinha.
-      _started = true;
+      // Só marca a conta como "pronta" DEPOIS de tudo ter funcionado de
+      // verdade — se `getToken()`/o salvamento no Firestore falhar (ex.:
+      // sem internet bem no instante em que o app abriu, ou o Google Play
+      // Services ainda inicializando logo depois de uma instalação nova),
+      // isto aqui não é alcançado e o app tenta de novo sozinho na
+      // próxima reconstrução do UnifiedShell (troca de aba, por exemplo).
+      _uidComTokenSalvo = uid;
     } catch (e) {
       // Notificação é um "extra" — se der qualquer problema (permissão
       // negada, aparelho sem Google Play Services etc.), o app continua
-      // funcionando normal, só sem push. `_started` continua false de
-      // propósito (ver comentário acima) pra tentar de novo depois.
+      // funcionando normal, só sem push. `_uidComTokenSalvo` continua sem
+      // esta conta de propósito, pra tentar de novo depois.
       debugPrint('Não foi possível configurar notificações: $e');
       // Mesma lógica do catch de `_saveCurrentToken()` acima: pra
       // `_PushRetryLater` a etapa específica já foi registrada, não
@@ -306,9 +318,39 @@ class NotificationService {
         await _debugLog(uid, 'init_exception', {'error': e.toString()});
       }
     } finally {
-      // Sempre libera a trava — com `_started` ainda false quando deu
-      // errado, a próxima reconstrução do shell tenta tudo de novo.
+      // Sempre libera a trava — se deu errado, `_uidComTokenSalvo` não
+      // recebeu esta conta e a próxima reconstrução do shell tenta tudo
+      // de novo.
       _rodando = false;
+    }
+  }
+
+  /// Chamado quando a pessoa sai da conta (ver AuthController.logout).
+  ///
+  /// Faz duas coisas, as duas necessárias depois que a troca de conta
+  /// passou a ser suportada: apaga o `fcmToken` do documento da conta que
+  /// está saindo — senão ela continuaria recebendo os pushes DESTE
+  /// aparelho, que já não é mais dela — e esquece o uid, pra que a
+  /// próxima conta a entrar rode o processo do zero.
+  ///
+  /// Nunca lança: sair da conta não pode falhar por causa de push.
+  Future<void> aoSairDaConta() async {
+    final uid = _uidComTokenSalvo ?? FirebaseAuth.instance.currentUser?.uid;
+    _uidComTokenSalvo = null;
+    if (uid == null) return;
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final apagar = {
+        'fcmToken': FieldValue.delete(),
+        'fcmTokenUpdatedAt': FieldValue.delete(),
+      };
+      await firestore.collection('clients').doc(uid).set(apagar, SetOptions(merge: true));
+      final providerRef = firestore.collection('providers').doc(uid);
+      if ((await providerRef.get()).exists) {
+        await providerRef.set(apagar, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('[NotificationService] Não foi possível limpar o token ao sair da conta: $e');
     }
   }
 
@@ -316,7 +358,7 @@ class NotificationService {
   /// tenta de novo depois — ver comentário lá) em vez de engolir com
   /// try/catch só um debugPrint: antes, se o `.set()` no Firestore
   /// falhasse (regra de segurança, sem rede etc.), `init()` já tinha
-  /// marcado `_started = true` e nunca mais tentava de novo, mesmo com o
+  /// marcado a conta como pronta e nunca mais tentava de novo, mesmo com o
   /// token do aparelho nunca tendo sido salvo — o cenário mais provável
   /// por trás de "desinstalei e instalei de novo e não gerou token".
   ///

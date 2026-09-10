@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'biometric_service.dart';
+import 'notification_service.dart';
 import 'testing_flags.dart';
 import 'token_storage.dart';
 
@@ -591,6 +592,13 @@ class AuthController extends ChangeNotifier {
       });
 
   Future<void> logout() async {
+    // ANTES do signOut, enquanto ainda existe sessão pra escrever no
+    // Firestore: apaga o token deste aparelho do documento da conta que
+    // está saindo e esquece o uid, pra que a próxima conta a entrar
+    // registre o token dela (ver NotificationService.aoSairDaConta).
+    // Sem isso, a conta antiga continuaria recebendo os pushes deste
+    // aparelho e a conta nova ficaria sem token nenhum.
+    await NotificationService.instance.aoSairDaConta();
     await _auth.signOut();
     await _storage.clear();
     biometricEnabled = false;
