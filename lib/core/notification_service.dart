@@ -83,20 +83,31 @@ class NotificationService {
   /// Firebase Console → Firestore já é a ferramenta que ele consegue
   /// abrir, então em vez de só `debugPrint` (que ele não tem como ver
   /// numa build de TestFlight sem USB), cada etapa importante do processo
-  /// de pedir permissão/pegar token também fica registrada aqui, um campo
-  /// só que vai sendo sobrescrito a cada passo (não uma lista — não
-  /// precisamos de histórico, só do ÚLTIMO estado conhecido). Nunca deixa
-  /// uma falha AQUI derrubar o fluxo de verdade — por isso o try/catch
-  /// próprio, silencioso.
+  /// de pedir permissão/pegar token também fica registrada aqui.
+  ///
+  /// Cada etapa agora vira uma CHAVE PRÓPRIA dentro de `pushDebug`, em vez
+  /// de sobrescrever um campo `step` único como era antes. Motivo prático:
+  /// sobrescrevendo, só dava pra ver a última etapa, e justamente a
+  /// informação que mais faltava (qual era o estado da permissão antes de
+  /// tudo) já tinha sido apagada por etapas posteriores quando o Franck ia
+  /// olhar. Como `set(..., merge: true)` faz merge PROFUNDO de mapa, cada
+  /// chave se acumula sozinha e um print só do campo conta a história
+  /// inteira. `ultimoPasso` continua dizendo onde parou.
+  ///
+  /// Nunca deixa uma falha AQUI derrubar o fluxo de verdade — por isso o
+  /// try/catch próprio, silencioso.
   Future<void> _debugLog(String? uid, String step, [Map<String, dynamic>? extra]) async {
     if (uid == null) return;
     try {
       await FirebaseFirestore.instance.collection('clients').doc(uid).set({
         'pushDebug': {
-          'step': step,
+          'ultimoPasso': step,
           'platform': kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android'),
           'at': FieldValue.serverTimestamp(),
-          ...?extra,
+          step: {
+            'at': FieldValue.serverTimestamp(),
+            ...?extra,
+          },
         },
       }, SetOptions(merge: true));
     } catch (e) {
@@ -384,11 +395,11 @@ class NotificationService {
   ///     (Configurações do projeto → Cloud Messaging → app da Apple).
   Future<String?> _obterTokenFcm(String uid) async {
     if (!kIsWeb && Platform.isIOS) {
-      var apns = await _messaging.getAPNSToken();
       var tentativas = 0;
+      var apns = await _lerApnsToken();
       while (apns == null && tentativas < 20) {
         await Future.delayed(const Duration(seconds: 1));
-        apns = await _messaging.getAPNSToken();
+        apns = await _lerApnsToken();
         tentativas++;
       }
       await _debugLog(
@@ -399,7 +410,10 @@ class NotificationService {
     }
 
     // Até 3 tentativas espaçadas: mesmo com o APNs no lugar, a primeira
-    // chamada logo depois de instalar às vezes falha por rede.
+    // chamada logo depois de instalar às vezes falha por rede. No iOS sem
+    // token APNs isso vai falhar 3 vezes seguidas de propósito — o
+    // objetivo aí não é conseguir o token (não tem como), é deixar a
+    // mensagem de erro exata gravada no pushDebug.
     for (var tentativa = 1; tentativa <= 3; tentativa++) {
       try {
         final token = await _messaging.getToken();
@@ -420,6 +434,26 @@ class NotificationService {
       }
     }
     return null;
+  }
+
+  /// Lê o token APNs devolvendo `null` quando ele ainda não chegou.
+  ///
+  /// Existe por um motivo bem concreto: `getAPNSToken()` do
+  /// firebase_messaging NÃO devolve null nesse caso — ele LANÇA
+  /// `[firebase_messaging/apns-token-not-set] APNS token has not been
+  /// received on the device yet`. A primeira versão do laço de espera aqui
+  /// assumia null e chamava `getAPNSToken()` direto, então estourava já na
+  /// primeira tentativa e a espera de 20 segundos nunca acontecia de
+  /// verdade — ela ia embora pelo `catch` de cima antes do primeiro
+  /// `Future.delayed`. Traduzir a exceção em "ainda não" é o que faz o
+  /// laço realmente esperar.
+  Future<String?> _lerApnsToken() async {
+    try {
+      return await _messaging.getAPNSToken();
+    } catch (e) {
+      debugPrint('[NotificationService] APNs ainda não disponível: $e');
+      return null;
+    }
   }
 
   void _showLocalNotification(RemoteMessage message) {
