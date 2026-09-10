@@ -19,28 +19,75 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    let resultado = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+
+    // ESTA LINHA É A CORREÇÃO DO PUSH NO iOS.
+    //
+    // Sem ela, ninguém no app pedia o registro do aparelho na APNs — e o
+    // diagnóstico provou isso: nenhum dos dois callbacks abaixo era
+    // chamado, e `isRegisteredForRemoteNotifications` era `false`. Sem
+    // registro não existe token da APNs, e sem token da APNs o
+    // `getToken()` do Firebase Messaging falha pra sempre com
+    // "[firebase_messaging/apns-token-not-set]".
+    //
+    // O app dependia de o plugin firebase_messaging fazer esse registro
+    // sozinho, o que ele normalmente faz a partir deste mesmo
+    // `didFinishLaunchingWithOptions`. Só que este projeto usa o template
+    // novo do Flutter, com ciclo de vida baseado em UIScene: os plugins
+    // só são registrados depois, no `didInitializeImplicitFlutterEngine`
+    // logo abaixo — ou seja, quando o plugin entra em cena, este momento
+    // do lançamento JÁ PASSOU, e o registro que ele faria nunca acontece.
+    //
+    // Pedir o registro aqui, explicitamente, não depende de plugin nenhum.
+    // É seguro chamar mesmo antes de o usuário decidir sobre a permissão:
+    // o token do aparelho não exige permissão de alerta (ela controla o
+    // que aparece na tela, não o registro), e chamar mais de uma vez é
+    // inofensivo — o iOS devolve o mesmo token.
+    application.registerForRemoteNotifications()
+
+    return resultado
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
-    // Canal só de leitura: o Dart pergunta "o que aconteceu com o registro
-    // na APNs?" e recebe o que os callabcks abaixo gravaram.
+    // Canal de apoio ao push: o Dart lê o diagnóstico gravado pelos
+    // callbacks abaixo e pode pedir um novo registro na APNs.
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ApnsDiagnostico") {
       let canal = FlutterMethodChannel(
         name: "prestadoraki/apns",
         binaryMessenger: registrar.messenger()
       )
       canal.setMethodCallHandler { call, result in
-        guard call.method == "lerDiagnostico" else {
+        switch call.method {
+        case "lerDiagnostico":
+          var resposta = UserDefaults.standard.dictionary(forKey: AppDelegate.diagnosticoKey) ?? [:]
+          if resposta["resultado"] == nil {
+            // Deixa explícito no Firestore que nenhum callback rodou, em
+            // vez de o mapa chegar lá só com `registradoAgora` e a
+            // ausência ter que ser deduzida.
+            resposta["resultado"] = "NENHUM_CALLBACK_AINDA"
+          }
+          resposta["registradoAgora"] = UIApplication.shared.isRegisteredForRemoteNotifications
+          result(resposta)
+
+        case "registrarNaApns":
+          // Segunda garantia, chamada pelo Dart DEPOIS de o Firebase estar
+          // inicializado e a permissão resolvida. O registro no
+          // `didFinishLaunchingWithOptions` acima acontece cedo demais
+          // para o Firebase Messaging ter sido configurado (isso só
+          // ocorre quando o Dart roda `Firebase.initializeApp`), então
+          // um token que chegasse naquele instante poderia não ser
+          // aproveitado. Pedindo de novo aqui, com tudo de pé, o token
+          // chega no momento certo.
+          DispatchQueue.main.async {
+            UIApplication.shared.registerForRemoteNotifications()
+          }
+          result(true)
+
+        default:
           result(FlutterMethodNotImplemented)
-          return
         }
-        var resposta = UserDefaults.standard.dictionary(forKey: AppDelegate.diagnosticoKey) ?? [:]
-        // Complementa com o que só dá pra saber na hora da pergunta.
-        resposta["registradoAgora"] = UIApplication.shared.isRegisteredForRemoteNotifications
-        result(resposta)
       }
     }
   }
@@ -52,11 +99,6 @@ import UIKit
   }
 
   /// A Apple ACEITOU o registro e entregou o token do aparelho.
-  ///
-  /// Se este for o callback que aparece no `pushDebug` e ainda assim o
-  /// token do FCM não sair, o problema está na ponte APNs → Firebase
-  /// Messaging (registro do app no Firebase, chave .p8, bundle id), não
-  /// na configuração nativa da Apple.
   ///
   /// Guarda só o começo do token, não ele inteiro: o que interessa é
   /// saber que chegou e que tem o tamanho esperado; o valor completo é um
@@ -77,10 +119,10 @@ import UIKit
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
 
-  /// A Apple RECUSOU o registro. É o cenário mais informativo dos três: o
-  /// `erro`/`dominio`/`codigo` gravados aqui dizem exatamente o que está
-  /// errado (entitlement `aps-environment` ausente na assinatura, App ID
-  /// sem a capacidade Push, aparelho sem rede na hora, etc.).
+  /// A Apple RECUSOU o registro. O `erro`/`dominio`/`codigo` gravados aqui
+  /// dizem exatamente o que está errado (entitlement `aps-environment`
+  /// ausente na assinatura, App ID sem a capacidade Push, aparelho sem
+  /// rede na hora, etc.).
   override func application(
     _ application: UIApplication,
     didFailToRegisterForRemoteNotificationsWithError error: Error

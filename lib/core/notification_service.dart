@@ -417,6 +417,15 @@ class NotificationService {
   ///     (Configurações do projeto → Cloud Messaging → app da Apple).
   Future<String?> _obterTokenFcm(String uid) async {
     if (!kIsWeb && Platform.isIOS) {
+      // Pede o registro na APNs agora, com o Firebase já inicializado e a
+      // permissão já resolvida. O AppDelegate também pede isso no
+      // lançamento do app (ver ios/Runner/AppDelegate.swift), mas lá é
+      // cedo demais pro Firebase Messaging estar configurado — este
+      // segundo pedido garante que o token chegue num momento em que ele
+      // é aproveitado. Chamar duas vezes é inofensivo: o iOS devolve o
+      // mesmo token.
+      await _pedirRegistroNaApns(uid);
+
       var tentativas = 0;
       var apns = await _lerApnsToken();
       while (apns == null && tentativas < 20) {
@@ -479,6 +488,19 @@ class NotificationService {
   /// Canal só de leitura pro diagnóstico gravado pelo AppDelegate — ver
   /// `prestadoraki/apns` em ios/Runner/AppDelegate.swift.
   static const _canalApns = MethodChannel('prestadoraki/apns');
+
+  /// Pede ao iOS que registre o aparelho na APNs (ver `registrarNaApns`
+  /// em ios/Runner/AppDelegate.swift). Nunca lança: é um empurrão extra,
+  /// não pode derrubar o fluxo se o canal não estiver disponível.
+  Future<void> _pedirRegistroNaApns(String uid) async {
+    try {
+      await _canalApns.invokeMethod<bool>('registrarNaApns');
+      await _debugLog(uid, 'apns_registro_pedido');
+    } catch (e) {
+      debugPrint('[NotificationService] Não foi possível pedir o registro na APNs: $e');
+      await _debugLog(uid, 'apns_registro_falhou', {'error': e.toString()});
+    }
+  }
 
   /// Pergunta ao lado nativo o que aconteceu com o registro na APNs.
   ///
