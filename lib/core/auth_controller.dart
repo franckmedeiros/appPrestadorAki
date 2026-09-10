@@ -558,19 +558,31 @@ class AuthController extends ChangeNotifier {
 
   /// Exclui a conta e todos os dados associados (perfil, cadastro de
   /// prestador com clientes/agenda/orçamentos, favoritos) — pedida na tela
-  /// "Meu perfil", igual ao app Resenha. Reautentica primeiro (mesma
-  /// exigência de segurança do Firebase que já existe em
-  /// updateEmailAddress, acima), depois chama a Cloud Function
+  /// "Meu perfil", igual ao app Resenha. Chama a Cloud Function
   /// excluirContaEDados, que apaga tudo no Firestore via recursiveDelete
   /// e só então remove a conta do Firebase Auth. Como o login já deixa de
   /// existir no servidor depois disso, encerra a sessão local do mesmo
   /// jeito que logout() faria, sem chamar signOut (o usuário já não
   /// existe mais pro Firebase).
-  Future<bool> deleteAccount(String currentPassword) => _submit(() async {
+  ///
+  /// `currentPassword` virou OPCIONAL (pedido do Franck: a tela agora só
+  /// pergunta se a pessoa quer mesmo excluir, sem a segunda etapa de
+  /// digitar a senha). Sem senha o método pula a reautenticação e vai
+  /// direto pra Cloud Function — o que funciona porque quem remove o
+  /// usuário do Firebase Auth é o Admin SDK lá no servidor (ver
+  /// functions/src/account.ts), e o Admin SDK não está sujeito à
+  /// exigência de "login recente" que um `user.delete()` feito daqui do
+  /// app teria. Passando uma senha, a reautenticação ainda acontece —
+  /// deixado assim de propósito pra dar pra religar essa camada extra de
+  /// segurança sem mexer na Cloud Function.
+  Future<bool> deleteAccount([String? currentPassword]) => _submit(() async {
         final user = _auth.currentUser!;
-        final credential =
-            EmailAuthProvider.credential(email: user.email!, password: currentPassword);
-        await user.reauthenticateWithCredential(credential);
+        final email = user.email;
+        if (currentPassword != null && currentPassword.isNotEmpty && email != null) {
+          final credential =
+              EmailAuthProvider.credential(email: email, password: currentPassword);
+          await user.reauthenticateWithCredential(credential);
+        }
         await FirebaseFunctions.instance.httpsCallable('excluirContaEDados').call();
         await _storage.clear();
         biometricEnabled = false;

@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/testing_flags.dart';
-import 'guest_profile_panel.dart';
+import '../welcome/welcome_screen.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/prestadoraki_mark.dart';
 import '../marketplace/models/provider_listing.dart';
@@ -13,7 +13,6 @@ import 'edit_profile_screen.dart';
 import 'my_reviews_screen.dart';
 import '../../widgets/service_category_field.dart';
 import '../../widgets/gradient_pill_button.dart';
-import '../../widgets/labeled_text_field.dart';
 import 'provider_paywall_screen.dart';
 import 'about_screen.dart';
 
@@ -44,6 +43,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool? _biometricAvailable;
   bool _excluindoConta = false;
 
+  /// Uid que o `_ownDataFuture` atual carregou — null quando foi montado
+  /// sem sessão. Usado em `build()` pra recarregar sozinho quando alguém
+  /// entra na conta pela WelcomeScreen sem esta aba ser recriada.
+  String? _uidDosDados;
+
   @override
   void initState() {
     super.initState();
@@ -72,7 +76,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// vai de fato precisar dele), então a checagem fica aqui também.
   Future<Map<String, dynamic>> _fetchOwnData() {
     final auth = context.read<AuthController>();
-    if (auth.status != AuthStatus.authenticated) return Future.value(const <String, dynamic>{});
+    if (auth.status != AuthStatus.authenticated) {
+      _uidDosDados = null;
+      return Future.value(const <String, dynamic>{});
+    }
+    _uidDosDados = auth.providerIdOrNull;
     return auth.fetchOwnProfileData();
   }
 
@@ -151,14 +159,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  /// Exclusao de conta, mesma logica pedida pelo Franck ("igual ao
-  /// resenha"): avisa o que vai ser apagado, pede a senha de novo (o
-  /// Firebase exige login "recente" pra deixar apagar a conta), e so
-  /// entao chama AuthController.deleteAccount (que reautentica, chama a
-  /// Cloud Function excluirContaEDados, e encerra a sessao local). O
-  /// router redireciona sozinho pra tela de login assim que o status
-  /// muda pra unauthenticated (ver refreshListenable em app_router.dart),
-  /// entao nao precisa navegar manualmente daqui.
+  /// Exclusao de conta: avisa o que vai ser apagado, confirma UMA vez e
+  /// chama AuthController.deleteAccount (que chama a Cloud Function
+  /// excluirContaEDados e encerra a sessao local). O router redireciona
+  /// sozinho pra tela de login assim que o status muda pra
+  /// unauthenticated (ver refreshListenable em app_router.dart), entao
+  /// nao precisa navegar manualmente daqui.
+  ///
+  /// Tinha uma segunda etapa pedindo a senha; foi removida a pedido do
+  /// Franck — ver o comentario dentro do metodo sobre por que isso nao
+  /// quebra a exclusao.
   Future<void> _excluirConta(BuildContext context) async {
     final auth = context.read<AuthController>();
     final isProvider = auth.isProvider;
@@ -181,52 +191,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Continuar', style: TextStyle(color: AppColors.danger)),
+            // "Excluir conta" (nao mais "Continuar"): agora este e o
+            // botao que de fato apaga, nao ha mais uma etapa depois.
+            child: const Text('Excluir conta', style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
     );
     if (confirmar != true || !context.mounted) return;
 
-    final senhaController = TextEditingController();
-    final senha = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirme sua senha'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Por seguranca, digite sua senha atual pra confirmar a '
-              'exclusao da conta.',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            LabeledTextField(
-              label: 'Senha',
-              controller: senhaController,
-              obscureText: true,
-              prefixIcon: Icons.lock_outline,
-              textInputAction: TextInputAction.done,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(senhaController.text),
-            child: const Text('Excluir conta', style: TextStyle(color: AppColors.danger)),
-          ),
-        ],
-      ),
-    );
-    if (senha == null || senha.isEmpty || !context.mounted) return;
-
+    // A segunda etapa ("Confirme sua senha") foi removida a pedido do
+    // Franck: "quando eu clicar em excluir a conta, apenas pergunta se
+    // desejo excluir e nao pedir a senha". Da pra dispensar sem quebrar
+    // nada porque quem apaga a conta do Firebase Auth e a Cloud Function
+    // `excluirContaEDados`, pelo Admin SDK (ver functions/src/account.ts)
+    // — o Admin SDK nao esta sujeito a exigencia de "login recente" que
+    // um `user.delete()` feito aqui do app teria. A reautenticacao era
+    // uma camada extra de seguranca (proteger contra alguem com o
+    // celular destravado na mao), nao um requisito tecnico; o parametro
+    // continua existindo em AuthController.deleteAccount caso a gente
+    // queira religar isso depois.
     setState(() => _excluindoConta = true);
-    final ok = await auth.deleteAccount(senha);
+    final ok = await auth.deleteAccount();
     if (!context.mounted) return;
     if (!ok) {
       setState(() => _excluindoConta = false);
@@ -246,7 +232,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final isProvider = auth.isProvider;
 
     if (!isAuthenticated) {
-      return GuestProfilePanel(onAuthenticated: () => setState(_reloadOwnData));
+      // Pedido do Franck: tocar em "Perfil" sem conta abre a tela de
+      // boas-vindas (a que ele aprovou), e o "Entrar" de lá leva pra
+      // LoginScreen de verdade — em vez do formulário de login embutido
+      // que ficava aqui antes (GuestProfilePanel, que segue no projeto
+      // sem uso caso a gente queira voltar atrás).
+      return const WelcomeScreen();
+    }
+
+    // Depois de entrar pela WelcomeScreen, este State continua vivo (a
+    // aba fica num IndexedStack, não é recriada) com o `_ownDataFuture`
+    // que foi montado ainda sem sessão — ou seja, vazio. Sem isso,
+    // categoria/cidade/telefone/endereço apareceriam como "Não
+    // informado" pra quem acabou de logar. Recarrega uma vez, no frame
+    // seguinte (não dá pra chamar setState durante o build), e só
+    // enquanto o uid carregado for diferente do uid logado — o que
+    // impede qualquer laço.
+    final uidLogado = auth.providerIdOrNull;
+    if (uidLogado != null && uidLogado != _uidDosDados) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(_reloadOwnData);
+      });
     }
 
     return Scaffold(
