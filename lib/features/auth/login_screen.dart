@@ -67,9 +67,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submit(AuthController auth) async {
     if (!_formKey.currentState!.validate()) return;
-    // Sucesso navega sozinho: o redirect do go_router reage à mudança de
-    // status no AuthController (ver app_router.dart).
-    await auth.login(_emailController.text.trim(), _passwordController.text);
+    final ok = await auth.login(_emailController.text.trim(), _passwordController.text);
+    // Deu errado: a mensagem já aparece no corpo da tela
+    // (`auth.errorMessage` no build).
+    if (!ok || !mounted) return;
+    // Navegação EXPLÍCITA (antes esta tela só contava com o `redirect` do
+    // go_router reagir à mudança de status) — mesmo motivo do
+    // RegisterScreen: no cadastro isso deixou a tela parada, sem erro nem
+    // sucesso, com a conta já criada. O redirect continua valendo como
+    // rede de segurança.
+    context.go('/perfil');
   }
 
   /// Esta tela é usada por dois caminhos: a rota de topo '/login' (tela

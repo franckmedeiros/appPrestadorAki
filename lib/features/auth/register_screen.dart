@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
@@ -72,9 +73,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _passwordController.text,
       phone: _phoneController.text.trim(),
     );
-    if (ok && _useBiometrics) {
+    // Deu errado: a mensagem já aparece no corpo da tela (ver
+    // `auth.errorMessage` no build), não há mais nada a fazer aqui.
+    if (!ok) return;
+
+    if (_useBiometrics) {
       await auth.setBiometricEnabled(true);
     }
+    if (!mounted) return;
+
+    // Confirmação e navegação EXPLÍCITAS. Antes esta tela não fazia nem
+    // uma coisa nem outra: contava com o `redirect` do go_router perceber
+    // que o status virou `authenticated` e tirar a pessoa daqui sozinho.
+    // Na prática o Franck viu a tela ficar parada depois de "Criar conta"
+    // — sem erro e sem sucesso — mesmo com a conta criada certinho no
+    // banco. Navegar na mão aqui não depende de nada disso, e o
+    // `redirect` continua valendo como rede de segurança (levaria pro
+    // mesmo lugar).
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Conta criada! Confirme seu e-mail pelo link que enviamos.'),
+        duration: Duration(seconds: 5),
+      ),
+    );
+    context.go('/perfil');
   }
 
   @override

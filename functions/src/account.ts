@@ -10,10 +10,13 @@
  * mão nem se preocupar com o limite de 500 operações por batch do
  * Firestore.
  *
- * Chamada pelo app (UserProfileScreen/AuthController.deleteAccount) só
- * DEPOIS de reautenticar com a senha atual no cliente — essa function não
- * pede senha de novo, só confia em `request.auth.uid` (o Firebase já
- * garante que é um token válido de sessão).
+ * Chamada pelo app (UserProfileScreen/AuthController.deleteAccount). Não
+ * pede senha: confia em `request.auth.uid`, que o Firebase já garante ser
+ * um token válido de sessão. (O app chegou a reautenticar com a senha
+ * antes de chamar isto aqui; essa etapa foi removida a pedido do Franck —
+ * era uma camada extra de segurança, não um requisito técnico, já que
+ * quem apaga a conta é o Admin SDK aqui no servidor, que não está sujeito
+ * à exigência de "login recente" do lado do cliente.)
  *
  * Nota honesta sobre o que NÃO é apagado aqui de propósito:
  * `assinaturasVerificadas/{purchaseToken}` fica de fora — é histórico de
@@ -83,6 +86,19 @@ export const excluirContaEDados = onCall(async (request) => {
     // PRESTADOR, na própria subcoleção, já foram embora junto com
     // `db.recursiveDelete(providers/{uid})` acima.
     await apagarQuery(db.collectionGroup('budgets').where('clientUid', '==', uid));
+    // Reserva de telefone único (ver `phoneIndex` no firestore.rules e
+    // AuthController.register). Faltava aqui, e era um bug de verdade: o
+    // documento é indexado pelo TELEFONE (não pelo uid), então não é
+    // alcançado por nenhum dos recursiveDelete acima. Sem apagar, o
+    // telefone continuava "reservado" pra sempre por uma conta que não
+    // existe mais, e tentar recadastrar com o mesmo número dava "Esse
+    // telefone já está cadastrado em outra conta" — exatamente o que o
+    // Franck viu ao excluir e tentar criar a conta de novo.
+    //
+    // Busca por `clientUid` em vez de calcular o id a partir do telefone
+    // do documento do cliente: aqui em cima o `clients/{uid}` JÁ foi
+    // apagado, e de qualquer forma o vínculo confiável é este campo.
+    await apagarQuery(db.collection('phoneIndex').where('clientUid', '==', uid));
   } catch (error) {
     logger.error('Falha ao apagar dados do Firestore na exclusão de conta', { uid, error });
     // NUNCA usar o código 'internal' (nem 'unknown') aqui — pedido do
@@ -96,9 +112,24 @@ export const excluirContaEDados = onCall(async (request) => {
     throw new HttpsError('unavailable', 'Não foi possível apagar seus dados. Tente novamente.');
   }
 
+  // É esta chamada que libera o E-MAIL pra ser usado num cadastro novo —
+  // não existe nenhum índice de e-mail no Firestore, quem garante que um
+  // e-mail só pertence a uma conta é o próprio Firebase Auth. Se ela
+  // falhar, o e-mail continua ocupado; por isso o erro sobe pro app em vez
+  // de ser engolido.
   try {
     await getAuth().deleteUser(uid);
+    logger.info('Conta removida do Firebase Auth', { uid });
   } catch (error) {
+    // `user-not-found` não é falha: significa que a conta já não existia
+    // (ex.: uma tentativa anterior chegou até aqui e só a resposta se
+    // perdeu). Tratar como erro faria o app mostrar "houve um problema ao
+    // remover o login" numa exclusão que, na prática, está completa.
+    const code = (error as { code?: string } | null)?.code;
+    if (code === 'auth/user-not-found') {
+      logger.info('Conta já não existia no Firebase Auth na exclusão', { uid });
+      return { ok: true };
+    }
     logger.error('Falha ao apagar usuário do Firebase Auth na exclusão de conta', { uid, error });
     throw new HttpsError(
       'unavailable',
