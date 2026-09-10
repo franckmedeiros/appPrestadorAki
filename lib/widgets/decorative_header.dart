@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
 
-/// Cabeçalho decorativo em gradiente com círculos translúcidos ao fundo —
-/// mesmo desenho usado no app Resenha pras telas de Boas-vindas, Login e
-/// Cadastro (ver DecorativeHeader de lá), só que nas cores da marca OP
-/// OutSourcing (AppColors.primaryGradient) em vez de azul.
+/// Cabeçalho em gradiente com o canto de baixo arredondado, usado no topo
+/// de Login, Cadastro, Esqueci minha senha e "Meu perfil" — mesmo desenho
+/// do app Resenha, nas cores da marca OP OutSourcing
+/// (AppColors.primaryGradient) em vez de azul.
+///
+/// Tinha também três círculos brancos translúcidos ao fundo (daí o nome
+/// "decorative"), removidos a pedido do Franck — ver o comentário no
+/// build. O nome ficou por compatibilidade com quem já usa o widget.
 class DecorativeHeader extends StatelessWidget {
   const DecorativeHeader({
     super.key,
@@ -31,29 +35,15 @@ class DecorativeHeader extends StatelessWidget {
         constraints: BoxConstraints(minHeight: height),
         width: double.infinity,
         decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(top: -50, right: -40, child: _bubble(150, 0.12)),
-            Positioned(bottom: -60, left: -50, child: _bubble(170, 0.10)),
-            Positioned(top: 30, left: -20, child: _bubble(60, 0.14)),
-            SafeArea(
-              bottom: false,
-              child: Padding(padding: padding, child: child),
-            ),
-          ],
+        // Os três círculos brancos translúcidos que ficavam soltos aqui
+        // atrás foram removidos a pedido do Franck ("retire essas bolas")
+        // — o mesmo enfeite saiu do BrandGradientBackground (splash e
+        // boas-vindas), então hoje todo fundo de marca do app é o
+        // gradiente laranja liso, sem enfeite nenhum.
+        child: SafeArea(
+          bottom: false,
+          child: Padding(padding: padding, child: child),
         ),
-      ),
-    );
-  }
-
-  Widget _bubble(double size, double opacity) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white.withValues(alpha: opacity),
       ),
     );
   }
