@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:provider/provider.dart';
@@ -134,6 +135,15 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
     }
   }
 
+  /// Nome da loja pra exibir na tela, conforme a plataforma — mesma
+  /// checagem usada em SubscriptionService pra escolher a Cloud Function
+  /// certa (Google Play Billing no Android, StoreKit/App Store no iOS).
+  String get _nomeDaLoja {
+    final naApple = defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+    return naApple ? 'App Store' : 'Play Store';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -193,10 +203,10 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Renovação automática, cancele quando quiser na Play Store',
+                  Text(
+                    'Renovação automática, cancele quando quiser na $_nomeDaLoja',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11.5, color: AppColors.muted),
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
                   ),
                   const SizedBox(height: 18),
                   if (_erro != null) ...[
