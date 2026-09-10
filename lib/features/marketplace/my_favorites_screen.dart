@@ -36,11 +36,10 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
     await _future;
   }
 
-  Future<void> _signIn() async {
-    if (await ensureClientAccount(context) && mounted) {
-      setState(() => _load(context.read<FavoritesController>().version));
-    }
-  }
+  // `_signIn` (que abria a folha "Crie uma conta grátis" por cima) saiu
+  // daqui: o botão do convite agora leva pra aba "Perfil" — ver
+  // ClientSignInPrompt. Não precisa recarregar a lista na volta: o
+  // `build` abaixo já refaz o `_load` sozinho quando `isClient` vira true.
 
   /// Desfavorita direto da lista (coração preenchido — pedido do Franck
   /// pra não precisar abrir o perfil só pra isso). Como aqui TODO item já
@@ -78,10 +77,9 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Meus favoritos')),
       body: !isClient
-          ? ClientSignInPrompt(
+          ? const ClientSignInPrompt(
               icon: Icons.favorite_border,
               message: 'Crie uma conta grátis para salvar os prestadores que você mais usa.',
-              onPressed: _signIn,
             )
           : RefreshIndicator(
               onRefresh: _reload,

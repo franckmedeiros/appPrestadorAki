@@ -89,9 +89,10 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     setState(() => _stream = context.read<BudgetRequestsRepository>().watchMine());
   }
 
-  Future<void> _signIn() async {
-    if (await ensureClientAccount(context) && mounted) setState(() {});
-  }
+  // `_signIn` (que abria a folha "Crie uma conta grátis" por cima) saiu
+  // daqui: o botão do convite agora leva pra aba "Perfil" — ver
+  // ClientSignInPrompt. O stream se refaz sozinho na volta, porque
+  // `_ensureStream` percebe a troca de uid (ver `_streamForUid`).
 
   Future<void> _setArchived(Budget budget, bool archived) async {
     try {
@@ -203,10 +204,9 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
         ],
       ),
       body: !isClient
-          ? ClientSignInPrompt(
+          ? const ClientSignInPrompt(
               icon: Icons.list_alt_outlined,
               message: 'Crie uma conta grátis para acompanhar seus pedidos de orçamento.',
-              onPressed: _signIn,
             )
           : StreamBuilder<List<Budget>>(
               stream: _stream,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
@@ -43,13 +44,31 @@ Future<bool> ensureClientAccount(BuildContext context) async {
 /// Convite pra criar/entrar numa conta — usado no lugar do conteúdo real
 /// nas abas "Favoritos"/"Minhas solicitações" quando quem está olhando
 /// ainda é um convidado (busca e perfil público continuam livres; só essas
-/// ações que dependem de identidade pedem conta, e pedem na hora).
+/// ações que dependem de identidade pedem conta).
+///
+/// O botão manda pra aba "Perfil" (que mostra a tela de boas-vindas pra
+/// quem não tem conta, ver UserProfileScreen/WelcomeScreen) em vez de
+/// abrir a folha "Crie uma conta grátis" que aparecia por cima — pedido
+/// do Franck: entrar/criar conta é sempre no mesmo lugar do app, uma
+/// porta só, em vez de um formulário diferente em cada tela.
+///
+/// A folha (`ensureClientAccount`) continua existindo e sendo usada onde
+/// ela faz sentido: no MEIO de uma ação (favoritar um prestador na busca,
+/// enviar um pedido de orçamento), onde tirar a pessoa da tela faria ela
+/// perder o que estava fazendo.
 class ClientSignInPrompt extends StatelessWidget {
-  const ClientSignInPrompt({super.key, required this.icon, required this.message, required this.onPressed});
+  const ClientSignInPrompt({
+    super.key,
+    required this.icon,
+    required this.message,
+    this.onPressed,
+  });
 
   final IconData icon;
   final String message;
-  final VoidCallback onPressed;
+
+  /// Deixa null pra usar o comportamento padrão (ir pra aba "Perfil").
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +82,10 @@ class ClientSignInPrompt extends StatelessWidget {
             const SizedBox(height: 16),
             Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
             const SizedBox(height: 20),
-            ElevatedButton(onPressed: onPressed, child: const Text('Entrar ou criar conta')),
+            ElevatedButton(
+              onPressed: onPressed ?? () => context.go('/perfil'),
+              child: const Text('Entrar ou criar conta'),
+            ),
           ],
         ),
       ),
