@@ -124,6 +124,27 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     // então a lista já atualiza sozinha quando o status muda.
   }
 
+  /// Status do orçamento no vocabulário do CLIENTE.
+  ///
+  /// Os rótulos de `BudgetStatus` são escritos do ponto de vista de quem
+  /// toca o negócio — "Aceito", "Aprovado — falta confirmar" — e do outro
+  /// lado do balcão eles não respondem a pergunta que a pessoa tem, que é
+  /// sempre a mesma: e agora, quem está devendo o quê? "Aceito", em
+  /// especial, soa como fim de linha, quando na verdade o serviço ainda
+  /// nem começou (pedido do Franck: "quando o orçamento for aprovado, o
+  /// status do card do cliente coloca como Aguardando início do serviço").
+  ///
+  /// Cada rótulo aqui diz de quem é a próxima ação.
+  String _statusParaCliente(BudgetStatus? status) => switch (status) {
+        null => '',
+        BudgetStatus.pendente => 'Aguardando resposta do prestador',
+        BudgetStatus.enviado => 'Aguardando sua aprovação',
+        BudgetStatus.aprovado => 'Aguardando confirmação do prestador',
+        BudgetStatus.aceito => 'Aguardando início do serviço',
+        BudgetStatus.aditivoEnviado => 'Revisão aguardando sua aprovação',
+        BudgetStatus.recusado => 'Recusado',
+      };
+
   /// Junta o QR Code de pagamento (quando o prestador já mandou cobrar —
   /// ver `Budget.paymentPixPayload`/`functions/src/jobs.ts`) com o que já
   /// existia no rodapé do card (aprovar/recusar, ou o link pra avaliar) —
@@ -362,7 +383,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                                 style: const TextStyle(fontSize: 11, color: AppColors.muted),
                               ),
                               const SizedBox(height: 2),
-                              Text(status?.label ?? '',
+                              Text(_statusParaCliente(status),
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                               // Etapa do serviço — só existe depois do
                               // aceite final do prestador (ver
@@ -371,7 +392,13 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                               // Kanban do lado dele: Novo → Em andamento
                               // → (Interrompido) → Aguardando pagamento →
                               // Concluído.
-                              if (etapaServico != null) ...[
+                              //
+                              // O estágio "novo" fica de fora de
+                              // propósito: o status logo acima já diz
+                              // "Aguardando início do serviço", e repetir
+                              // a mesma informação em dois selos colados
+                              // só polui o card.
+                              if (etapaServico != null && etapaServico != JobStatus.novo) ...[
                                 const SizedBox(height: 3),
                                 JobStatusChip(status: etapaServico, paraCliente: true),
                               ],
