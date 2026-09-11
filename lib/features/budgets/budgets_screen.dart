@@ -8,6 +8,8 @@ import '../../core/app_theme.dart';
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/app_list_card.dart';
+import '../jobs/job_status_chip.dart';
+import '../jobs/models/job.dart';
 import 'budget_form_screen.dart' show BudgetAcceptedResult;
 import 'budgets_repository.dart';
 import 'models/budget.dart';
@@ -128,6 +130,47 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           ),
         ),
       );
+  }
+
+  /// Etapa do serviço no rodapé do card + atalho pra "Serviços".
+  ///
+  /// Pedido do Franck: do lado do prestador, um orçamento "Aceito"
+  /// também não contava o resto da história — dava pra achar que o
+  /// trabalho já tinha acabado, quando na verdade ele ainda nem começou.
+  /// Agora o card mostra a etapa real e oferece o caminho pra agir.
+  ///
+  /// A etapa vem do próprio orçamento (`Budget.serviceStatus`, espelhado
+  /// pelas Cloud Functions — ver functions/src/jobs.ts). O prestador
+  /// poderia ler os serviços direto, já que eles são dele; usar o mesmo
+  /// campo do cliente evita uma segunda consulta e garante que os dois
+  /// lados mostrem exatamente a mesma coisa.
+  ///
+  /// Null quando ainda não existe serviço — orçamentos pendentes,
+  /// enviados ou recusados não têm o que mostrar aqui.
+  Widget? _rodapeDoServico(Budget budget) {
+    final wire = budget.serviceStatus;
+    if (wire == null || wire.isEmpty) return null;
+    return Row(
+      children: [
+        JobStatusChip(status: jobStatusFromWire(wire)),
+        const Spacer(),
+        TextButton.icon(
+          // Leva pro Kanban de Serviços, onde ele avança a etapa. Não dá
+          // pra abrir o serviço específico direto: a tela agrupa por
+          // raia e não recebe um id — chegar nela já resolve o "e agora,
+          // onde eu mexo nisso?".
+          onPressed: () => context.push('/servicos'),
+          icon: const Icon(Icons.arrow_forward, size: 15),
+          label: const Text('Ver serviço'),
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(0, 30),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
   }
 
   Color _statusColor(BudgetStatus status) => switch (status) {
@@ -274,6 +317,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         ),
                       ),
                 onTap: () => _openBudget(budget),
+                footer: _rodapeDoServico(budget),
               );
 
               // Arquivado: sempre pode desarquivar. Ativo: só desliza
