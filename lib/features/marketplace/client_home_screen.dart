@@ -42,6 +42,20 @@ typedef _LocationLookup = ({String? city, String? errorMessage});
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   ServiceCategory? _category;
   String? _city;
+
+  /// Texto do campo "Buscar por nome" — pedido do Franck: além de filtrar
+  /// por categoria e cidade, poder procurar um prestador pelo nome direto
+  /// na tela principal (quem já conhece o profissional não quer garimpar
+  /// a lista inteira).
+  ///
+  /// Filtra AQUI no app, sobre o resultado que já está na tela, em vez de
+  /// refazer a consulta a cada tecla: a busca por categoria/cidade já
+  /// baixa os prestadores todos e filtra em Dart (ver
+  /// ProviderDirectoryRepository.search), então filtrar por nome também
+  /// aqui sai de graça, responde instantaneamente e não gasta leitura no
+  /// Firestore a cada letra digitada.
+  final _nameController = TextEditingController();
+  String _nameQuery = '';
   late Future<List<String>> _citiesFuture;
   bool _locating = false;
   bool _autoLocationAttempted = false;
@@ -75,6 +89,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     // inteira do app, sem ficar reaparecendo o pedido de permissão toda
     // vez que a pessoa volta pra essa aba.
     _citiesFuture.then((_) => _maybeAutoDetectLocation());
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -275,6 +295,32 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                // Busca por nome — pedido do Franck. Fica em PRIMEIRO
+                // lugar de propósito: quem já sabe o nome do profissional
+                // não deveria precisar passar por categoria e cidade
+                // antes. Filtra na hora, sem tocar no Firestore (ver
+                // `_nameQuery`).
+                TextField(
+                  controller: _nameController,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    labelText: 'Buscar pelo nome',
+                    hintText: 'Ex.: João, Vidraçaria Silva...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _nameQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close, size: 20),
+                            tooltip: 'Limpar',
+                            onPressed: () {
+                              _nameController.clear();
+                              setState(() => _nameQuery = '');
+                            },
+                          ),
+                  ),
+                  onChanged: (value) => setState(() => _nameQuery = value),
+                ),
+                const SizedBox(height: 8),
                 ServiceCategorySelectorField(
                   label: 'O que você precisa?',
                   initialValue: _category,
@@ -335,15 +381,32 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       : 'Não foi possível buscar prestadores.';
                   return Center(child: Text(message, textAlign: TextAlign.center));
                 }
-                final listings = snapshot.data ?? [];
+                // Filtro por nome aplicado aqui, sobre o que a consulta
+                // já trouxe — ver `_nameQuery`. `normalizeForSearch`
+                // (o mesmo usado no seletor de cidade) faz "vidracaria"
+                // achar "Vidraçaria": ignora acento e maiúscula.
+                final todos = snapshot.data ?? const <ProviderListing>[];
+                final termo = _nameQuery.trim();
+                final listings = termo.isEmpty
+                    ? todos
+                    : todos
+                        .where((listing) =>
+                            normalizeForSearch(listing.name).contains(normalizeForSearch(termo)))
+                        .toList();
                 if (listings.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(24),
                       child: Text(
-                        'Nenhum prestador encontrado com esses filtros ainda.',
+                        // Mensagem diferente quando o vazio veio da busca
+                        // por nome: "nenhum com esses filtros" mandaria a
+                        // pessoa mexer na categoria/cidade quando o que
+                        // ela precisa é conferir o nome digitado.
+                        termo.isEmpty
+                            ? 'Nenhum prestador encontrado com esses filtros ainda.'
+                            : 'Nenhum prestador com "$termo" nos filtros atuais.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.muted),
+                        style: const TextStyle(color: AppColors.muted),
                       ),
                     ),
                   );
