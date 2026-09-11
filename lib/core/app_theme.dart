@@ -68,6 +68,45 @@ class AppTheme {
         color: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
+      // Diálogos (ex.: "Sair da conta?", "Excluir sua conta?") nasciam
+      // com um fundo ROSADO que destoava do resto do app — o Franck
+      // reparou. Não era cor escolhida por ninguém: o Material 3 pinta as
+      // superfícies elevadas (diálogo, menu, folha que sobe de baixo)
+      // misturando um pouco da cor da marca por cima do branco — é o
+      // "surface tint". Com o laranja da marca, essa mistura dá rosa.
+      //
+      // `surfaceTintColor: Colors.transparent` desliga a mistura, e o
+      // fundo branco explícito casa com o dos cards. Feito aqui no tema,
+      // não em cada `showDialog`, pra valer pra todos os diálogos do app
+      // de uma vez — inclusive os que ainda nem existem.
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titleTextStyle: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: AppColors.ink,
+        ),
+        contentTextStyle: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.ink),
+      ),
+      // Mesmo tingimento, mesmo ajuste: as folhas que sobem de baixo
+      // (seletor de cidade, "Também quero oferecer serviços", detalhes do
+      // orçamento) e os menus suspensos (arquivar/desarquivar) puxavam
+      // pro rosa pela mesma razão.
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
       // Os FABs de "+" já existentes (novo cliente, novo compromisso...)
       // passam a usar esse quadrado arredondado escuro em vez do círculo
       // padrão do Material — mesmo visual do FAB do app Resenha, na cor
