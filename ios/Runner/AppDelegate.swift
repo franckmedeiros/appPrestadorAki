@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -82,6 +83,23 @@ import UIKit
           // chega no momento certo.
           DispatchQueue.main.async {
             UIApplication.shared.registerForRemoteNotifications()
+          }
+          result(true)
+
+        case "definirBadge":
+          // Contador do ícone do app. Quem DEFINE o número quando a
+          // notificação chega é o próprio push (campo `badge`, ver
+          // functions/src/notifications.ts) — este canal existe pro
+          // outro lado da história: zerar/ajustar o contador quando a
+          // pessoa LÊ as notificações dentro do app, algo que nenhum
+          // push consegue fazer (o servidor não sabe que ela leu).
+          let quantidade = (call.arguments as? [String: Any])?["quantidade"] as? Int ?? 0
+          DispatchQueue.main.async {
+            if #available(iOS 16.0, *) {
+              UNUserNotificationCenter.current().setBadgeCount(max(0, quantidade))
+            } else {
+              UIApplication.shared.applicationIconBadgeNumber = max(0, quantidade)
+            }
           }
           result(true)
 

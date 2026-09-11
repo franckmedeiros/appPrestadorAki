@@ -73,6 +73,30 @@ export async function notify(uid: string, input: NotificationInput): Promise<voi
     logger.warn('Falha ao gravar notificação na central', e);
   }
 
+  // Quantas notificações não lidas essa pessoa tem AGORA (contando a que
+  // acabou de ser gravada acima) — é esse número que vira a bolinha
+  // vermelha no ícone do app. Pedido do Franck: "consegue fazer essa
+  // notificação quando chegar um novo orçamento? Ou seja, o contador
+  // ficará aparecendo quando tiver um orçamento novo".
+  //
+  // `count()` é uma consulta de AGREGAÇÃO: o Firestore devolve só o
+  // número, sem baixar os documentos, então custa quase nada mesmo com
+  // histórico grande. Se falhar, o push segue sem o contador — badge
+  // ausente incomoda bem menos que notificação que não chega.
+  let naoLidas: number | undefined;
+  try {
+    const agg = await db
+      .collection('clients')
+      .doc(uid)
+      .collection('notifications')
+      .where('read', '==', false)
+      .count()
+      .get();
+    naoLidas = agg.data().count;
+  } catch (e) {
+    logger.warn('Falha ao contar notificações não lidas pro badge', e);
+  }
+
   try {
     const doc = await db.collection('clients').doc(uid).get();
     const token = doc.data()?.fcmToken;
@@ -84,7 +108,15 @@ export async function notify(uid: string, input: NotificationInput): Promise<voi
         type: input.type,
         ...(input.budgetId ? { budgetId: input.budgetId } : {}),
       },
-      android: { notification: { channelId: NOTIFICATION_CHANNEL_ID } },
+      android: {
+        notification: {
+          channelId: NOTIFICATION_CHANNEL_ID,
+          // No Android o contador no ícone depende do launcher (alguns
+          // mostram, outros ignoram) — mandar não custa nada, e quem
+          // suporta aproveita.
+          ...(naoLidas !== undefined ? { notificationCount: naoLidas } : {}),
+        },
+      },
       // Sem isso, o envio pro lado iOS ficava só no que o próprio FCM
       // infere por padrão a partir de `notification` — funciona na
       // maioria das vezes, mas sem som/prioridade explícitos. Deixando
@@ -93,7 +125,16 @@ export async function notify(uid: string, input: NotificationInput): Promise<voi
       // APNs mudar silenciosamente.
       apns: {
         headers: { 'apns-priority': '10' },
-        payload: { aps: { sound: 'default' } },
+        payload: {
+          aps: {
+            sound: 'default',
+            // O `badge` do iOS é ABSOLUTO: o número que chega aqui é o
+            // que aparece no ícone, não um incremento. Por isso mandamos
+            // o total de não lidas, e não "+1" — assim o contador nunca
+            // desanda mesmo que um push se perca no caminho.
+            ...(naoLidas !== undefined ? { badge: naoLidas } : {}),
+          },
+        },
       },
     });
   } catch (e) {

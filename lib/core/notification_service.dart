@@ -1,3 +1,4 @@
+import 'dart:async' show StreamSubscription;
 import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -292,6 +293,7 @@ class NotificationService {
       }
 
       await _saveCurrentToken();
+      _acompanharNaoLidas(uid);
 
       // Com o app ABERTO, o Android não mostra a notificação sozinho —
       // aqui a gente escuta e exibe manualmente com o mesmo visual de uma
@@ -337,6 +339,13 @@ class NotificationService {
   Future<void> aoSairDaConta() async {
     final uid = _uidComTokenSalvo ?? FirebaseAuth.instance.currentUser?.uid;
     _uidComTokenSalvo = null;
+    // Para de acompanhar as não lidas da conta que está saindo (senão a
+    // consulta continuaria viva, e falharia por regra assim que a sessão
+    // acabar) e zera o contador do ícone — a próxima conta a entrar
+    // começa do zero e o stream é recriado no `init()`.
+    await _assinaturaNaoLidas?.cancel();
+    _assinaturaNaoLidas = null;
+    await _definirBadge(0);
     if (uid == null) return;
     try {
       final firestore = FirebaseFirestore.instance;
@@ -530,6 +539,61 @@ class NotificationService {
   /// Canal só de leitura pro diagnóstico gravado pelo AppDelegate — ver
   /// `prestadoraki/apns` em ios/Runner/AppDelegate.swift.
   static const _canalApns = MethodChannel('prestadoraki/apns');
+
+  /// Assinatura do contador de não lidas, pra manter o badge do ícone em
+  /// dia enquanto o app está aberto — cancelada na troca de conta.
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _assinaturaNaoLidas;
+
+  /// Mantém o contador do ícone do app igual ao número de notificações
+  /// não lidas.
+  ///
+  /// Quem DEFINE o contador quando a notificação chega é o próprio push
+  /// (campo `badge`, ver functions/src/notifications.ts). Isto aqui cobre
+  /// o outro lado: quando a pessoa LÊ as notificações dentro do app, o
+  /// servidor não tem como saber, e sem isso a bolinha vermelha ficaria
+  /// grudada no ícone pra sempre mesmo com tudo lido.
+  ///
+  /// Observa a mesma consulta que o sininho já usa, então marcar uma como
+  /// lida (ou "marcar tudo como lida") reflete no ícone na hora.
+  void _acompanharNaoLidas(String uid) {
+    _assinaturaNaoLidas?.cancel();
+    _assinaturaNaoLidas = FirebaseFirestore.instance
+        .collection('clients')
+        .doc(uid)
+        .collection('notifications')
+        .where('read', isEqualTo: false)
+        .snapshots()
+        .listen(
+          (snapshot) => _definirBadge(snapshot.size),
+          onError: (Object e) => debugPrint('[NotificationService] contador de não lidas: $e'),
+        );
+  }
+
+  /// Atualiza o contador do ícone — cada plataforma do seu jeito.
+  ///
+  /// No iOS o contador é um número próprio do app, que o sistema guarda
+  /// mesmo sem nenhuma notificação na central; por isso existe o canal
+  /// nativo pra defini-lo.
+  ///
+  /// No Android não existe esse número: o ponto/contador que os
+  /// launchers mostram é derivado das notificações que estão NA BANDEJA.
+  /// Então o equivalente honesto de "zerar o badge" ali é limpar as
+  /// notificações já entregues — é o que a maioria dos apps faz, e é o
+  /// que os launchers que suportam badge entendem. (Um número exato no
+  /// ícone do Android exigiria uma dependência a mais, específica por
+  /// fabricante, e nem todos os launchers respeitam; não vale o preço.)
+  Future<void> _definirBadge(int quantidade) async {
+    if (kIsWeb) return;
+    try {
+      if (Platform.isIOS) {
+        await _canalApns.invokeMethod<bool>('definirBadge', {'quantidade': quantidade});
+      } else if (Platform.isAndroid && quantidade == 0) {
+        await _localNotifications.cancelAll();
+      }
+    } catch (e) {
+      debugPrint('[NotificationService] Não foi possível atualizar o badge: $e');
+    }
+  }
 
   /// Pede ao iOS que registre o aparelho na APNs (ver `registrarNaApns`
   /// em ios/Runner/AppDelegate.swift). Nunca lança: é um empurrão extra,
