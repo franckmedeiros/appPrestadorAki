@@ -162,8 +162,19 @@ class BudgetRequestsRepository {
   /// "não esta errado, o tramite do serviço precisa aparecer no card do
   /// cliente e a avaliação, só quando concluir todo o processo"; antes
   /// disso checava só `Budget.status == aceito`, que acontece bem antes
-  /// do serviço de fato começar/terminar). Três filtros de igualdade sem
-  /// `orderBy` não exigem índice composto no Firestore.
+  /// do serviço de fato começar/terminar).
+  ///
+  /// ATENÇÃO ao índice: havia aqui um comentário afirmando que "três
+  /// filtros de igualdade sem orderBy não exigem índice composto no
+  /// Firestore". Isso vale pra uma consulta de COLEÇÃO comum, mas NÃO
+  /// pra `collectionGroup`: em escopo de grupo de coleção o Firestore
+  /// não aproveita os índices de campo único criados automaticamente,
+  /// então esta consulta precisa de um índice COLLECTION_GROUP declarado
+  /// à mão. Ele não existia — só o equivalente de `budgets`, sobra de
+  /// quando esta checagem olhava os orçamentos em vez dos jobs — e por
+  /// isso a consulta falhava SEMPRE, fazendo o perfil do prestador
+  /// responder "Não foi possível verificar se você pode avaliar agora"
+  /// ao tocar em "Ainda sem avaliações". Ver firestore.indexes.json.
   Future<bool> hasAcceptedBudgetWith(String providerDirectoryId) async {
     try {
       final snapshot = await _firestore

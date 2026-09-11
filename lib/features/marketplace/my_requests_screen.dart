@@ -274,6 +274,20 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                   stream: _jobsStream,
                   builder: (context, jobsSnapshot) {
                     final jobsByBudgetId = jobsSnapshot.data ?? const <String, Job>{};
+                    // Um erro AQUI era engolido em silêncio (`?? {}` e
+                    // pronto), e o efeito colateral disso é traiçoeiro:
+                    // sem os Jobs, `canRate` nunca fica true, então o
+                    // botão "Avaliar este prestador" simplesmente não
+                    // aparece — e a tela fica com cara de "essa função
+                    // não existe" em vez de "essa consulta falhou".
+                    // Aconteceu de verdade: faltava o índice de
+                    // `collectionGroup('jobs')` por `clientUid` (ver
+                    // firestore.indexes.json), e a consulta morria com
+                    // FAILED_PRECONDITION sem ninguém ver. Agora o aviso
+                    // aparece, discreto, no topo da lista.
+                    if (jobsSnapshot.hasError) {
+                      debugPrint('MyRequestsScreen: falha ao carregar os serviços: ${jobsSnapshot.error}');
+                    }
                     return ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: budgets.length,
