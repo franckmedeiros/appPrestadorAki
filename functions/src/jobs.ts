@@ -20,12 +20,54 @@
  * firestore.rules, mesmo padrão de notifications.ts.
  */
 
-import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './lib/admin';
 import { notify } from './notifications';
 import { buildPixPayload } from './pix_payload';
+
+/**
+ * Espelha a etapa INICIAL do serviço no orçamento do cliente.
+ *
+ * `onJobStatusChanged` abaixo é um gatilho de ATUALIZAÇÃO — ele nunca
+ * dispara quando o serviço é criado. Resultado: entre o aceite final do
+ * prestador e o momento em que ele mexe na primeira raia do Kanban, o
+ * orçamento do cliente ficava sem `serviceStatus` nenhum, e o card
+ * mostrava só "Aceito", sem dizer que o serviço ainda não começou. Foi o
+ * que o Franck viu: "depois que o orçamento está aprovado/aceito ele fica
+ * assim, e está errado — precisa sinalizar que está aguardando o serviço
+ * ser iniciado pelo prestador".
+ *
+ * Não manda notificação: o cliente ACABOU de ser avisado de "Serviço
+ * confirmado" pelo `onBudgetStatusChanged` (status `aceito`), que dispara
+ * no mesmo instante. Dois avisos seguidos dizendo a mesma coisa seria
+ * ruído.
+ */
+export const onJobCreated = onDocumentCreated(
+  'providers/{providerId}/jobs/{jobId}',
+  async (event) => {
+    const job = event.data?.data();
+    if (!job) return;
+    const budgetId = job.budgetId as string | undefined;
+    if (!budgetId || !job.clientUid) return;
+
+    await db
+      .collection('providers')
+      .doc(event.params.providerId as string)
+      .collection('budgets')
+      .doc(budgetId)
+      .set(
+        {
+          serviceStatus: (job.status as string | undefined) ?? 'novo',
+          serviceStatusUpdatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      )
+      .catch((e) => logger.warn('onJobCreated: falha ao espelhar a etapa inicial do serviço', e));
+  },
+);
 
 export const onJobStatusChanged = onDocumentUpdated(
   'providers/{providerId}/jobs/{jobId}',
@@ -185,6 +227,42 @@ export const onJobStatusChanged = onDocumentUpdated(
             .doc(budgetId)
             .set({ paymentPaidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true })
             .catch((e) => logger.warn('onJobStatusChanged: falha ao marcar pagamento como confirmado', e));
+        }
+        // Dá baixa no compromisso da Agenda (pedido do Franck: "quando o
+        // serviço é concluído, deve ser dado baixa na agenda também").
+        //
+        // O compromisso nasce junto com o serviço, no aceite final do
+        // orçamento (ver BudgetsRepository.acceptFinal, que cria os dois
+        // e guarda o `appointmentId` no Job) — mas nada ligava o fim de
+        // um ao outro: o serviço ia pra "Concluído" no Kanban e o
+        // compromisso ficava "Agendado" pra sempre, sujando a agenda com
+        // trabalho que já acabou e obrigando o prestador a encerrar a
+        // mesma coisa duas vezes, em duas telas.
+        //
+        // Feito aqui, e não no app, pelo mesmo motivo do resto desta
+        // function: vale mesmo que o app feche no meio do caminho.
+        if (typeof after.appointmentId === 'string' && after.appointmentId.length > 0) {
+          await db
+            .collection('providers')
+            .doc(providerId)
+            .collection('appointments')
+            .doc(after.appointmentId)
+            .set(
+              {
+                // Mesmos valores de `AppointmentStatus` no app (ver
+                // lib/features/agenda/models/appointment.dart).
+                status: 'concluido',
+                // Só rastro de quando a baixa aconteceu — a coleção de
+                // compromissos não usa `updatedAt`, então não inventa um
+                // campo novo só pra isso. Mesmo nome do `completedAt` do
+                // próprio Job.
+                completedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            )
+            .catch((e) =>
+              logger.warn('onJobStatusChanged: falha ao dar baixa no compromisso da agenda', e),
+            );
         }
         await notify(clientUid, {
           type: 'servico_concluido',

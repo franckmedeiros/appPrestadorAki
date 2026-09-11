@@ -373,7 +373,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                               // Concluído.
                               if (etapaServico != null) ...[
                                 const SizedBox(height: 3),
-                                JobStatusChip(status: etapaServico),
+                                JobStatusChip(status: etapaServico, paraCliente: true),
                               ],
                               if (status != null &&
                                   status != BudgetStatus.pendente &&

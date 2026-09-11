@@ -8,9 +8,29 @@ import 'models/job.dart';
 /// tocando, mudar) a etapa de um serviço direto no card de "Compromissos
 /// de hoje" do Dashboard, sem precisar entrar em Serviços.
 class JobStatusChip extends StatelessWidget {
-  const JobStatusChip({super.key, required this.status});
+  const JobStatusChip({super.key, required this.status, this.paraCliente = false});
 
   final JobStatus status;
+
+  /// Troca o texto pelo vocabulário do CLIENTE.
+  ///
+  /// Os rótulos padrão (`JobStatus.label`) são do Kanban do prestador, e
+  /// ali fazem sentido: "Novo" é uma raia de trabalho a fazer. Do outro
+  /// lado do balcão, "Novo" não diz nada — o Franck reparou que o cliente
+  /// ficava vendo só "Aceito" e não entendia que o serviço ainda nem
+  /// começou. Aqui os mesmos estados viram uma frase que responde à
+  /// pergunta que o cliente realmente tem: e agora, o que acontece?
+  final bool paraCliente;
+
+  String get _texto => paraCliente
+      ? switch (status) {
+          JobStatus.novo => 'Aguardando o prestador iniciar',
+          JobStatus.emAndamento => 'Serviço em andamento',
+          JobStatus.interrompido => 'Serviço pausado',
+          JobStatus.aguardandoPagamento => 'Aguardando pagamento',
+          JobStatus.concluido => 'Serviço concluído',
+        }
+      : status.label;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +51,7 @@ class JobStatusChip extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            status.label,
+            _texto,
             style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
           ),
         ],

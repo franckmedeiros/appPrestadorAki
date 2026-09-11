@@ -15,7 +15,7 @@ export { confirmarAssinaturaPrestadorApple, processarNotificacaoApple } from './
 
 export { onBudgetRequestCreated, onBudgetStatusChanged } from './notifications';
 
-export { onJobStatusChanged } from './jobs';
+export { onJobCreated, onJobStatusChanged } from './jobs';
 
 export { onProviderRated } from './ratings';
 
