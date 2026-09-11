@@ -295,7 +295,19 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                   itemBuilder: (context, index) {
                     final budget = budgets[index];
                     final status = budget.status;
+                    // Etapa do serviço: prioriza o que veio ESPELHADO no
+                    // próprio orçamento (`Budget.serviceStatus`, gravado
+                    // pela Cloud Function a cada avanço do prestador no
+                    // Kanban) e só cai pro Job da consulta cruzada como
+                    // reserva — inclusive pros orçamentos antigos, de
+                    // antes desse campo existir. Foi essa inversão que
+                    // fez o andamento voltar a aparecer no card: a
+                    // consulta cruzada não estava trazendo nada, e o
+                    // cliente ficava vendo só "Aceito".
                     final job = jobsByBudgetId[budget.id];
+                    final etapaServico = budget.serviceStatus != null
+                        ? jobStatusFromWire(budget.serviceStatus)
+                        : job?.status;
                     // Pedido do Franck: quando o prestador reenvia um
                     // aditivo, o cliente precisa poder aprovar/recusar
                     // igual a um orçamento comum enviado -- não fica
@@ -310,7 +322,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     // BudgetRequestsRepository.hasAcceptedBudgetWith, que
                     // aplica a mesma regra na tela de avaliação de
                     // verdade).
-                    final canRate = job?.status == JobStatus.concluido;
+                    final canRate = etapaServico == JobStatus.concluido;
                     final category =
                         budget.category != null ? serviceCategoryFromWire(budget.category!) : null;
                     return AppListCard(
@@ -352,14 +364,16 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                               const SizedBox(height: 2),
                               Text(status?.label ?? '',
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                              // Pedido do Franck: "o tramite do serviço
-                              // precisa aparecer no card do cliente" — só
-                              // existe um Job depois do aceite final do
-                              // prestador (ver BudgetsRepository.
-                              // acceptFinal/JobsRepository.create).
-                              if (job != null) ...[
+                              // Etapa do serviço — só existe depois do
+                              // aceite final do prestador (ver
+                              // BudgetsRepository.acceptFinal). Vai
+                              // mudando sozinha conforme ele avança o
+                              // Kanban do lado dele: Novo → Em andamento
+                              // → (Interrompido) → Aguardando pagamento →
+                              // Concluído.
+                              if (etapaServico != null) ...[
                                 const SizedBox(height: 3),
-                                JobStatusChip(status: job.status),
+                                JobStatusChip(status: etapaServico),
                               ],
                               if (status != null &&
                                   status != BudgetStatus.pendente &&

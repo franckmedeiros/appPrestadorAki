@@ -152,6 +152,7 @@ class Budget {
     this.paymentAmountCents,
     this.paymentRequestedAt,
     this.paymentPaidAt,
+    this.serviceStatus,
     this.archivedByClient = false,
     this.archivedByProvider = false,
     this.revisionNumber = 0,
@@ -189,6 +190,7 @@ class Budget {
       paymentAmountCents: (data['paymentAmountCents'] as num?)?.toInt(),
       paymentRequestedAt: (data['paymentRequestedAt'] as Timestamp?)?.toDate(),
       paymentPaidAt: (data['paymentPaidAt'] as Timestamp?)?.toDate(),
+      serviceStatus: data['serviceStatus'] as String?,
       archivedByClient: data['archivedByClient'] as bool? ?? false,
       archivedByProvider: data['archivedByProvider'] as bool? ?? false,
       revisionNumber: (data['revisionNumber'] as num?)?.toInt() ?? 0,
@@ -267,6 +269,22 @@ class Budget {
   /// confirmação depois que o prestador já bateu o pagamento como
   /// recebido (ver JobDetailsSheet — "Confirmar pagamento e concluir").
   final DateTime? paymentPaidAt;
+
+  /// Etapa atual do SERVIÇO (`JobStatus` em texto: 'novo',
+  /// 'em_andamento', 'interrompido', 'aguardando_pagamento',
+  /// 'concluido'), espelhada aqui pela Cloud Function `onJobStatusChanged`
+  /// a cada avanço do prestador no Kanban.
+  ///
+  /// Existe porque o serviço em si mora na subcoleção do PRESTADOR, e o
+  /// cliente não tem como acompanhá-lo de forma confiável de lá (era
+  /// feito com uma `collectionGroup('jobs')` que, na prática, não trazia
+  /// nada — e como consulta vazia é igual a "não tem serviço ainda", o
+  /// cliente simplesmente ficava sem informação de andamento). Copiando a
+  /// etapa pra cá, ela chega junto com o resto do orçamento, que o
+  /// cliente já lê. Mesma solução usada pro QR Code Pix
+  /// (`paymentPixPayload`). Null nos orçamentos anteriores a essa
+  /// mudança e enquanto o prestador não der o aceite final.
+  final String? serviceStatus;
 
   /// Marca só pro CLIENTE esconder um pedido antigo da lista padrão de
   /// "Meus orçamentos" (pedido do Franck) — não afeta a visão do
@@ -369,6 +387,7 @@ class Budget {
         paymentAmountCents: paymentAmountCents,
         paymentRequestedAt: paymentRequestedAt,
         paymentPaidAt: paymentPaidAt,
+        serviceStatus: serviceStatus,
         archivedByClient: archivedByClient,
         archivedByProvider: archivedByProvider,
         revisionNumber: revisionNumber,

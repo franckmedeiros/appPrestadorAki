@@ -64,7 +64,59 @@ export const onJobStatusChanged = onDocumentUpdated(
     const budgetId = after.budgetId as string | undefined;
     const providerId = event.params.providerId as string;
 
+    // Espelha a etapa do serviço NO ORÇAMENTO do cliente, a cada mudança.
+    //
+    // Pedido do Franck: "conforme é tramitado lá do lado do prestador,
+    // aqui precisa ir atualizando também, pra saber como está o
+    // andamento". O app do cliente até tentava mostrar isso, mas indo
+    // buscar o Job direto, com uma `collectionGroup('jobs')` — e o Job
+    // mora na subcoleção do PRESTADOR, então essa leitura atravessa a
+    // fronteira entre as duas contas e depende de regra e índice
+    // certinhos. Na prática ela não estava trazendo nada, e como o
+    // resultado vazio é indistinguível de "ainda não tem serviço", o
+    // cliente ficava sem nenhuma informação de andamento — foi o que o
+    // print do Franck mostrou (só "Aceito" e o aviso de pagamento).
+    //
+    // Gravando a etapa aqui, no documento que o cliente JÁ lê pra montar
+    // o card, ele passa a ver o andamento sem depender de nada disso —
+    // mesma solução que já tinha sido usada pro QR Code Pix logo abaixo.
+    if (budgetId) {
+      await db
+        .collection('providers')
+        .doc(providerId)
+        .collection('budgets')
+        .doc(budgetId)
+        .set(
+          {
+            serviceStatus: afterStatus,
+            serviceStatusUpdatedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        )
+        .catch((e) => logger.warn('onJobStatusChanged: falha ao espelhar a etapa do serviço no orçamento', e));
+    }
+
     switch (afterStatus) {
+      // Avisos das etapas do meio — antes o cliente só era avisado na
+      // cobrança e na conclusão, e ficava no escuro entre o aceite e o
+      // fim do serviço.
+      case 'em_andamento':
+        await notify(clientUid, {
+          type: 'servico_em_andamento',
+          title: 'Serviço iniciado',
+          body: `${providerName} começou o atendimento.`,
+          budgetId,
+        });
+        return;
+      case 'interrompido':
+        await notify(clientUid, {
+          type: 'servico_interrompido',
+          title: 'Serviço pausado',
+          body: `${providerName} pausou o atendimento — ele avisa quando retomar.`,
+          budgetId,
+        });
+        return;
       case 'aguardando_pagamento':
         // Pedido do Franck: o cliente precisa ver o QR Code de pagamento
         // dentro do próprio app, em "Meus orçamentos" — não só escanear a
