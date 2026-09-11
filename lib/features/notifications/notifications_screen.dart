@@ -21,27 +21,39 @@ class NotificationsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Notificações'),
         actions: [
-          // Pedido do Franck: "adicionar a opção marcar todas como
-          // lidas" — o botão já existia, mas ficava sempre clicável
-          // mesmo sem nada pra marcar (parecia não fazer nada) e não
-          // dava nenhuma confirmação depois de tocar. Agora some/
-          // desabilita quando já está tudo lido e avisa quando termina.
+          // "Marcar tudo como lida" (pedido do Franck).
+          //
+          // A lógica daqui sempre esteve certa — o botão ficava ATIVO com
+          // notificações não lidas e DESABILITADO quando não havia nada a
+          // marcar. O problema era de cor, e dava a impressão exata do
+          // contrário: um TextButton usa a cor primária da marca como
+          // texto, que é o mesmo laranja do fundo desta AppBar — ou seja,
+          // ATIVO ele ficava laranja sobre laranja, invisível. Já
+          // DESABILITADO o texto vira cinza, que contrasta com o laranja
+          // e aparece. Daí o relato do Franck: "só aparece quando as
+          // mensagens foram todas lidas".
+          //
+          // Dois ajustes: texto branco explícito (a AppBar inteira usa
+          // branco, ver AppTheme.appBarTheme), e agora ele SOME quando
+          // não há nada a marcar, em vez de ficar ali desabilitado sem
+          // servir pra nada. O número de não lidas vai junto, pra deixar
+          // claro o que o toque vai fazer.
           StreamBuilder<int>(
             stream: repository.watchUnreadCount(),
             builder: (context, snapshot) {
-              final hasUnread = (snapshot.data ?? 0) > 0;
+              final naoLidas = snapshot.data ?? 0;
+              if (naoLidas == 0) return const SizedBox.shrink();
               return TextButton(
-                onPressed: hasUnread
-                    ? () async {
-                        await repository.markAllAsRead();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Todas as notificações foram marcadas como lidas.')),
-                          );
-                        }
-                      }
-                    : null,
-                child: const Text('Marcar tudo como lida'),
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
+                onPressed: () async {
+                  await repository.markAllAsRead();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Todas as notificações foram marcadas como lidas.')),
+                    );
+                  }
+                },
+                child: Text('Marcar $naoLidas como lida${naoLidas == 1 ? '' : 's'}'),
               );
             },
           ),
