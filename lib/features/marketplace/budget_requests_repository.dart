@@ -166,15 +166,22 @@ class BudgetRequestsRepository {
   ///
   /// ATENÇÃO ao índice: havia aqui um comentário afirmando que "três
   /// filtros de igualdade sem orderBy não exigem índice composto no
-  /// Firestore". Isso vale pra uma consulta de COLEÇÃO comum, mas NÃO
-  /// pra `collectionGroup`: em escopo de grupo de coleção o Firestore
-  /// não aproveita os índices de campo único criados automaticamente,
-  /// então esta consulta precisa de um índice COLLECTION_GROUP declarado
-  /// à mão. Ele não existia — só o equivalente de `budgets`, sobra de
-  /// quando esta checagem olhava os orçamentos em vez dos jobs — e por
-  /// isso a consulta falhava SEMPRE, fazendo o perfil do prestador
-  /// responder "Não foi possível verificar se você pode avaliar agora"
-  /// ao tocar em "Ainda sem avaliações". Ver firestore.indexes.json.
+  /// Firestore". Isso é verdade pra uma consulta de COLEÇÃO comum, mas
+  /// não pra esta, que é `collectionGroup` com TRÊS igualdades — essa
+  /// combinação precisa de um índice COLLECTION_GROUP declarado à mão.
+  /// Ele não existia (só o equivalente de `budgets`, sobra de quando
+  /// esta checagem olhava os orçamentos em vez dos jobs), então a
+  /// consulta falhava sempre e o perfil do prestador respondia "Não foi
+  /// possível verificar se você pode avaliar agora" ao tocar em "Ainda
+  /// sem avaliações".
+  ///
+  /// Já uma `collectionGroup` com UMA igualdade só (ex.:
+  /// `watchMyJobsByBudgetId` acima, que filtra só por `clientUid`) NÃO
+  /// precisa de nada declarado — o índice de campo único que o Firestore
+  /// cria sozinho já cobre o escopo de grupo. Declarar um índice assim
+  /// no firestore.indexes.json inclusive DERRUBA o deploy, com "this
+  /// index is not necessary, configure using single field index
+  /// controls". Ver firestore.indexes.json.
   Future<bool> hasAcceptedBudgetWith(String providerDirectoryId) async {
     try {
       final snapshot = await _firestore
