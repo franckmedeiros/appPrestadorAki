@@ -6,11 +6,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// ('novo_pedido'/'resposta_pedido') continuam os mesmos de antes — só a
 /// origem mudou, de gatilhos em `serviceRequests` para gatilhos em
 /// `providers/{uid}/budgets` (ver `Budget`/`BudgetStatus`).
-enum AppNotificationType { newBudgetRequest, budgetRequestResponded, other }
+enum AppNotificationType { newBudgetRequest, budgetRequestResponded, serviceStage, newRating, other }
 
 AppNotificationType appNotificationTypeFromWire(String? value) => switch (value) {
       'novo_pedido' => AppNotificationType.newBudgetRequest,
       'resposta_pedido' => AppNotificationType.budgetRequestResponded,
+      // Etapas do serviço (ver functions/src/jobs.ts) — antes caíam todas
+      // no ícone genérico de sininho por não estarem mapeadas aqui.
+      'servico_em_andamento' ||
+      'servico_interrompido' ||
+      'servico_aguardando_pagamento' ||
+      'servico_concluido' =>
+        AppNotificationType.serviceStage,
+      // Avaliação recebida (ver functions/src/ratings.ts).
+      'nova_avaliacao' => AppNotificationType.newRating,
       _ => AppNotificationType.other,
     };
 

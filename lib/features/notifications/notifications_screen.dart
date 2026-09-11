@@ -114,6 +114,8 @@ class _NotificationTile extends StatelessWidget {
   IconData get _icon => switch (notification.type) {
         AppNotificationType.newBudgetRequest => Icons.request_quote_outlined,
         AppNotificationType.budgetRequestResponded => Icons.reply_outlined,
+        AppNotificationType.serviceStage => Icons.handyman_outlined,
+        AppNotificationType.newRating => Icons.star_outline_rounded,
         AppNotificationType.other => Icons.notifications_outlined,
       };
 
