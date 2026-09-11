@@ -70,14 +70,33 @@ class AuthController extends ChangeNotifier {
 
   /// `true` quando o Firebase confirmou (clique no link do e-mail) que o
   /// endereço cadastrado existe de verdade — ver `sendEmailVerification`/
-  /// `reloadCurrentUser` abaixo. De propósito NÃO bloqueia nada sozinho
-  /// (nenhuma tela usa isto pra impedir login): o app já tem contas reais
-  /// criadas antes desse recurso existir, todas com este campo `false` no
-  /// Firebase — travar o app pra elas de uma hora pra outra seria trocar
-  /// "sem confirmação de e-mail" por "usuário antigo trancado pra fora".
-  /// Por enquanto só alimenta um lembrete não-bloqueante (ver
-  /// UserProfileScreen).
+  /// `reloadCurrentUser` abaixo.
+  ///
+  /// Isto AGORA BLOQUEIA o app: o `redirect` do go_router manda pra
+  /// `/confirmar-email` qualquer conta autenticada que ainda esteja com
+  /// `false` aqui (pedido do Franck: "preciso que seja feito a validação
+  /// ... para ficar seguro o nosso app", com a trava valendo antes de
+  /// usar qualquer coisa). Até então era só um aviso que ninguém era
+  /// obrigado a seguir — dava pra usar o app inteiro com um e-mail
+  /// inventado.
+  ///
+  /// Vale pra TODA conta, inclusive as criadas antes desta trava existir
+  /// (todas com `false` no Firebase): na próxima vez que abrirem o app
+  /// elas caem na tela de confirmação e saem de lá confirmando o e-mail
+  /// — ou trocando de conta, que é a saída pra quem errou o endereço no
+  /// cadastro.
+  ///
+  /// Cuidado: o SDK guarda isto no token e não percebe sozinho o clique
+  /// no link — só `reloadCurrentUser()` (ou uma sessão nova) atualiza.
   bool get emailVerified => _auth.currentUser?.emailVerified ?? false;
+
+  /// Se o e-mail de confirmação já saiu nesta execução do app — evita que
+  /// a tela de confirmação (EmailVerificationScreen) mande um segundo
+  /// e-mail logo depois do cadastro, que acabou de enviar um. Para uma
+  /// conta antiga (criada antes da trava), isto começa `false` e é o que
+  /// faz aquela tela enviar o link sozinha assim que abre, em vez de
+  /// mostrar "enviamos um e-mail" sem ter enviado nada.
+  bool emailVerificationEmailSent = false;
 
   /// UID do usuário logado — usado pelos repositórios do Firestore para
   /// montar caminhos como `providers/{uid}/...` ou `clients/{uid}/...`.
@@ -264,6 +283,7 @@ class AuthController extends ChangeNotifier {
         // é só reabrir o lembrete em UserProfileScreen.
         try {
           await credential.user?.sendEmailVerification();
+          emailVerificationEmailSent = true;
         } catch (e) {
           debugPrint('AuthController.register: falha ao enviar e-mail de verificação: $e');
         }
@@ -603,6 +623,11 @@ class AuthController extends ChangeNotifier {
     await _storage.clear();
     biometricEnabled = false;
     isProvider = false;
+    // Zera junto com a sessão: o controle é "já mandei e-mail pra ESTA
+    // conta", não "pra este aparelho" — sem isso, quem sai de uma conta
+    // confirmada e entra numa não confirmada cairia na tela de
+    // confirmação sem receber link nenhum.
+    emailVerificationEmailSent = false;
     status = AuthStatus.unauthenticated;
     notifyListeners();
   }
@@ -615,6 +640,7 @@ class AuthController extends ChangeNotifier {
         final user = _auth.currentUser;
         if (user == null || user.emailVerified) return;
         await user.sendEmailVerification();
+        emailVerificationEmailSent = true;
       });
 
   /// Recarrega os dados do usuário direto do Firebase (o SDK não atualiza

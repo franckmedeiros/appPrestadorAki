@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import '../core/auth_controller.dart';
 import '../features/auth/biometric_unlock_screen.dart';
+import '../features/auth/email_verification_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
 import '../features/auth/forgot_password_screen.dart';
@@ -44,6 +45,18 @@ const _authScreens = {'/welcome', '/login', '/register', '/esqueci-senha'};
 // abre essas telas de fora do shell — hoje ninguém faz isso, mas são o
 // destino natural de um link/atalho externo e não custam nada mantidas.
 const _authScreensNaAba = {'/perfil/entrar', '/perfil/criar-conta', '/perfil/esqueci-senha'};
+
+// Trava de e-mail confirmado (pedido do Franck: "quando insiro no
+// cadastro o email e o telefone, preciso que seja feito a validação ...
+// para ficar seguro o nosso app"). Fica FORA do shell de propósito: não
+// é uma aba nem uma tela empilhada, é a única coisa que uma conta não
+// confirmada consegue ver — com barra de navegação embaixo a pessoa
+// simplesmente contornaria a trava tocando em outra aba.
+//
+// Só afeta quem ENTROU: o convidado continua buscando prestador e vendo
+// perfil público sem conta nenhuma (ver o caso `unauthenticated` no
+// redirect), que é o que sempre segurou a primeira impressão do app.
+const _confirmarEmail = '/confirmar-email';
 
 // Rotas que só fazem sentido pra quem tem a capacidade de prestador
 // (`auth.isProvider`) — conta unificada (ver AuthController): não são mais
@@ -95,6 +108,23 @@ GoRouter buildAppRouter(AuthController authController) {
           if (_providerOnlyRoutes.contains(location)) return '/welcome';
           return null;
         case AuthStatus.authenticated:
+          // A TRAVA, antes de qualquer outra regra: conta logada com
+          // e-mail ainda não confirmado não passa daqui, venha de onde
+          // vier (cadastro recém-feito, login normal, app reaberto com
+          // sessão salva). Vale também pras contas criadas antes desta
+          // regra existir — todas com `emailVerified == false` no
+          // Firebase — que vão cair nesta tela na próxima abertura.
+          //
+          // Quem avisa o router quando o e-mail é confirmado é o
+          // `notifyListeners` de `reloadCurrentUser` (ver
+          // EmailVerificationScreen): o SDK não descobre sozinho que a
+          // pessoa clicou no link.
+          if (!authController.emailVerified) {
+            return location == _confirmarEmail ? null : _confirmarEmail;
+          }
+          // Confirmou (ou entrou numa conta já confirmada): não faz mais
+          // sentido ficar na tela da trava.
+          if (location == _confirmarEmail) return home;
           // Entrou/criou conta a partir da aba "Perfil": fica na própria
           // aba (mostrando agora o perfil de verdade) em vez de ser
           // jogado pra `home` — a pessoa estava mexendo ali, não faz
@@ -112,6 +142,7 @@ GoRouter buildAppRouter(AuthController authController) {
       GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
       GoRoute(path: '/esqueci-senha', builder: (context, state) => const ForgotPasswordScreen()),
       GoRoute(path: '/unlock', builder: (context, state) => const BiometricUnlockScreen()),
+      GoRoute(path: _confirmarEmail, builder: (context, state) => const EmailVerificationScreen()),
       // Telas do lado do prestador que antes viviam em abas próprias
       // (AppShell antigo) — depois da conta unificada, são alcançadas a partir de
       // botões dentro do Dashboard (ver DashboardScreen), como rotas
