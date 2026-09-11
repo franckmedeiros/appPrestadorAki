@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart' as geocoding;
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/auth_controller.dart';
@@ -36,6 +40,7 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
   bool _saving = false;
   String? _error;
   bool _sent = false;
+  bool _localizando = false;
 
   // Telefone da própria conta (`clients/{uid}.whatsapp`, gravado
   // obrigatoriamente no cadastro — ver AuthController.register) — vai
@@ -50,21 +55,126 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
     _prefillAddress();
   }
 
-  // Prévia do endereço a partir do perfil de quem está solicitando (Editar
-  // perfil > endereço pessoal) — poupa digitar de novo o que já está
-  // cadastrado. Continua editável: quem for atender num endereço diferente
-  // (ex.: outra casa, endereço de um parente) só apaga e digita o certo.
+  /// Preenche o endereço sozinho, tentando o melhor palpite primeiro.
+  ///
+  /// Pedido do Franck: "no solicitar orçamento, no campo endereço é pra
+  /// colocar a localização atual do cliente". Antes vinha só o endereço
+  /// do cadastro (Editar perfil), que é onde a pessoa MORA — e o serviço
+  /// costuma ser onde ela ESTÁ. Agora a localização atual vem primeiro, e
+  /// o endereço do perfil fica como reserva.
+  ///
+  /// A localização só é usada quando a permissão JÁ foi concedida antes
+  /// (a busca de prestadores pede logo que o app abre, então quase sempre
+  /// já está decidida). De propósito não pedimos permissão aqui: um
+  /// pop-up do sistema no meio de um formulário assusta e interrompe. Pra
+  /// quem nunca concedeu, o botão de alvo no campo faz o pedido de forma
+  /// explícita, quando a pessoa quiser.
   Future<void> _prefillAddress() async {
+    Map<String, dynamic> data = const {};
     try {
-      final data = await context.read<AuthController>().fetchOwnProfileData();
+      data = await context.read<AuthController>().fetchOwnProfileData();
       _ownPhone = data['whatsapp'] as String?;
-      final address = _formatProfileAddress(data);
-      if (address.isNotEmpty && mounted && _addressController.text.isEmpty) {
-        setState(() => _addressController.text = address);
-      }
     } catch (_) {
-      // Sem endereço salvo ou falha ao buscar: o campo só fica vazio,
-      // sem travar o formulário — a pessoa digita na mão normalmente.
+      // Sem perfil acessível: segue mesmo assim, o endereço pode vir do
+      // GPS abaixo e o telefone é opcional aqui.
+    }
+    if (!mounted || _addressController.text.isNotEmpty) return;
+
+    final jaTemPermissao = await _temPermissaoDeLocalizacao();
+    if (jaTemPermissao) {
+      final atual = await _enderecoDaLocalizacaoAtual();
+      if (!mounted) return;
+      if (atual != null && atual.isNotEmpty) {
+        setState(() => _addressController.text = atual);
+        return;
+      }
+    }
+
+    final doPerfil = _formatProfileAddress(data);
+    if (doPerfil.isNotEmpty && mounted && _addressController.text.isEmpty) {
+      setState(() => _addressController.text = doPerfil);
+    }
+  }
+
+  Future<bool> _temPermissaoDeLocalizacao() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return false;
+      final permission = await Geolocator.checkPermission();
+      return permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Converte a posição do GPS num endereço escrito ("Rua X, Bairro,
+  /// Cidade - UF"), no mesmo formato do endereço do perfil — assim o
+  /// prestador recebe sempre um texto com a mesma cara, venha de onde
+  /// vier.
+  Future<String?> _enderecoDaLocalizacaoAtual() async {
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      final places = await geocoding.placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      if (places.isEmpty) return null;
+      final p = places.first;
+      final rua = [p.thoroughfare, p.subThoroughfare]
+          .where((v) => v != null && v.trim().isNotEmpty)
+          .join(', ');
+      final cidade = p.locality ?? p.subAdministrativeArea ?? '';
+      final uf = p.administrativeArea ?? '';
+      final partes = <String>[
+        if (rua.trim().isNotEmpty) rua.trim(),
+        if ((p.subLocality ?? '').trim().isNotEmpty) p.subLocality!.trim(),
+        if (cidade.trim().isNotEmpty)
+          uf.trim().isNotEmpty ? '${cidade.trim()} - ${uf.trim()}' : cidade.trim(),
+      ];
+      return partes.isEmpty ? null : partes.join(', ');
+    } on TimeoutException {
+      return null;
+    } catch (e) {
+      debugPrint('RequestQuoteFormScreen: falha ao obter a localização: $e');
+      return null;
+    }
+  }
+
+  /// Botão de alvo no campo de endereço — aqui sim pede a permissão, e
+  /// explica o resultado, porque foi a pessoa que pediu.
+  Future<void> _usarLocalizacaoAtual() async {
+    setState(() => _localizando = true);
+    String? aviso;
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        aviso = 'Ative a localização do aparelho pra usar isso.';
+      } else {
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
+          aviso = 'Sem permissão de localização — pode digitar o endereço.';
+        } else {
+          final atual = await _enderecoDaLocalizacaoAtual();
+          if (atual == null || atual.isEmpty) {
+            aviso = 'Não conseguimos identificar seu endereço agora.';
+          } else if (mounted) {
+            _addressController.text = atual;
+          }
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _localizando = false);
+    }
+    if (aviso != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(aviso)));
     }
   }
 
@@ -222,7 +332,25 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(labelText: 'Endereço'),
+                decoration: InputDecoration(
+                  labelText: 'Endereço',
+                  helperText: 'Onde o serviço será feito',
+                  prefixIcon: const Icon(Icons.location_on_outlined, size: 18),
+                  suffixIcon: _localizando
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          tooltip: 'Usar minha localização atual',
+                          icon: const Icon(Icons.my_location, size: 20),
+                          onPressed: _usarLocalizacaoAtual,
+                        ),
+                ),
                 validator: (value) =>
                     (value == null || value.trim().isEmpty) ? 'Informe o endereço' : null,
               ),

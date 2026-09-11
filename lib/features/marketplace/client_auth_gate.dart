@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/validators.dart';
+import '../../widgets/decorative_header.dart';
+import '../../widgets/gradient_pill_button.dart';
+import '../../widgets/labeled_text_field.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/password_requirements_hint.dart';
 
@@ -110,6 +113,7 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
   final _passwordController = TextEditingController();
   final _phoneMask = MaskTextInputFormatter('(##) #####-####');
   _Mode _mode = _Mode.register;
+  bool _senhaEscondida = true;
 
   @override
   void dispose() {
@@ -137,110 +141,178 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.muted.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
+    final criando = _mode == _Mode.register;
+
+    // Mesma linguagem visual das telas de Login/Cadastro (cabeçalho em
+    // gradiente + cartão branco + campos rotulados + botão em pílula) —
+    // pedido do Franck: "se eu não estou logado e clico pra solicitar
+    // orçamento, ele abre a tela antiga de login; ajustar pra tela nova".
+    //
+    // Continua sendo uma FOLHA que sobe por cima, e não a LoginScreen de
+    // verdade, de propósito: quem chega aqui está no meio de uma ação
+    // (enviar um pedido de orçamento, favoritar). Mandar a pessoa pra
+    // outra tela faria ela perder o que estava preenchendo — a folha
+    // resolve a conta e devolve a pessoa exatamente onde ela parou. O que
+    // estava velho era a aparência, não o formato.
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // `removeTop`: o DecorativeHeader tem um SafeArea dentro (ele
+          // normalmente fica no TOPO de uma tela, colado na barra de
+          // status). Numa folha que sobe de baixo isso viraria um vão
+          // vazio de uns 40px dentro do cabeçalho, porque o SafeArea
+          // continua enxergando o recorte da tela inteira.
+          MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: DecorativeHeader(
+              height: 120,
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+              child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
+                  Text(
+                    criando ? 'Crie uma conta grátis' : 'Bem-vindo de volta!',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Só pro prestador saber com quem está falando.',
+                    style: TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                _mode == _Mode.register ? 'Crie uma conta grátis' : 'Entrar na sua conta',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Só pra gente saber quem é você quando o prestador responder.',
-                style: TextStyle(color: AppColors.muted, fontSize: 13),
-              ),
-              const SizedBox(height: 20),
-              if (_mode == _Mode.register) ...[
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Seu nome'),
-                  validator: (value) =>
-                      (value == null || value.trim().isEmpty) ? 'Informe seu nome' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [_phoneMask],
-                  decoration: const InputDecoration(labelText: 'Telefone', hintText: '(00) 00000-0000'),
-                  validator: (value) {
-                    final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-                    return digits.length < 10 ? 'Informe um telefone válido' : null;
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'E-mail'),
-                validator: (value) =>
-                    validateEmail(value),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: _mode == _Mode.register ? 'Senha forte' : 'Senha',
-                ),
-                validator:
-                    _mode == _Mode.register ? validateStrongPassword : validateLoginPassword,
-              ),
-              if (_mode == _Mode.register) PasswordRequirementsHint(controller: _passwordController),
-              if (auth.errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
-              ],
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: auth.isBusy ? null : () => _submit(auth),
-                child: auth.isBusy
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(_mode == _Mode.register ? 'Criar conta' : 'Entrar'),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: auth.isBusy
-                    ? null
-                    : () => setState(
-                        () => _mode = _mode == _Mode.register ? _Mode.login : _Mode.register),
-                child: Text(
-                  _mode == _Mode.register ? 'Já tenho conta' : 'Ainda não tenho conta',
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          Transform.translate(
+            offset: const Offset(0, -24),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (criando) ...[
+                      LabeledTextField(
+                        label: 'Seu nome',
+                        controller: _nameController,
+                        hintText: 'Nome completo',
+                        prefixIcon: Icons.person_outline,
+                        textInputAction: TextInputAction.next,
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty) ? 'Informe seu nome' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      LabeledTextField(
+                        label: 'Telefone',
+                        controller: _phoneController,
+                        hintText: '(00) 00000-0000',
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [_phoneMask],
+                        prefixIcon: Icons.phone_outlined,
+                        textInputAction: TextInputAction.next,
+                        validator: (value) {
+                          final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                          return digits.length < 10 ? 'Informe um telefone válido' : null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    LabeledTextField(
+                      label: 'E-mail',
+                      controller: _emailController,
+                      hintText: 'seuemail@exemplo.com',
+                      keyboardType: TextInputType.emailAddress,
+                      prefixIcon: Icons.mail_outline,
+                      textInputAction: TextInputAction.next,
+                      validator: (value) => validateEmail(value),
+                    ),
+                    const SizedBox(height: 16),
+                    LabeledTextField(
+                      label: criando ? 'Senha forte' : 'Senha',
+                      controller: _passwordController,
+                      hintText: '••••••••',
+                      obscureText: _senhaEscondida,
+                      prefixIcon: Icons.lock_outline,
+                      textInputAction: TextInputAction.done,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _senhaEscondida
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          color: AppColors.muted,
+                          size: 20,
+                        ),
+                        onPressed: () => setState(() => _senhaEscondida = !_senhaEscondida),
+                      ),
+                      validator: criando ? validateStrongPassword : validateLoginPassword,
+                    ),
+                    if (criando) PasswordRequirementsHint(controller: _passwordController),
+                    if (auth.errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
+                    ],
+                    const SizedBox(height: 24),
+                    GradientPillButton(
+                      label: criando ? 'Criar conta' : 'Entrar',
+                      isLoading: auth.isBusy,
+                      onPressed: auth.isBusy ? null : () => _submit(auth),
+                    ),
+                    const SizedBox(height: 16),
+                    Center(
+                      child: GestureDetector(
+                        onTap: auth.isBusy
+                            ? null
+                            : () => setState(
+                                () => _mode = criando ? _Mode.login : _Mode.register),
+                        child: RichText(
+                          text: TextSpan(
+                            style: const TextStyle(color: AppColors.muted, fontSize: 13.5),
+                            children: [
+                              TextSpan(text: criando ? 'Já tem conta? ' : 'Não tem conta? '),
+                              TextSpan(
+                                text: criando ? 'Entrar' : 'Cadastre-se',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
