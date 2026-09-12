@@ -11,6 +11,7 @@ import '../../widgets/mask_text_input_formatter.dart';
 import '../customers/customers_repository.dart';
 import '../customers/models/customer.dart';
 import '../marketplace/models/service_category.dart';
+import '../marketplace/widgets/provider_listing_card.dart' show WhatsappBadge, abrirWhatsapp;
 import 'budget_pdf.dart';
 import 'budgets_repository.dart';
 import 'models/budget.dart';
@@ -1208,6 +1209,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// descrição, data preferida) não têm campo próprio no formulário.
   Widget _buildPendingBanner(Budget budget) {
     final category = budget.category != null ? serviceCategoryFromWire(budget.category!) : null;
+    // Só o primeiro nome, pra caber numa linha; nome vazio viraria um
+    // "Tirar dúvidas com  (48)..." esquisito, daí o fallback.
+    final primeiroNome = budget.customerName.trim().split(' ').first;
+    final comQuem = primeiroNome.isEmpty ? 'o cliente' : primeiroNome;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1243,6 +1248,41 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             const SizedBox(height: 6),
             Text('Data preferida do cliente: ${budget.preferredDate}',
                 style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+          ],
+          // Atalho pro WhatsApp do cliente JÁ AQUI, no pedido recém-chegado
+          // — é este o momento do pedido do Franck ("quando solicitado o
+          // serviço... pra ele poder tirar umas dúvidas"): o prestador
+          // ainda vai montar o orçamento e é agora que ele precisa
+          // perguntar se o portão é de correr, qual a metragem, etc. O
+          // mesmo atalho aparece depois no resumo somente-leitura (ver
+          // `_buildReadOnlySummary`), pra quando a conversa continuar com
+          // o orçamento já enviado.
+          if ((budget.clientPhone ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () => abrirWhatsapp(context, budget.clientPhone!),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const WhatsappBadge(size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tirar dúvidas com $comQuem (${budget.clientPhone!.trim()})',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.open_in_new_rounded, size: 15, color: AppColors.muted),
+                  ],
+                ),
+              ),
+            ),
           ],
         ],
       ),
@@ -1332,6 +1372,57 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                   label: 'Cliente',
                   child: Text(budget.customerName, style: const TextStyle(fontSize: 14)),
                 ),
+                // Telefone do cliente, com atalho pro WhatsApp — pedido do
+                // Franck: "quando solicitado o serviço, do lado do
+                // prestador precisa ter a opção de ter o whatsapp do
+                // cliente pra ele poder tirar umas dúvidas".
+                //
+                // O dado já vinha no pedido desde sempre
+                // (`Budget.clientPhone`, tirado de `clients/{uid}.whatsapp`
+                // — ver RequestQuoteFormScreen) e já era repassado pro
+                // cadastro de cliente do prestador em `_linkClientCustomer`
+                // aqui mesmo; só nunca tinha aparecido numa tela. Não é
+                // exposição nova de dado, é o dado saindo do banco pra
+                // onde ele é útil.
+                if ((budget.clientPhone ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _BudgetField(
+                    icon: Icons.chat_outlined,
+                    label: 'WhatsApp do cliente',
+                    // Ressalva honesta na própria tela: esse número vem do
+                    // cadastro do cliente e NINGUÉM confirmou que ele
+                    // existe ou tem WhatsApp (a validação de telefone
+                    // ficou pra depois — ver AuthController). Avisar aqui
+                    // evita o prestador achar que foi ignorado quando, na
+                    // verdade, a mensagem nunca chegou.
+                    helperText: 'Informado pelo cliente no cadastro — ainda não verificado.',
+                    child: InkWell(
+                      onTap: () => abrirWhatsapp(context, budget.clientPhone!),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            const WhatsappBadge(size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                budget.clientPhone!.trim(),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const Icon(Icons.open_in_new_rounded,
+                                size: 15, color: AppColors.muted),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 if ((budget.addressText ?? '').isNotEmpty) ...[
                   const SizedBox(height: 12),
                   _BudgetField(

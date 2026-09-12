@@ -198,14 +198,21 @@ class _VerifiedBadge extends StatelessWidget {
   }
 }
 
-/// Número do WhatsApp só aparece pra quem assina de verdade - pedido do
-/// Franck. Publica (sem "_") porque também é usada no perfil público
-/// (ver ProviderPublicProfileScreen), não só aqui no card. Abre direto
-/// na conversa via link https://wa.me/... (funciona com ou sem o
-/// WhatsApp instalado: com o app, abre nele; sem, cai no WhatsApp Web) -
-/// por isso não precisa nenhuma configuração nativa extra no
-/// Android/iOS, só o pacote url_launcher.
-Future<void> abrirWhatsappDoPrestador(BuildContext context, String whatsappLocal) async {
+/// Abre a conversa do WhatsApp com um número brasileiro em formato local.
+///
+/// Serve pros DOIS sentidos: o cliente falando com o prestador (perfil
+/// público, de onde isto nasceu) e o prestador falando com o cliente
+/// (cartão do orçamento — pedido do Franck: "do lado do prestador
+/// precisa ter a opção de ter o whatsapp do cliente pra ele poder tirar
+/// umas dúvidas"). Por isso não se chama mais `abrirWhatsappDoPrestador`:
+/// o nome prometia saber de quem era o número, coisa que a função nunca
+/// soube — ela sempre recebeu um número e abriu.
+///
+/// Abre via link https://wa.me/... , que funciona com ou sem o WhatsApp
+/// instalado (com o app, abre nele; sem, cai no WhatsApp Web) — por isso
+/// não precisa de nenhuma configuração nativa extra no Android/iOS, só o
+/// pacote url_launcher.
+Future<void> abrirWhatsapp(BuildContext context, String whatsappLocal) async {
   final digits = whatsappLocal.replaceAll(RegExp(r'[^0-9]'), '');
   if (digits.isEmpty) return;
   // Número guardado no formato local brasileiro (DDD + número, sem

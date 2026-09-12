@@ -6,7 +6,7 @@ import '../../core/auth_controller.dart';
 import '../../core/date_text_utils.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
-import 'widgets/provider_listing_card.dart' show abrirWhatsappDoPrestador;
+import 'widgets/provider_listing_card.dart' show abrirWhatsapp;
 import 'widgets/star_rating_bar.dart';
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
@@ -264,7 +264,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                                 background: AppColors.background,
                                 title: listing.whatsapp!.trim(),
                                 subtitle: 'Fale pelo WhatsApp',
-                                onTap: () => abrirWhatsappDoPrestador(
+                                onTap: () => abrirWhatsapp(
                                   context,
                                   listing.whatsapp!,
                                 ),
