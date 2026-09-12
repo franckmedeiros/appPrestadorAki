@@ -35,6 +35,27 @@ class AppTheme {
         seedColor: AppColors.primary,
         primary: AppColors.primary,
         surface: AppColors.surface,
+        // CORREÇÃO NA RAIZ do fundo rosado que o Franck apontou nos
+        // diálogos ("essa cor não combina com o restante do app").
+        //
+        // `ColorScheme.fromSeed` deriva do laranja da marca uma família
+        // inteira de tons de superfície (`surfaceContainer*`), e é ela
+        // que o Material 3 usa como fundo de tudo que "flutua": diálogos,
+        // menus, folhas que sobem de baixo, seletores de data e hora,
+        // chips. Derivados de laranja, esses tons saem rosados — daí o
+        // diálogo "Sair da conta?" destoar do branco dos cards.
+        //
+        // Fixando esses papéis em tons neutros aqui, a correção vale pro
+        // app INTEIRO de uma vez, inclusive pras telas que ainda nem
+        // existem, em vez de ter que caçar componente por componente.
+        // (Os temas específicos mais abaixo continuam, deixando a
+        // intenção explícita e cuidando de forma/tipografia.)
+        surfaceTint: Colors.transparent,
+        surfaceContainerLowest: Colors.white,
+        surfaceContainerLow: Colors.white,
+        surfaceContainer: AppColors.surface,
+        surfaceContainerHigh: AppColors.surface,
+        surfaceContainerHighest: AppColors.background,
       ),
       scaffoldBackgroundColor: AppColors.background,
     );
@@ -106,6 +127,21 @@ class AppTheme {
         color: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      // As mensagens que sobem no rodapé (avisos de erro, "Avaliação
+      // registrada", "Conta criada"...) vinham num tom escuro
+      // amarronzado, também derivado do laranja da marca. Agora usam o
+      // "quase-preto" que já é a cor de texto do app, com as mesmas
+      // bordas arredondadas do resto — flutuando, em vez de coladas na
+      // borda inferior, pra não brigar com a barra de navegação.
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.ink,
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
+        actionTextColor: Colors.white,
+        behavior: SnackBarBehavior.floating,
+        insetPadding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 3,
       ),
       // Os FABs de "+" já existentes (novo cliente, novo compromisso...)
       // passam a usar esse quadrado arredondado escuro em vez do círculo

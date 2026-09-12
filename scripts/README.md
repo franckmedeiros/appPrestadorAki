@@ -4,16 +4,81 @@ Scripts que rodam fora do app e das Cloud Functions — usam a chave de
 administrador do Firebase (Admin SDK), que **ignora o `firestore.rules`**.
 Rodam só na sua máquina, nunca daqui do assistente.
 
-## Carga inicial do diretório de prestadores (`seed_provider_directory.js`)
+## Dois caminhos de carga inicial — e por que o telefone mudou de lado
 
-Isso alimenta a busca do lado do cliente com entradas "não reivindicadas"
-(prestadores que ainda não têm conta no PrestadorAki) — ver a seção
-"Marketplace" do `README.md` da raiz do projeto pro raciocínio completo.
+| caminho | entrada | grava telefone? | reivindicável? |
+| --- | --- | --- | --- |
+| `seed_provider_directory.js` | `providers_seed.csv` (`name,category,city,state`) | não | não |
+| `converter_prospeccao.js` + `importar_prestadores.js` | CSV de prospecção com WhatsApp | sim | sim |
 
-**Antes de rodar com nomes de verdade**: só entram aqui prestadores que
-você já tem consentimento pra listar publicamente — nunca telefone,
-WhatsApp ou e-mail, só nome, categoria e cidade. Ver a ressalva de LGPD no
-`README.md` da raiz.
+O primeiro é o original, de quando a regra era "nenhum contato na carga
+inicial". **Essa regra mudou**, e o motivo está em
+`functions/src/subscription.ts`: a função `reivindicarListagemPorTelefone`
+casa a entrada não reivindicada com a conta recém-criada **pelo
+telefone** — é o único dado que sobrevive entre o convite e o cadastro (o
+nome a pessoa digita diferente). Sem `phoneNormalized` gravado, a entrada
+nunca é encontrada: quando o prestador se cadastra nasce um perfil
+duplicado e o antigo fica órfão, exigindo limpeza manual.
+
+Daí também a regra **sem telefone não entra**: uma linha sem telefone só
+geraria uma entrada impossível de reivindicar depois.
+
+O que continua valendo, e é decisão consciente:
+
+- Só entram prestadores que você tenha base pra listar publicamente. A
+  ressalva de LGPD no `README.md` da raiz segue de pé — mudou o campo, não
+  o cuidado.
+- `providerDirectory` tem `allow read: if true` no `firestore.rules`:
+  **tudo que é gravado ali é público**, `phoneNormalized` inclusive. Não
+  existe campo "guardado mas escondido" nessa coleção.
+- A descrição e os metadados da fonte externa (place_id, endereço, site,
+  link do Maps) **não** são importados. O perfil fica com nome,
+  categoria, cidade e contato; a bio quem escreve é a própria pessoa,
+  quando assumir o perfil.
+
+### Carga de prospecção, passo a passo
+
+```
+cd scripts && npm install          # uma vez só
+node converter_prospeccao.js caminho/pra/prospeccao_resultados.csv
+node importar_prestadores.js caminho/pra/chave.json            # simula
+node importar_prestadores.js caminho/pra/chave.json --gravar   # grava
+```
+
+O conversor valida as categorias contra
+`assets/data/service_categories.json` e avisa quais não reconheceu (uma
+categoria errada faz o prestador nunca aparecer na busca — é erro
+silencioso). Ele também tira o código do país `55` do telefone: o app
+normaliza o que a pessoa digita na máscara `(00) 00000-0000` e chega em 11
+dígitos sem o 55; gravar com o 55 faria nenhuma entrada ser reivindicada.
+
+**Como a importação evita duplicata.** Os dois caminhos usam esquemas de
+id diferentes (`nome-cidade` no antigo, `imp_<telefone>` no novo), então o
+mesmo prestador carregado pelos dois viraria dois cards na busca. Antes de
+escrever, o importador lê a coleção inteira e decide: mesmo telefone →
+escreve por cima daquele documento; id igual ao slug `nome-cidade` →
+escreve por cima da entrada antiga (e de quebra adiciona o telefone que
+faltava nela); nome parecido na mesma cidade → **não decide sozinho**,
+reporta como suspeito e pula. Fusão errada junta dois profissionais
+diferentes, o que é pior que a duplicata.
+
+Para confirmar um suspeito, crie `scripts/fusoes.json` mapeando o telefone
+da linha nova para o id do documento que já existe:
+
+```json
+{ "48999361869": "william-pizzetti-criciuma" }
+```
+
+Entradas já reivindicadas (`claimed: true`) são sempre puladas — uma
+reimportação não pode sobrescrever com dados da prospecção o perfil que a
+pessoa escreveu.
+
+## Carga inicial sem contato (`seed_provider_directory.js`)
+
+Alimenta a busca usando só nome, categoria e cidade — ver a seção
+"Marketplace" do `README.md` da raiz pro raciocínio completo. Continua
+servindo pra quando você não tiver o telefone; só lembre que essas
+entradas não são reivindicáveis automaticamente.
 
 ### Passo a passo
 
@@ -36,10 +101,9 @@ WhatsApp ou e-mail, só nome, categoria e cidade. Ver a ressalva de LGPD no
    cp providers_seed.example.csv providers_seed.csv
    ```
    Formato (cabeçalho obrigatório, nessa ordem): `name,category,city,state`
-   — `state` é opcional. `category` precisa ser um dos ids do catálogo
-   completo em `assets/data/service_categories.json` (o mesmo catálogo do
-   app, mais de cem subcategorias — o script lê esse arquivo direto pra
-   validar, então nunca fica desatualizado com o app).
+   — `state` é opcional. `category` precisa ser um destes valores (iguais
+   ao app): `eletricista, encanador, pedreiro, pintor, jardineiro,
+   limpeza, marceneiro, serralheiro, climatizacao, vidraceiro, outro`.
 
 4. Rodar (o script mostra tudo que vai gravar e pede confirmação antes de
    tocar no banco de verdade):
@@ -57,4 +121,3 @@ duplicar (o id de cada documento é gerado a partir de nome+cidade).
 - Nenhuma validação de duplicata "parecida" (dois nomes escritos
   diferente pra o mesmo prestador viram duas entradas) — revisão manual
   do CSV antes de rodar é o que evita isso, por enquanto.
-

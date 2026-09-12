@@ -19,6 +19,8 @@ export { onJobCreated, onJobStatusChanged } from './jobs';
 
 export { onProviderRated } from './ratings';
 
+export { onMensagemDoOrcamentoCriada } from './messages';
+
 export { excluirContaEDados } from './account';
 
 export { gerarDescricaoPrestador } from './bio';

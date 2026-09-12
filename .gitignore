@@ -52,12 +52,10 @@ app.*.map.json
 /scripts/*service-account*.json
 /scripts/providers_seed.csv
 /scripts/leads_para_contato*.csv
-
-# Cloud Functions (Node/TypeScript) — dependências e build são regeneráveis
-# via `cd functions && npm install && npm run build`.
-/functions/node_modules/
-/functions/lib/
-
-# Configuração de SDK local do Android — específica da sua máquina; o
-# Codemagic (ou qualquer outra máquina) usa a dele.
-android/local.properties
+# Carga de prospecção: o CSV de origem, o JSON convertido (1.400+ nomes e
+# telefones de pessoas reais) e o mapa de fusões, que também é chaveado por
+# telefone. Tudo regenerável a partir do CSV — não há motivo pra esses
+# dados ficarem gravados no histórico do git pra sempre.
+/scripts/prospeccao_resultados*.csv
+/scripts/prestadores_para_importar.json
+/scripts/fusoes.json

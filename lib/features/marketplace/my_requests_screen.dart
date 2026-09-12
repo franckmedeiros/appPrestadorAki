@@ -9,6 +9,7 @@ import '../../core/auth_controller.dart';
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/app_list_card.dart';
+import '../budgets/budget_chat_screen.dart';
 import '../budgets/models/budget.dart';
 import '../budgets/widgets/aditivo_badge.dart';
 import '../jobs/job_status_chip.dart';
@@ -182,12 +183,56 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               )
             : null;
 
+    // Conversa com o prestador dentro do app (ver BudgetChatScreen) —
+    // aparece em TODO card, em qualquer status: a dúvida tanto pode vir
+    // antes de o orçamento chegar quanto depois do serviço agendado.
+    // `providerUid` nulo seria orçamento manual do prestador, que o
+    // cliente nem enxerga nesta tela; o teste é só cinto de segurança.
+    final Widget? conversa = budget.providerUid == null
+        ? null
+        : Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => BudgetChatScreen(
+                    providerId: budget.providerUid!,
+                    budgetId: budget.id,
+                    souPrestador: false,
+                    tituloOutroLado: budget.providerName ?? 'Prestador',
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.forum_outlined, size: 16),
+              label: Text(
+                budget.naoLidasCliente > 0
+                    ? 'Conversa (${budget.naoLidasCliente})'
+                    : 'Tirar dúvida',
+              ),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor:
+                    budget.naoLidasCliente > 0 ? AppColors.primary : AppColors.muted,
+              ),
+            ),
+          );
+
     final showPayment = budget.paymentPixPayload != null;
-    if (!showPayment) return decisionOrRating;
+    if (!showPayment) {
+      if (conversa == null) return decisionOrRating;
+      if (decisionOrRating == null) return conversa;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [conversa, const SizedBox(height: 4), decisionOrRating],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _PaymentSection(budget: budget),
+        if (conversa != null) ...[const SizedBox(height: 6), conversa],
         if (decisionOrRating != null) ...[const SizedBox(height: 10), decisionOrRating],
       ],
     );

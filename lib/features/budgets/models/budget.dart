@@ -156,6 +156,9 @@ class Budget {
     this.archivedByClient = false,
     this.archivedByProvider = false,
     this.revisionNumber = 0,
+    this.naoLidasCliente = 0,
+    this.naoLidasPrestador = 0,
+    this.ultimaMensagemEm,
   });
 
   factory Budget.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -194,6 +197,9 @@ class Budget {
       archivedByClient: data['archivedByClient'] as bool? ?? false,
       archivedByProvider: data['archivedByProvider'] as bool? ?? false,
       revisionNumber: (data['revisionNumber'] as num?)?.toInt() ?? 0,
+      naoLidasCliente: (data['naoLidasCliente'] as num?)?.toInt() ?? 0,
+      naoLidasPrestador: (data['naoLidasPrestador'] as num?)?.toInt() ?? 0,
+      ultimaMensagemEm: (data['ultimaMensagemEm'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -212,12 +218,38 @@ class Budget {
   final String? clientUid;
 
   /// Telefone do cliente no momento do pedido (cópia/"snapshot", mesma
-  /// razão de `customerName`/`addressText` — ver comentário da classe) —
-  /// usado só pra casar por telefone com um cadastro de cliente já
+  /// razão de `customerName`/`addressText` — ver comentário da classe).
+  ///
+  /// Nasceu só pra casar por telefone com um cadastro de cliente já
   /// existente do prestador (ver
-  /// `CustomersRepository.findOrCreateForClient`), nunca reexibido como
-  /// se fosse o telefone atual da conta.
+  /// `CustomersRepository.findOrCreateForClient`) — e este comentário
+  /// dizia "nunca reexibido". Deixou de ser verdade: hoje o prestador vê
+  /// o número, com atalho pro WhatsApp, no pedido recém-chegado e no
+  /// resumo do orçamento (ver BudgetFormScreen), a pedido do Franck, pra
+  /// tirar dúvidas antes de montar o orçamento. Como continua sendo uma
+  /// foto do momento do pedido, a tela diz isso com todas as letras
+  /// ("informado pelo cliente no cadastro — ainda não verificado") em vez
+  /// de vender como o telefone atual da conta.
   final String? clientPhone;
+
+  /// Mensagens da conversa deste orçamento que o CLIENTE ainda não leu
+  /// (e [naoLidasPrestador], as que o prestador não leu). Quem mexe
+  /// nesses dois números é a Cloud Function `onMensagemDoOrcamentoCriada`
+  /// (soma 1 no lado de quem RECEBE a cada mensagem nova) e o próprio
+  /// app, que zera o seu lado ao abrir a conversa — ver
+  /// `BudgetMessagesRepository.marcarComoLidas`.
+  ///
+  /// Por que denormalizado aqui, no orçamento, em vez de contado na
+  /// subcoleção: a bolinha de "tem mensagem nova" aparece na LISTA de
+  /// orçamentos, e contar de verdade exigiria uma consulta extra por
+  /// card. Aqui o número vem de graça, junto do documento que a lista já
+  /// carrega.
+  final int naoLidasCliente;
+  final int naoLidasPrestador;
+
+  /// Quando chegou a última mensagem da conversa — usado só pra ordenar/
+  /// mostrar "há 5 min" no atalho; o conteúdo fica na subcoleção.
+  final DateTime? ultimaMensagemEm;
 
   /// Uid do prestador dono deste orçamento — gravado explicitamente como
   /// CAMPO (em vez de só inferido do próprio caminho do documento,

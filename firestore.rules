@@ -117,7 +117,23 @@ service cloud.firestore {
           (request.auth != null &&
            request.auth.uid == resource.data.get('clientUid', null) &&
            request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['archivedByClient', 'updatedAt']));
+             .hasOnly(['archivedByClient', 'updatedAt'])) ||
+          // Zerar o contador de mensagens não lidas DO PRÓPRIO LADO, ao
+          // abrir a conversa (ver BudgetMessagesRepository.marcarComoLidas).
+          // O cliente só alcança `naoLidasCliente`; `naoLidasPrestador` é
+          // do outro lado e quem soma os dois é a Cloud Function
+          // `onMensagemDoOrcamentoCriada` (Admin SDK, ignora estas
+          // regras). Sem os contadores serem dois campos separados, não
+          // dava pra permitir isso sem também deixar cada um apagar a
+          // notificação do outro.
+          //
+          // `updatedAt` de fora de propósito: marcar como lida não é uma
+          // alteração do orçamento, e bater nessa data faria o card subir
+          // na lista como se algo tivesse mudado.
+          (request.auth != null &&
+           request.auth.uid == resource.data.get('clientUid', null) &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['naoLidasCliente']));
 
         allow delete: if isOwner(providerId);
 
@@ -135,6 +151,49 @@ service cloud.firestore {
         match /changeRequests/{requestId} {
           allow read: if isOwner(providerId);
           allow write: if false;
+        }
+
+        // Conversa do orçamento (pedido do Franck: "ter um lugar no app
+        // pra ele perguntar pro cliente, tipo um responder dentro do
+        // card") — ver lib/features/budgets/budget_chat_screen.dart.
+        //
+        // É a ÚNICA subcoleção daqui em que o cliente entra. Diferente
+        // das regras do orçamento em si, aqui `resource.data` é a
+        // MENSAGEM, não o orçamento — então, pra saber quem é o cliente
+        // desta conversa, não tem jeito: precisa buscar o documento do
+        // orçamento com `get()`. Isso custa uma leitura por avaliação de
+        // regra; é o preço de a conversa morar aninhada, e sai mais
+        // barato que manter uma coleção de conversas solta com os
+        // participantes duplicados dentro.
+        match /mensagens/{mensagemId} {
+          function orcamento() {
+            return get(/databases/$(database)/documents/providers/$(providerId)/budgets/$(budgetId)).data;
+          }
+          function souDaConversa() {
+            return isOwner(providerId) ||
+              (request.auth != null && request.auth.uid == orcamento().get('clientUid', null));
+          }
+
+          allow read: if souDaConversa();
+
+          // `autorUid` obrigado a ser o próprio, e `autorTipo` obrigado a
+          // casar com o lado de quem escreve: sem essas duas linhas um
+          // cliente poderia gravar uma mensagem assinada como se fosse o
+          // prestador, e a tela do outro lado mostraria ela como tal (o
+          // balão escolhe o lado por `autorTipo`, ver BudgetChatScreen).
+          allow create: if souDaConversa() &&
+            request.resource.data.autorUid == request.auth.uid &&
+            request.resource.data.autorTipo == (isOwner(providerId) ? 'prestador' : 'cliente') &&
+            request.resource.data.texto is string &&
+            request.resource.data.texto.size() > 0 &&
+            request.resource.data.texto.size() <= 2000 &&
+            request.resource.data.keys().hasOnly(
+              ['texto', 'autorUid', 'autorTipo', 'autorNome', 'createdAt']);
+
+          // Mensagem enviada não se edita nem se apaga — é o histórico da
+          // negociação, e os dois lados precisam poder confiar no que
+          // está escrito ali.
+          allow update, delete: if false;
         }
       }
 

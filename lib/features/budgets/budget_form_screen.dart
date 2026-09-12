@@ -12,6 +12,7 @@ import '../customers/customers_repository.dart';
 import '../customers/models/customer.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/widgets/provider_listing_card.dart' show WhatsappBadge, abrirWhatsapp;
+import 'budget_chat_screen.dart';
 import 'budget_pdf.dart';
 import 'budgets_repository.dart';
 import 'models/budget.dart';
@@ -1207,8 +1208,51 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// quando o orçamento ainda está `pendente` — resume o pedido que o
   /// cliente mandou pelo marketplace, já que esses dados (categoria,
   /// descrição, data preferida) não têm campo próprio no formulário.
+  /// Atalho pra conversa dentro do app (BudgetChatScreen) — a alternativa
+  /// ao WhatsApp, pedida pelo Franck justamente porque "o cliente pode não
+  /// ter informado o whatsapp corretamente": aqui a mensagem chega na
+  /// CONTA dele, não num número que ninguém verificou.
+  ///
+  /// Só existe pra orçamento vindo do marketplace: um orçamento criado à
+  /// mão pelo prestador não tem cliente do app do outro lado pra receber.
+  Widget? _botaoConversa(Budget budget) {
+    if (budget.clientUid == null) return null;
+    final naoLidas = budget.naoLidasPrestador;
+    return OutlinedButton.icon(
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BudgetChatScreen(
+            // `providerUid` é o campo; o `!` do currentUser é o mesmo
+            // padrão já usado no resto desta tela (só se chega aqui
+            // autenticado, garantido pelo redirect do go_router).
+            providerId: budget.providerUid ?? context.read<AuthController>().providerId,
+            budgetId: budget.id,
+            souPrestador: true,
+            tituloOutroLado: budget.customerName,
+          ),
+        ),
+      ),
+      icon: const Icon(Icons.forum_outlined, size: 18),
+      label: Text(
+        naoLidas > 0
+            ? 'Conversar pelo app ($naoLidas ${naoLidas == 1 ? 'nova' : 'novas'})'
+            : 'Conversar pelo app',
+      ),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(42),
+        foregroundColor: naoLidas > 0 ? AppColors.primary : AppColors.ink,
+        side: BorderSide(
+          color: naoLidas > 0
+              ? AppColors.primary
+              : AppColors.muted.withValues(alpha: 0.35),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPendingBanner(Budget budget) {
     final category = budget.category != null ? serviceCategoryFromWire(budget.category!) : null;
+    final botaoConversa = _botaoConversa(budget);
     // Só o primeiro nome, pra caber numa linha; nome vazio viraria um
     // "Tirar dúvidas com  (48)..." esquisito, daí o fallback.
     final primeiroNome = budget.customerName.trim().split(' ').first;
@@ -1284,6 +1328,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
               ),
             ),
           ],
+          if (botaoConversa != null) ...[
+            const SizedBox(height: 10),
+            botaoConversa,
+          ],
         ],
       ),
     );
@@ -1326,6 +1374,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// serviço pro aceite final.
   Widget _buildReadOnlySummary(Budget budget) {
     final status = budget.status!;
+    final botaoConversa = _botaoConversa(budget);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
       child: Column(
@@ -1422,6 +1471,10 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                       ),
                     ),
                   ),
+                ],
+                if (botaoConversa != null) ...[
+                  const SizedBox(height: 12),
+                  botaoConversa,
                 ],
                 if ((budget.addressText ?? '').isNotEmpty) ...[
                   const SizedBox(height: 12),

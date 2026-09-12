@@ -6,7 +6,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// ('novo_pedido'/'resposta_pedido') continuam os mesmos de antes — só a
 /// origem mudou, de gatilhos em `serviceRequests` para gatilhos em
 /// `providers/{uid}/budgets` (ver `Budget`/`BudgetStatus`).
-enum AppNotificationType { newBudgetRequest, budgetRequestResponded, serviceStage, newRating, other }
+enum AppNotificationType {
+  newBudgetRequest,
+  budgetRequestResponded,
+  serviceStage,
+  newRating,
+  budgetMessage,
+  other,
+}
 
 AppNotificationType appNotificationTypeFromWire(String? value) => switch (value) {
       'novo_pedido' => AppNotificationType.newBudgetRequest,
@@ -20,6 +27,9 @@ AppNotificationType appNotificationTypeFromWire(String? value) => switch (value)
         AppNotificationType.serviceStage,
       // Avaliação recebida (ver functions/src/ratings.ts).
       'nova_avaliacao' => AppNotificationType.newRating,
+      // Mensagem na conversa de um orçamento (ver
+      // functions/src/messages.ts e BudgetChatScreen).
+      'mensagem_orcamento' => AppNotificationType.budgetMessage,
       _ => AppNotificationType.other,
     };
 

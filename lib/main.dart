@@ -15,6 +15,7 @@ import 'core/biometric_service.dart';
 import 'core/notification_service.dart';
 import 'core/token_storage.dart';
 import 'features/agenda/appointments_repository.dart';
+import 'features/budgets/budget_messages_repository.dart';
 import 'features/budgets/budgets_repository.dart';
 import 'features/customers/customers_repository.dart';
 import 'features/jobs/jobs_repository.dart';
@@ -125,6 +126,11 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
         Provider(create: (context) => CustomersRepository()),
         Provider(create: (context) => AppointmentsRepository()),
         Provider(create: (context) => BudgetsRepository()),
+        // Exceção ao comentário acima: este NÃO monta o caminho a partir
+        // do usuário logado — a conversa de um orçamento é lida e escrita
+        // pelos DOIS lados, então o `providerId` sempre vem por parâmetro
+        // (ver BudgetMessagesRepository).
+        Provider(create: (context) => BudgetMessagesRepository()),
         Provider(create: (context) => JobsRepository()),
         Provider(create: (context) => ProviderDirectoryRepository()),
         Provider(create: (context) => BudgetRequestsRepository()),

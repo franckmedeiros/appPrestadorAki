@@ -116,6 +116,7 @@ class _NotificationTile extends StatelessWidget {
         AppNotificationType.budgetRequestResponded => Icons.reply_outlined,
         AppNotificationType.serviceStage => Icons.handyman_outlined,
         AppNotificationType.newRating => Icons.star_outline_rounded,
+        AppNotificationType.budgetMessage => Icons.chat_bubble_outline_rounded,
         AppNotificationType.other => Icons.notifications_outlined,
       };
 

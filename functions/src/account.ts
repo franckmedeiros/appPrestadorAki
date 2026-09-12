@@ -64,28 +64,82 @@ async function apagarQuery(query: FirebaseFirestore.Query): Promise<void> {
   }
 }
 
-export const excluirContaEDados = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Faça login primeiro.');
-  }
-  const uid = request.auth.uid;
-
+/**
+ * Roda UMA etapa da limpeza dizendo, no erro que chega no app, QUAL delas
+ * falhou e com que código do Firestore.
+ *
+ * Antes as cinco etapas abaixo ficavam dentro de um `try` só, e qualquer
+ * uma que quebrasse produzia a mesmíssima frase ("Não foi possível apagar
+ * seus dados") — o Franck viu exatamente isso, e não dava pra saber se o
+ * problema estava no cadastro de prestador, nos orçamentos espalhados em
+ * outros prestadores ou na reserva de telefone sem ir atrás do log da
+ * função. Nome da etapa e código (`failed-precondition`,
+ * `deadline-exceeded`, `permission-denied`...) são diagnóstico, não dado
+ * sensível: não dizem nada sobre outras contas.
+ *
+ * Continua valendo a regra de NUNCA usar o código 'internal' nem
+ * 'unknown': o protocolo de Callable Functions descarta a mensagem nesses
+ * dois e o app só recebe um "INTERNAL" opaco (reclamação antiga do
+ * Franck). Com 'unavailable' a frase chega inteira.
+ */
+async function etapa(nome: string, uid: string, trabalho: () => Promise<void>): Promise<void> {
   try {
-    await db.recursiveDelete(db.collection('providers').doc(uid));
-    await db.recursiveDelete(db.collection('clients').doc(uid));
+    await trabalho();
+  } catch (error) {
+    const codigo = (error as { code?: string | number } | null)?.code;
+    logger.error('Falha ao apagar dados do Firestore na exclusão de conta', {
+      uid,
+      etapa: nome,
+      codigo,
+      error,
+    });
+    throw new HttpsError(
+      'unavailable',
+      `Não foi possível apagar seus dados na etapa "${nome}"` +
+        `${codigo !== undefined ? ` (${codigo})` : ''}. Tente novamente.`,
+    );
+  }
+}
+
+export const excluirContaEDados = onCall(
+  {
+    // `recursiveDelete` varre subcoleção por subcoleção (customers,
+    // appointments, budgets com versions/changeRequests, jobs,
+    // technicalVisits, locationSessions, staff — ver DATA_MODEL.md), e
+    // uma conta de prestador com histórico leva tempo. O padrão de uma
+    // callable é 60s, apertado pra isso; 5 minutos é folga sem custo (só
+    // se paga o tempo realmente usado).
+    timeoutSeconds: 300,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Faça login primeiro.');
+    }
+    const uid = request.auth.uid;
+
+    await etapa('cadastro de prestador', uid, () =>
+      db.recursiveDelete(db.collection('providers').doc(uid)),
+    );
+    await etapa('perfil de cliente', uid, () =>
+      db.recursiveDelete(db.collection('clients').doc(uid)),
+    );
     // Perfil público no diretório de busca, se essa conta era prestador
     // com listagem reivindicada (ver ProviderDirectoryRepository), e as
     // avaliações que OUTROS clientes deixaram nele. Sem isso, o perfil
     // continuaria aparecendo na busca pra sempre, sem dono nenhum por
     // trás — foi exatamente o problema que o Franck percebeu ao testar
     // excluir e recriar a conta.
-    await db.recursiveDelete(db.collection('providerDirectory').doc(uid));
+    await etapa('perfil público na busca', uid, () =>
+      db.recursiveDelete(db.collection('providerDirectory').doc(uid)),
+    );
     // Orçamentos que esta conta pediu, na capacidade de CLIENTE, na
     // subcoleção de OUTROS prestadores (ver Budget.clientUid/
     // BudgetRequestsRepository) — os que esta conta criou como
     // PRESTADOR, na própria subcoleção, já foram embora junto com
     // `db.recursiveDelete(providers/{uid})` acima.
-    await apagarQuery(db.collectionGroup('budgets').where('clientUid', '==', uid));
+    await etapa('orçamentos em outros prestadores', uid, () =>
+      apagarQuery(db.collectionGroup('budgets').where('clientUid', '==', uid)),
+    );
     // Reserva de telefone único (ver `phoneIndex` no firestore.rules e
     // AuthController.register). Faltava aqui, e era um bug de verdade: o
     // documento é indexado pelo TELEFONE (não pelo uid), então não é
@@ -98,44 +152,35 @@ export const excluirContaEDados = onCall(async (request) => {
     // Busca por `clientUid` em vez de calcular o id a partir do telefone
     // do documento do cliente: aqui em cima o `clients/{uid}` JÁ foi
     // apagado, e de qualquer forma o vínculo confiável é este campo.
-    await apagarQuery(db.collection('phoneIndex').where('clientUid', '==', uid));
-  } catch (error) {
-    logger.error('Falha ao apagar dados do Firestore na exclusão de conta', { uid, error });
-    // NUNCA usar o código 'internal' (nem 'unknown') aqui — pedido do
-    // Franck: "qdo estou excluindo uma conta aparece o erro INTERNAL". O
-    // protocolo de Callable Functions do Firebase propositalmente
-    // DESCARTA a mensagem de erro nesses dois códigos específicos (pra
-    // não vazar detalhe interno sem querer) e troca por um texto opaco
-    // "INTERNAL" — o app nunca chega a ver a frase em português que a
-    // gente escreveu aqui. Qualquer outro código (como 'unavailable')
-    // entrega a mensagem certinha pro cliente.
-    throw new HttpsError('unavailable', 'Não foi possível apagar seus dados. Tente novamente.');
-  }
-
-  // É esta chamada que libera o E-MAIL pra ser usado num cadastro novo —
-  // não existe nenhum índice de e-mail no Firestore, quem garante que um
-  // e-mail só pertence a uma conta é o próprio Firebase Auth. Se ela
-  // falhar, o e-mail continua ocupado; por isso o erro sobe pro app em vez
-  // de ser engolido.
-  try {
-    await getAuth().deleteUser(uid);
-    logger.info('Conta removida do Firebase Auth', { uid });
-  } catch (error) {
-    // `user-not-found` não é falha: significa que a conta já não existia
-    // (ex.: uma tentativa anterior chegou até aqui e só a resposta se
-    // perdeu). Tratar como erro faria o app mostrar "houve um problema ao
-    // remover o login" numa exclusão que, na prática, está completa.
-    const code = (error as { code?: string } | null)?.code;
-    if (code === 'auth/user-not-found') {
-      logger.info('Conta já não existia no Firebase Auth na exclusão', { uid });
-      return { ok: true };
-    }
-    logger.error('Falha ao apagar usuário do Firebase Auth na exclusão de conta', { uid, error });
-    throw new HttpsError(
-      'unavailable',
-      'Seus dados foram apagados, mas houve um problema ao remover o login. Fale com o suporte.',
+    await etapa('reserva de telefone', uid, () =>
+      apagarQuery(db.collection('phoneIndex').where('clientUid', '==', uid)),
     );
-  }
 
-  return { ok: true };
-});
+    // É esta chamada que libera o E-MAIL pra ser usado num cadastro novo —
+    // não existe nenhum índice de e-mail no Firestore, quem garante que um
+    // e-mail só pertence a uma conta é o próprio Firebase Auth. Se ela
+    // falhar, o e-mail continua ocupado; por isso o erro sobe pro app em
+    // vez de ser engolido.
+    try {
+      await getAuth().deleteUser(uid);
+      logger.info('Conta removida do Firebase Auth', { uid });
+    } catch (error) {
+      // `user-not-found` não é falha: significa que a conta já não existia
+      // (ex.: uma tentativa anterior chegou até aqui e só a resposta se
+      // perdeu). Tratar como erro faria o app mostrar "houve um problema
+      // ao remover o login" numa exclusão que, na prática, está completa.
+      const code = (error as { code?: string } | null)?.code;
+      if (code === 'auth/user-not-found') {
+        logger.info('Conta já não existia no Firebase Auth na exclusão', { uid });
+        return { ok: true };
+      }
+      logger.error('Falha ao apagar usuário do Firebase Auth na exclusão de conta', { uid, error });
+      throw new HttpsError(
+        'unavailable',
+        'Seus dados foram apagados, mas houve um problema ao remover o login. Fale com o suporte.',
+      );
+    }
+
+    return { ok: true };
+  },
+);
