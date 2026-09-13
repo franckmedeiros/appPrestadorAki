@@ -86,6 +86,7 @@ class Job {
     this.updatedAt,
     this.paidAt,
     this.completedAt,
+    this.archived = false,
   });
 
   factory Job.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -107,6 +108,7 @@ class Job {
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
       paidAt: (data['paidAt'] as Timestamp?)?.toDate(),
       completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+      archived: data['archived'] as bool? ?? false,
     );
   }
 
@@ -132,4 +134,18 @@ class Job {
   final DateTime? updatedAt;
   final DateTime? paidAt;
   final DateTime? completedAt;
+
+  /// Tirado da lista de Serviços sem ser apagado — pedido do Franck
+  /// ("adicionar em serviço a opção de arquivamento"), mesmo desenho já
+  /// usado em `Budget.archivedByProvider`.
+  ///
+  /// Um campo só (e não `archivedByProvider`/`archivedByCliente` como no
+  /// orçamento) porque esta tela é só do prestador: o cliente acompanha o
+  /// andamento pelo card dele em "Meus orçamentos" (ver
+  /// `Budget.serviceStatus`), não por aqui. Se um dia o cliente ganhar
+  /// uma lista de serviços própria, aí sim isso vira dois campos.
+  ///
+  /// Documento antigo não tem o campo — `false` é o padrão certo: nada
+  /// que já existe nasce arquivado.
+  final bool archived;
 }

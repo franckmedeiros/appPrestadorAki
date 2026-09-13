@@ -147,6 +147,52 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   ///
   /// Null quando ainda não existe serviço — orçamentos pendentes,
   /// enviados ou recusados não têm o que mostrar aqui.
+  /// Arquivar/desarquivar pelo MENU, convivendo com o deslize (decisão do
+  /// Franck de manter os dois): deslizar é rápido pra quem já sabe, mas é
+  /// um gesto invisível que ninguém descobre sozinho — o menu é o caminho
+  /// que se acha olhando.
+  ///
+  /// Fica no rodapé do card, e não ao lado do selo de status como na tela
+  /// do cliente, por um motivo concreto: o `trailing` daqui já está no
+  /// limite. Tem um `ConstrainedBox` de 128px ali justamente porque um
+  /// rótulo de status comprido espremia o nome do cliente até quebrar
+  /// letra por letra; enfiar mais 28px de menu naquele espaço traria o
+  /// problema de volta.
+  Widget _menuArquivar(Budget budget) {
+    final arquivado = budget.archivedByProvider;
+    return PopupMenuButton<void>(
+      icon: const Icon(Icons.more_vert, size: 18, color: AppColors.muted),
+      padding: EdgeInsets.zero,
+      tooltip: arquivado ? 'Desarquivar' : 'Arquivar',
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          // `_archive`, e não `_setArchived` direto: é ele que tira o card
+          // da lista na hora, o que o `Dismissible` exige pra não
+          // reaparecer com a mesma key e derrubar o app.
+          onTap: () => _archive(budget, !arquivado),
+          child: Text(arquivado ? 'Desarquivar' : 'Arquivar'),
+        ),
+      ],
+    );
+  }
+
+  /// Rodapé do card: o andamento do serviço (quando existe) e o menu de
+  /// arquivar (onde faz sentido). Null quando não há nem um nem outro —
+  /// o AppListCard omite o rodapé inteiro nesse caso.
+  Widget? _rodape(Budget budget) {
+    final servico = _rodapeDoServico(budget);
+    // Mesma regra do deslize (`_canArchive`), mais a lista de arquivados,
+    // onde sempre dá pra devolver.
+    final podeArquivar = _showArchived || _canArchive(budget);
+    if (servico == null && !podeArquivar) return null;
+    return Row(
+      children: [
+        if (servico != null) Expanded(child: servico) else const Spacer(),
+        if (podeArquivar) _menuArquivar(budget),
+      ],
+    );
+  }
+
   Widget? _rodapeDoServico(Budget budget) {
     final wire = budget.serviceStatus;
     if (wire == null || wire.isEmpty) return null;
@@ -317,7 +363,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         ),
                       ),
                 onTap: () => _openBudget(budget),
-                footer: _rodapeDoServico(budget),
+                footer: _rodape(budget),
               );
 
               // Arquivado: sempre pode desarquivar. Ativo: só desliza

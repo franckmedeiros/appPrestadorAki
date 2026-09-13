@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -95,16 +97,39 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   // ClientSignInPrompt. O stream se refaz sozinho na volta, porque
   // `_ensureStream` percebe a troca de uid (ver `_streamForUid`).
 
+  /// Ids arquivando/desarquivando "otimisticamente" — somem da lista no
+  /// instante do deslize, antes de o Firestore confirmar.
+  ///
+  /// Não é enfeite: sem isso, o `Dismissible` que acabou de sair pode ser
+  /// reconstruído com a MESMA `key` antes de o stream reemitir, e o
+  /// Flutter derruba o app com "A dismissed Dismissible widget is still
+  /// part of the tree". Mesmo tropeço já enfrentado na tela de Orçamentos
+  /// do prestador.
+  final Set<String> _arquivandoAgora = {};
+
+  void _arquivar(Budget budget, bool archived) {
+    setState(() => _arquivandoAgora.add(budget.id));
+    unawaited(_setArchived(budget, archived));
+  }
+
   Future<void> _setArchived(Budget budget, bool archived) async {
     try {
       await context.read<BudgetRequestsRepository>().setArchivedByClient(budget, archived);
     } catch (e) {
       if (!mounted) return;
+      setState(() => _arquivandoAgora.remove(budget.id));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(archived ? 'Não foi possível arquivar agora.' : 'Não foi possível desarquivar agora.')),
       );
+      return;
     }
-    // Stream — a lista já atualiza sozinha, mesmo raciocínio de _respond.
+    if (!mounted) return;
+    setState(() => _arquivandoAgora.remove(budget.id));
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(archived ? 'Pedido arquivado.' : 'Pedido desarquivado.'),
+      ));
   }
 
   Future<void> _respond(Budget budget, bool approved) async {
@@ -309,6 +334,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                 // não é uma consulta separada, `watchMine()` já traz tudo.
                 final budgets = (snapshot.data ?? [])
                     .where((budget) => budget.archivedByClient == _showArchived)
+                    .where((budget) => !_arquivandoAgora.contains(budget.id))
                     .toList();
                 if (budgets.isEmpty) {
                   return ListView(
@@ -391,7 +417,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     final canRate = etapaServico == JobStatus.concluido;
                     final category =
                         budget.category != null ? serviceCategoryFromWire(budget.category!) : null;
-                    return AppListCard(
+                    final card = AppListCard(
                       leading: AppListCard.iconAvatar(category?.icon ?? Icons.handyman_rounded),
                       title: budget.providerName ?? 'Prestador',
                       subtitle: budget.requestDescription ?? '',
@@ -456,15 +482,22 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                                 ),
                             ],
                           ),
-                          // Arquivar/desarquivar (pedido do Franck) — cabe
-                          // em qualquer status, por isso fica separado do
-                          // fluxo de aprovar/recusar/avaliar abaixo.
+                          // Arquivar pelo menu, convivendo com o deslize
+                          // (ver o `Dismissible` logo abaixo) — decisão do
+                          // Franck de manter os dois. Não é redundância à
+                          // toa: deslizar é rápido pra quem já sabe, mas é
+                          // um gesto invisível, e ninguém descobre sozinho.
+                          // O menu é o caminho que se acha olhando.
                           PopupMenuButton<void>(
                             icon: const Icon(Icons.more_vert, size: 18, color: AppColors.muted),
                             padding: EdgeInsets.zero,
                             itemBuilder: (context) => [
                               PopupMenuItem(
-                                onTap: () => _setArchived(budget, !budget.archivedByClient),
+                                // `_arquivar` (não `_setArchived` direto):
+                                // é ele que tira o card da lista na hora,
+                                // o que o `Dismissible` exige pra não
+                                // reaparecer com a mesma key.
+                                onTap: () => _arquivar(budget, !budget.archivedByClient),
                                 child: Text(budget.archivedByClient ? 'Desarquivar' : 'Arquivar'),
                               ),
                             ],
@@ -477,6 +510,32 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       // de verdade mora (evita duplicar o formulário de
                       // estrelas em duas telas).
                       footer: _buildFooter(budget, awaitingDecision: awaitingDecision, canRate: canRate),
+                    );
+
+                    // Deslizar pra arquivar — pedido do Franck, pra ficar
+                    // igual às telas do prestador (Orçamentos e Serviços).
+                    // Aqui vale em QUALQUER status, diferente daquelas:
+                    // esta lista é do cliente, e ele pode querer tirar da
+                    // frente um pedido que nem foi respondido.
+                    final arquivando = !_showArchived;
+                    return Dismissible(
+                      key: ValueKey(budget.id),
+                      direction: DismissDirection.endToStart,
+                      onDismissed: (_) => _arquivar(budget, arquivando),
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        decoration: BoxDecoration(
+                          color: (arquivando ? AppColors.muted : AppColors.primary)
+                              .withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          arquivando ? Icons.archive_outlined : Icons.unarchive_outlined,
+                          color: arquivando ? AppColors.muted : AppColors.primary,
+                        ),
+                      ),
+                      child: card,
                     );
                   },
                     );

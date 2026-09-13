@@ -132,4 +132,24 @@ class JobsRepository {
       throw ApiException(0, e.message ?? 'Não foi possível atualizar o serviço.');
     }
   }
+
+  /// Arquiva/desarquiva um serviço (ver `Job.archived`) — pedido do
+  /// Franck: "adicionar em serviço a opção de arquivamento". Mesmo
+  /// desenho do `BudgetsRepository.setArchivedByProvider`: o documento
+  /// continua lá inteiro, só sai da lista principal.
+  ///
+  /// Não precisou de regra nova no firestore.rules — isto é o prestador
+  /// escrevendo no próprio `providers/{uid}/jobs/{id}`, já coberto por
+  /// `isOwner(providerId)`.
+  ///
+  /// `updatedAt` fica de fora de propósito: arquivar é organização da
+  /// lista, não andamento do serviço; mexer nessa data faria o card
+  /// parecer que algo aconteceu no trabalho.
+  Future<void> setArchived(String id, bool archived) async {
+    try {
+      await _collection.doc(id).update({'archived': archived});
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível arquivar o serviço.');
+    }
+  }
 }
