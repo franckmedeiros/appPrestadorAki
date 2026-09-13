@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
+import '../../widgets/decorative_header.dart';
 import '../../core/auth_controller.dart';
 import '../../core/text_normalize.dart';
 import '../../widgets/biometric_offer_card.dart';
@@ -18,6 +19,21 @@ import 'models/provider_listing.dart';
 import 'models/service_category.dart';
 import 'provider_directory_repository.dart';
 import 'widgets/provider_listing_card.dart';
+
+/// Ordem da lista de resultados, escolhida pela pessoa na linha acima da
+/// lista (ver `_linhaDeResultados`).
+///
+/// O mockup que originou essa linha trazia "Mais relevantes". Não existe
+/// relevância calculada em lugar nenhum do app, e um rótulo desses
+/// promete um critério que ninguém definiu — então as opções aqui são só
+/// as que dá pra cumprir com o dado que o diretório já tem.
+enum OrdemDaBusca {
+  melhorAvaliados('Melhor avaliados'),
+  nome('Nome (A-Z)');
+
+  const OrdemDaBusca(this.rotulo);
+  final String rotulo;
+}
 
 /// Home do lado do cliente — busca no diretório público de prestadores
 /// por categoria e cidade, ordenados por nome (ver
@@ -56,6 +72,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   /// Firestore a cada letra digitada.
   final _nameController = TextEditingController();
   String _nameQuery = '';
+
+  /// Ordem escolhida na linha de resultados. Aplicada aqui no app, sobre
+  /// o que a consulta trouxe — não é um `orderBy` no Firestore. Com o
+  /// teto de 60 documentos por busca (ver `_limiteDaBusca` no
+  /// repositório), ordenar aqui é barato e evita um índice composto
+  /// diferente pra cada combinação de filtro.
+  OrdemDaBusca _ordem = OrdemDaBusca.melhorAvaliados;
   late Future<List<String>> _citiesFuture;
   bool _locating = false;
   bool _autoLocationAttempted = false;
@@ -93,6 +116,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   @override
   void dispose() {
+    _debounceNome?.cancel();
     _nameController.dispose();
     super.dispose();
   }
@@ -136,10 +160,28 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
   }
 
-  Future<List<ProviderListing>> _search() =>
-      context.read<ProviderDirectoryRepository>().search(category: _category, city: _city);
+  Future<List<ProviderListing>> _search() => context
+      .read<ProviderDirectoryRepository>()
+      .search(category: _category, city: _city, nome: _nameQuery);
 
   void _runSearch() => setState(() => _future = _search());
+
+  Timer? _debounceNome;
+
+  /// Espera a pessoa parar de digitar antes de consultar o servidor.
+  ///
+  /// A busca por nome passou a ser feita no Firestore — antes era no app,
+  /// sobre a coleção inteira já baixada, o que deixou de ser viável com
+  /// ~9.700 entradas no diretório. Sem esta espera seriam cinco consultas
+  /// pra quem digita "pedro", uma por tecla; e a resposta de uma poderia
+  /// chegar depois da seguinte e sobrescrever o resultado certo.
+  void _aoDigitarNome(String valor) {
+    setState(() => _nameQuery = valor);
+    _debounceNome?.cancel();
+    _debounceNome = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _runSearch();
+    });
+  }
 
   // Extraído pra core/text_normalize.dart (agora reaproveitado também
   // por ProviderDirectoryRepository e pelos seletores de Estado/Cidade —
@@ -270,19 +312,52 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
-    final favoriteIds = context.watch<FavoritesController>().ids;
     final showBiometricOffer = auth.status == AuthStatus.authenticated &&
         _biometricAvailable == true &&
         !auth.biometricEnabled &&
         !_dismissedBiometricOffer;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Encontre um profissional'),
-        actions: const [NotificationBell()],
-      ),
+      backgroundColor: AppColors.background,
+      // Sem AppBar: o topo virou um bloco de gradiente com título e
+      // subtítulo, e o campo de busca "sobe" por cima dele (ver o
+      // Transform.translate abaixo). Desenho aprovado pelo Franck a
+      // partir de um mockup. É o mesmo `DecorativeHeader` já usado no
+      // login, no cadastro e no perfil — a tela principal era a última
+      // que ainda tinha uma AppBar comum.
       body: Column(
         children: [
+          DecorativeHeader(
+            height: 150,
+            padding: const EdgeInsets.fromLTRB(20, 4, 12, 40),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Encontre um profissional',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          height: 1.15,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Serviços de qualidade, perto de você.',
+                        style: TextStyle(fontSize: 13, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+                const NotificationBell(),
+              ],
+            ),
+          ),
           if (showBiometricOffer)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -291,51 +366,185 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 onDismiss: () => setState(() => _dismissedBiometricOffer = true),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
+          // O deslocamento negativo é o que faz o campo de busca invadir
+          // o gradiente. Só vale quando o convite de biometria não está
+          // na frente — com ele no meio, o campo já não encosta no topo.
+          Transform.translate(
+            offset: Offset(0, showBiometricOffer ? 0 : -28),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              child: Column(
+                children: [
                 // Busca por nome — pedido do Franck. Fica em PRIMEIRO
                 // lugar de propósito: quem já sabe o nome do profissional
                 // não deveria precisar passar por categoria e cidade
                 // antes. Filtra na hora, sem tocar no Firestore (ver
                 // `_nameQuery`).
-                TextField(
-                  controller: _nameController,
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    labelText: 'Buscar pelo nome',
-                    hintText: 'Ex.: João, Vidraçaria Silva...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _nameQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close, size: 20),
-                            tooltip: 'Limpar',
-                            onPressed: () {
-                              _nameController.clear();
-                              setState(() => _nameQuery = '');
-                            },
-                          ),
+                // Cartão branco com sombra em vez do campo comum: é ele
+                // que "flutua" sobre o gradiente. Sem rótulo fixo, só o
+                // texto de exemplo — o ícone de lupa já diz o que é, e o
+                // rótulo roubava uma linha inteira do topo.
+                Material(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  elevation: 3,
+                  shadowColor: Colors.black26,
+                  child: TextField(
+                    controller: _nameController,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: 'Buscar pelo nome do profissional',
+                      hintStyle: const TextStyle(color: AppColors.muted, fontSize: 14),
+                      prefixIcon: const Icon(Icons.search, color: AppColors.muted),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+                      ),
+                      suffixIcon: _nameQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 20, color: AppColors.muted),
+                              tooltip: 'Limpar',
+                              onPressed: () {
+                                _nameController.clear();
+                                _aoDigitarNome('');
+                              },
+                            ),
+                    ),
+                    onChanged: _aoDigitarNome,
                   ),
-                  onChanged: (value) => setState(() => _nameQuery = value),
                 ),
-                const SizedBox(height: 8),
-                ServiceCategorySelectorField(
-                  label: 'O que você precisa?',
-                  initialValue: _category,
-                  allowClear: true,
-                  onChanged: (value) {
-                    setState(() => _category = value);
-                    _runSearch();
-                  },
+                const SizedBox(height: 10),
+                // Categoria e cidade lado a lado (mockup aprovado pelo
+                // Franck): antes eram duas linhas empilhadas, e junto com
+                // a busca por nome empurravam a lista de prestadores pra
+                // fora da primeira dobra no celular.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: ServiceCategorySelectorField(
+                        label: 'O que você precisa?',
+                        initialValue: _category,
+                        allowClear: true,
+                        onChanged: (value) {
+                          setState(() => _category = value);
+                          _runSearch();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: _campoCidade()),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                // Campo "de mentira": não digita nada aqui, só abre o
-                // seletor de verdade (`_openCityPicker`/`_CityPickerSheet`)
-                // ao tocar — ver o comentário em `_openCityPicker` sobre
-                // por que isso substituiu um Autocomplete embutido.
-                FutureBuilder<List<String>>(
+                const SizedBox(height: 12),
+                _linhaDeResultados(),
+              ],
+            ),
+          ),
+          ),
+          Expanded(child: _listaDeResultados()),
+          _rodapeConvitePrestador(),
+        ],
+      ),
+    );
+  }
+
+  /// Contagem de resultados + ordenação, na linha logo acima da lista.
+  ///
+  /// Sobre a ordenação: o mockup trazia "Mais relevantes", que não existe
+  /// — não há nenhum cálculo de relevância no app, e inventar um rótulo
+  /// desses é prometer um critério que ninguém definiu. Troquei por duas
+  /// ordens que a gente consegue cumprir de verdade, com dado que já está
+  /// no diretório: nota média e ordem alfabética.
+  Widget _linhaDeResultados() {
+    return FutureBuilder<List<ProviderListing>>(
+      future: _future,
+      builder: (context, snapshot) {
+        final total = snapshot.data?.length ?? 0;
+        // Enquanto carrega, não anuncia "0 profissionais" — seria uma
+        // informação errada aparecendo por um instante a cada busca.
+        final carregando = snapshot.connectionState == ConnectionState.waiting;
+        final ondeLabel = _city ?? 'todas as cidades';
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    carregando
+                        ? 'Buscando...'
+                        : '$total ${total == 1 ? 'profissional encontrado' : 'profissionais encontrados'}',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  Text(
+                    'Resultados para $ondeLabel',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuButton<OrdemDaBusca>(
+              initialValue: _ordem,
+              tooltip: 'Ordenar',
+              onSelected: (valor) => setState(() => _ordem = valor),
+              itemBuilder: (context) => [
+                for (final ordem in OrdemDaBusca.values)
+                  PopupMenuItem(value: ordem, child: Text(ordem.rotulo)),
+              ],
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.muted.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.swap_vert, size: 16, color: AppColors.ink),
+                    const SizedBox(width: 5),
+                    Text(
+                      _ordem.rotulo,
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                    ),
+                    const Icon(Icons.expand_more, size: 16, color: AppColors.muted),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Campo de cidade — "de mentira": não digita nada nele, só abre o
+  /// seletor de verdade (`_openCityPicker`/`_CityPickerSheet`) ao tocar.
+  /// Virou método próprio quando categoria e cidade passaram a dividir a
+  /// mesma linha: o `FutureBuilder` inteiro dentro de um `Expanded` dentro
+  /// de um `Row` deixava o `build` ilegível.
+  Widget _campoCidade() {
+    return FutureBuilder<List<String>>(
                   future: _citiesFuture,
                   builder: (context, snapshot) {
                     final loadingCities = snapshot.connectionState == ConnectionState.waiting;
@@ -363,13 +572,20 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         ),
                       ),
                     );
-                  },
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<ProviderListing>>(
+      },
+    );
+  }
+
+  /// A lista de resultados. Virou método próprio junto com `_campoCidade`
+  /// — o `build` estava com seis níveis de indentação só de estrutura, e
+  /// qualquer mexida no topo da tela obrigava a contar parênteses até o
+  /// fim do arquivo.
+  Widget _listaDeResultados() {
+    // Lido aqui, e não recebido por parâmetro: este método roda dentro do
+    // `build`, então o `watch` continua valendo — a tela se redesenha
+    // sozinha quando o cliente favorita ou desfavorita alguém.
+    final favoriteIds = context.watch<FavoritesController>().ids;
+    return FutureBuilder<List<ProviderListing>>(
               future: _future,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -381,18 +597,35 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       : 'Não foi possível buscar prestadores.';
                   return Center(child: Text(message, textAlign: TextAlign.center));
                 }
-                // Filtro por nome aplicado aqui, sobre o que a consulta
-                // já trouxe — ver `_nameQuery`. `normalizeForSearch`
-                // (o mesmo usado no seletor de cidade) faz "vidracaria"
-                // achar "Vidraçaria": ignora acento e maiúscula.
-                final todos = snapshot.data ?? const <ProviderListing>[];
+                // O filtro por nome agora é feito no SERVIDOR (ver
+                // ProviderDirectoryRepository.search) — aqui não sobra
+                // nada a filtrar. Antes era um `contains` sobre a
+                // coleção inteira baixada no aparelho, o que deixou de
+                // ser viável quando o diretório passou de algumas dezenas
+                // pra ~9.700 entradas.
+                //
+                // Junto veio uma mudança de comportamento que vale
+                // conhecer: no servidor a comparação é por COMEÇO do
+                // nome, não por trecho. "OPOut" acha "OPOutsourcingBr";
+                // "sourcing" não acha mais. Um "contém" de verdade
+                // exigiria índice invertido, que o Firestore não tem.
+                // Ordena aqui, sobre o que veio da consulta (ver `_ordem`).
+                // `..sort` numa cópia: a lista do snapshot é reusada a
+                // cada rebuild, e ordenar ela no lugar mexeria no cache do
+                // Future.
+                final listings = [...(snapshot.data ?? const <ProviderListing>[])]
+                  ..sort((a, b) => switch (_ordem) {
+                        // Empate na nota cai no nome, pra a ordem não
+                        // dançar a cada rebuild entre quem tem a mesma
+                        // nota (inclusive os muitos que têm zero).
+                        OrdemDaBusca.melhorAvaliados =>
+                          b.ratingAverage.compareTo(a.ratingAverage) != 0
+                              ? b.ratingAverage.compareTo(a.ratingAverage)
+                              : a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+                        OrdemDaBusca.nome =>
+                          a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+                      });
                 final termo = _nameQuery.trim();
-                final listings = termo.isEmpty
-                    ? todos
-                    : todos
-                        .where((listing) =>
-                            normalizeForSearch(listing.name).contains(normalizeForSearch(termo)))
-                        .toList();
                 if (listings.isEmpty) {
                   return Center(
                     child: Padding(
@@ -433,8 +666,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   },
                 );
               },
-            ),
-          ),
+            );
+  }
+
+  /// Rodapé fixo da tela — ver o comentário dentro sobre por que ele mora
+  /// aqui embaixo e não no topo.
+  Widget _rodapeConvitePrestador() {
+    return
           // Único jeito de chegar na área do prestador a partir da busca —
           // ver mudança de ideia: procurar continua livre, quem tem um
           // negócio pra oferecer é quem precisa criar conta. Fica no
@@ -460,10 +698,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 child: const Text('É prestador de serviços? Cadastre-se aqui'),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          );
   }
 }
 

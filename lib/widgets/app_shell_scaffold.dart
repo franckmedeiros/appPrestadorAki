@@ -40,7 +40,10 @@ class AppShellScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: body,
-      floatingActionButton: _BrandFab(icon: items[selectedIndex].selectedIcon),
+      floatingActionButton: _BrandFab(
+        icon: items[selectedIndex].selectedIcon,
+        label: items[selectedIndex].label,
+      ),
       floatingActionButtonLocation: _DockedAtIndexFabLocation(
         index: selectedIndex,
         count: items.length,
@@ -63,7 +66,33 @@ class AppShellScaffold extends StatelessWidget {
               return Expanded(
                 child: InkWell(
                   onTap: () => onDestinationSelected(index),
-                  child: Icon(item.icon, color: Colors.white54, size: 24),
+                  // Ícone + rótulo (pedido do Franck, a partir de um
+                  // mockup que ele gostou). Antes era só o ícone: bonito,
+                  // mas obriga a adivinhar — "lista" e "painel" não dizem
+                  // nada sozinhos pra quem abriu o app pela primeira vez.
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(item.icon, color: Colors.white54, size: 22),
+                      const SizedBox(height: 3),
+                      Padding(
+                        // Respiro lateral pra o rótulo não encostar no
+                        // vizinho quando são 5 abas numa tela estreita.
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }),
@@ -78,9 +107,10 @@ class AppShellScaffold extends StatelessWidget {
 /// (troca com um fade curto quando a aba muda; a posição em si é animada
 /// pelo próprio `Scaffold` ao trocar o `floatingActionButtonLocation`).
 class _BrandFab extends StatelessWidget {
-  const _BrandFab({required this.icon});
+  const _BrandFab({required this.icon, required this.label});
 
   final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +135,30 @@ class _BrandFab extends StatelessWidget {
       child: Center(
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
-          child: Icon(icon, key: ValueKey(icon), color: Colors.white, size: 28),
+          // Ícone + rótulo da aba atual, pra o círculo dizer ONDE a
+          // pessoa está — antes ele mostrava só o ícone, e a única aba
+          // sem nome na barra era justamente a selecionada.
+          child: Column(
+            key: ValueKey(icon),
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: 24),
+              const SizedBox(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

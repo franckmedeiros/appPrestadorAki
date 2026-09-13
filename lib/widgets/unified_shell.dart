@@ -28,13 +28,20 @@ class UnifiedShell extends StatelessWidget {
       AppNavItem(icon: Icons.search_outlined, selectedIcon: Icons.search, label: 'Buscar');
   static const _favoritesItem =
       AppNavItem(icon: Icons.favorite_border, selectedIcon: Icons.favorite, label: 'Favoritos');
-  // "Meus orçamentos" (não só "Orçamentos") pra não confundir com o
-  // atalho "Orçamentos" do Dashboard do prestador — mesma conta pode ver
-  // os dois (ver comentário da classe sobre a conta unificada).
+  // "Solicitações", não mais "Meus orçamentos": a barra passou a mostrar
+  // o rótulo embaixo do ícone (ver AppShellScaffold), e o nome antigo não
+  // cabe — vira reticências numa tela de 5 abas. O nome curto ainda
+  // resolve a confusão que o antigo evitava na marra: o prestador tem um
+  // "Orçamentos" próprio no Painel, e a mesma conta pode ver os dois
+  // (conta unificada, ver comentário da classe).
   static const _requestsItem = AppNavItem(
-      icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt, label: 'Meus orçamentos');
+      icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt, label: 'Solicitações');
+  // "Painel" pelo mesmo motivo de espaço. NÃO virou "Serviços" como no
+  // mockup, de propósito: já existe uma tela "Serviços" de verdade (o
+  // quadro de trabalhos em andamento), alcançada a partir desta — duas
+  // coisas diferentes com o mesmo nome seria pior que um nome feio.
   static const _dashboardItem = AppNavItem(
-      icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Gerenciamento');
+      icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Painel');
   static const _profileItem =
       AppNavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Perfil');
 

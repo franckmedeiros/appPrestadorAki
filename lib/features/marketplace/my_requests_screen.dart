@@ -284,7 +284,10 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meus orçamentos'),
+        // "Solicitações" pra bater com o rótulo da aba (ver UnifiedShell):
+        // tocar em "Solicitações" e cair numa tela chamada "Meus
+        // orçamentos" faz a pessoa duvidar se chegou no lugar certo.
+        title: const Text('Solicitações'),
         actions: [
           if (isClient)
             IconButton(
