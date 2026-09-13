@@ -65,6 +65,32 @@ async function apagarQuery(query: FirebaseFirestore.Query): Promise<void> {
 }
 
 /**
+ * Igual a [apagarQuery], mas apagando cada documento COM AS SUBCOLEÇÕES
+ * dele.
+ *
+ * Por que existe: no Firestore, apagar um documento NÃO apaga o que está
+ * debaixo dele — as subcoleções continuam vivas, agora penduradas num
+ * documento que não existe mais, e não aparecem em lugar nenhum. O
+ * `batch.delete` de cima faz exatamente isso.
+ *
+ * Isso passava despercebido enquanto os orçamentos que esta conta criou
+ * na árvore de OUTROS prestadores não tinham nada debaixo. Hoje têm: a
+ * conversa (`mensagens`, ver functions/src/messages.ts) e o histórico de
+ * aditivos (`versions`). Sem isto, excluir a conta deixaria para trás as
+ * mensagens que a pessoa escreveu — justamente o tipo de dado que uma
+ * exclusão de conta precisa levar junto.
+ *
+ * `recursiveDelete` um por um em vez de um batch só: ele já faz o
+ * trabalho em lotes internamente, com o próprio controle de paralelismo.
+ */
+async function apagarQueryComSubcolecoes(query: FirebaseFirestore.Query): Promise<void> {
+  const snapshot = await query.get();
+  for (const doc of snapshot.docs) {
+    await db.recursiveDelete(doc.ref);
+  }
+}
+
+/**
  * Roda UMA etapa da limpeza dizendo, no erro que chega no app, QUAL delas
  * falhou e com que código do Firestore.
  *
@@ -137,8 +163,11 @@ export const excluirContaEDados = onCall(
     // BudgetRequestsRepository) — os que esta conta criou como
     // PRESTADOR, na própria subcoleção, já foram embora junto com
     // `db.recursiveDelete(providers/{uid})` acima.
+    // Com subcoleções: cada um desses orçamentos pode ter a conversa
+    // (`mensagens`) e o histórico de aditivos (`versions`) debaixo dele —
+    // ver `apagarQueryComSubcolecoes`.
     await etapa('orçamentos em outros prestadores', uid, () =>
-      apagarQuery(db.collectionGroup('budgets').where('clientUid', '==', uid)),
+      apagarQueryComSubcolecoes(db.collectionGroup('budgets').where('clientUid', '==', uid)),
     );
     // Reserva de telefone único (ver `phoneIndex` no firestore.rules e
     // AuthController.register). Faltava aqui, e era um bug de verdade: o

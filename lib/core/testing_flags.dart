@@ -22,3 +22,27 @@
 /// exigir a assinatura de verdade — não precisa reverter mais nada além
 /// de trocar esse valor aqui.
 const bool kBypassProviderSubscriptionGate = true;
+
+/// Liga o rastro de diagnóstico do push em `clients/{uid}.pushDebug`
+/// (ver `NotificationService._debugLog`).
+///
+/// Nasceu porque o Franck testa por TestFlight, sem cabo e sem
+/// Console.app: `debugPrint` não servia de nada, e o Firebase Console era
+/// a única janela que ele conseguia abrir pra ver o que o app estava
+/// fazendo por dentro. Foi essa instrumentação que provou que NENHUM dos
+/// dois callbacks da APNs era chamado — e daí saiu a causa real do bug (o
+/// template novo do Flutter registra os plugins só depois do
+/// `didFinishLaunchingWithOptions`, então o registro na APNs que o
+/// firebase_messaging faria nunca acontecia; ver
+/// ios/Runner/AppDelegate.swift).
+///
+/// **Desligada agora que o push funciona.** Ligada, são ~8 a 10 escritas
+/// no Firestore a cada primeira abertura do app por conta, pra produzir
+/// um dado que ninguém lê mais.
+///
+/// O código do diagnóstico continua todo lá, de propósito: se o push
+/// voltar a falhar num aparelho específico, é só mudar isto pra `true`,
+/// gerar uma build e o rastro volta inteiro — bem melhor que remontar do
+/// zero, que da última vez levou várias rodadas de tentativa e erro (e
+/// três hipóteses erradas) até chegar na causa.
+const bool kGravarDiagnosticoDePush = false;

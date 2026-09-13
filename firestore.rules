@@ -296,6 +296,17 @@ service cloud.firestore {
     // reivindicadas" (carga inicial/curadoria manual, sem providerUid) só
     // são criadas/editadas via Admin SDK — o app nunca cria uma entrada
     // não reivindicada sozinho.
+    // Resumos mantidos só por Cloud Function (ver
+    // functions/src/directory.ts) — hoje `meta/cidades`, a lista de
+    // cidades que têm prestador, lida pelo autocomplete da busca. Leitura
+    // aberta como o diretório (é dado público derivado dele); escrita
+    // fechada pra todo mundo, porque só o Admin SDK, que ignora estas
+    // regras, tem motivo pra escrever aqui.
+    match /meta/{documentoId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /providerDirectory/{listingId} {
       allow read: if true;
 

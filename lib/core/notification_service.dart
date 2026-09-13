@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'testing_flags.dart';
+
 /// Handler de mensagens recebidas com o app em segundo plano ou fechado.
 /// PRECISA ser uma função de nível top-level (fora de qualquer classe) e
 /// anotada com `@pragma('vm:entry-point')` — é assim que o FCM exige,
@@ -110,6 +112,14 @@ class NotificationService {
   /// Nunca deixa uma falha AQUI derrubar o fluxo de verdade — por isso o
   /// try/catch próprio, silencioso.
   Future<void> _debugLog(String? uid, String step, [Map<String, dynamic>? extra]) async {
+    // Interruptor único dos 21 pontos de chamada espalhados nesta classe
+    // — ver `kGravarDiagnosticoDePush` em testing_flags.dart. Desligado
+    // desde que o push passou a funcionar: com ele ligado, cada primeira
+    // abertura do app gravava ~8 a 10 vezes no documento do cliente pra
+    // produzir um dado que ninguém mais lê. A checagem mora aqui, num
+    // lugar só, justamente pra religar o diagnóstico INTEIRO trocando uma
+    // constante — sem precisar mexer em chamada nenhuma.
+    if (!kGravarDiagnosticoDePush) return;
     if (uid == null) return;
     try {
       await FirebaseFirestore.instance.collection('clients').doc(uid).set({

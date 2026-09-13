@@ -36,20 +36,69 @@ class ProviderDirectoryRepository {
   CollectionReference<Map<String, dynamic>> get _collection =>
       _firestore.collection('providerDirectory');
 
-  /// Nota honesta: a ordenação é feita aqui no app, não no Firestore. Um
-  /// `orderBy` combinado com qualquer um dos filtros de igualdade abaixo
-  /// (categoria e/ou cidade) exigiria um índice composto diferente pra
-  /// cada combinação possível — pra uma lista do tamanho esperado aqui
-  /// (prestadores de uma região), ordenar no app depois de buscar é mais
-  /// simples e não depende de deploy de índice nenhum.
+  /// Quantos documentos, no máximo, uma busca traz do Firestore.
   ///
-  /// Ordem: por nome. A classificação por estrelas (ratingAverage) é
-  /// mostrada em cada card, mas não decide a ordem da lista — só o nome
-  /// (ver ProviderListingCard/StarRatingBar).
-  Future<List<ProviderListing>> search({ServiceCategory? category, String? city}) async {
+  /// Existe porque o diretório deixou de ser pequeno: passou de algumas
+  /// dezenas pra quase 10 mil entradas (carga de curadoria — ver
+  /// scripts/README.md). Sem teto, abrir a aba de busca baixava a coleção
+  /// INTEIRA no celular do cliente, toda vez. Com filtro de cidade ou
+  /// nome, o teto quase nunca é alcançado; sem filtro nenhum, ele é o que
+  /// impede a tela de puxar o país inteiro.
+  static const _limiteDaBusca = 60;
+
+  /// Busca prestadores. Tudo que dá pra filtrar no SERVIDOR é filtrado lá
+  /// — só `visible` e a ordenação ficam no app.
+  ///
+  /// Isto já foi o contrário: cidade e nome eram filtrados no Dart, sobre
+  /// a coleção inteira baixada, porque era mais simples e o diretório era
+  /// pequeno. Com ~9.700 entradas isso virou ~10 mil leituras por busca,
+  /// megabytes no 4G do cliente e uma conta de Firestore que cresce
+  /// sozinha. Os campos `cityNormalized` e `nameNormalized` (gravados sem
+  /// acento e em minúsculas — ver `upsertOwnListing` e a função
+  /// `onListagemEscrita`) são o que permite comparar no servidor sem
+  /// exigir digitação idêntica.
+  ///
+  /// Cada ramo abaixo usa UM filtro de servidor por vez, de propósito:
+  /// combinar dois exigiria um índice composto diferente pra cada
+  /// combinação. O filtro que sobra é aplicado no app, sobre um conjunto
+  /// já pequeno.
+  ///
+  /// Ordem: por nome, feita no app. A nota (ratingAverage) aparece em
+  /// cada card mas não decide a ordem (ver ProviderListingCard).
+  Future<List<ProviderListing>> search({
+    ServiceCategory? category,
+    String? city,
+    String? nome,
+  }) async {
     try {
+      final termoNome = (nome ?? '').trim();
+      final normalizedCity = (city != null && city.isNotEmpty) ? normalizeForSearch(city) : null;
+
       Query<Map<String, dynamic>> query = _collection;
-      if (category != null) {
+      var filtrarCategoriaNoApp = false;
+      var filtrarCidadeNoApp = false;
+
+      if (termoNome.isNotEmpty) {
+        // Busca por nome: prefixo no servidor. O truque do `` (o
+        // último caractere utilizável do plano básico do Unicode) fecha o
+        // intervalo "tudo que começa com o termo".
+        //
+        // MUDANÇA DE COMPORTAMENTO, assumida: antes o nome era comparado
+        // com `contains` sobre a coleção inteira, então "sourcing" achava
+        // "OPOutsourcingBr". Agora é começa-com, então é preciso digitar
+        // do início. É o preço de não baixar 9.700 documentos a cada
+        // letra; um `contains` de verdade no servidor exigiria um índice
+        // invertido, que o Firestore não tem.
+        final termo = normalizeForSearch(termoNome);
+        query = query
+            .where('nameNormalized', isGreaterThanOrEqualTo: termo)
+            .where('nameNormalized', isLessThanOrEqualTo: '$termo');
+        filtrarCategoriaNoApp = category != null;
+        filtrarCidadeNoApp = normalizedCity != null;
+      } else if (normalizedCity != null) {
+        query = query.where('cityNormalized', isEqualTo: normalizedCity);
+        filtrarCategoriaNoApp = category != null;
+      } else if (category != null) {
         // `Filter.or` casa tanto quem já tem o campo novo `categories`
         // (lista, ver ProviderListing/upsertOwnListing — pedido do
         // Franck: prestador em 2+ categorias precisa aparecer na busca
@@ -63,18 +112,8 @@ class ProviderDirectoryRepository {
           ),
         );
       }
-      // Nota honesta: o filtro de cidade NÃO usa mais `where('city',
-      // isEqualTo: ...)` do Firestore — isso é comparação exata de
-      // string, sensível a acento/maiúscula, e cadastros antigos (feitos
-      // antes do seletor fechado de Estado/Cidade existir — ver
-      // BrazilLocations) podem ter gravado a mesma cidade com grafias
-      // diferentes (ex.: "Criciuma" sem acento). Filtrar aqui no Dart com
-      // `normalizeForSearch` casa essas variações; o preço é baixar todos
-      // os prestadores da categoria (ou todos, sem categoria) em vez de só
-      // os da cidade — aceitável pro tamanho de diretório esperado aqui,
-      // mesma filosofia já usada na ordenação/filtro de `visible` abaixo.
-      final normalizedCity = (city != null && city.isNotEmpty) ? normalizeForSearch(city) : null;
-      final snapshot = await query.get();
+
+      final snapshot = await query.limit(_limiteDaBusca).get();
       // Um prestador logado também pode abrir "Encontre um profissional"
       // pelo lado cliente (a mesma conta pode ter as duas capacidades) —
       // nesse caso ele nunca deve aparecer na própria busca. `ownUid` vem
@@ -89,8 +128,22 @@ class ProviderDirectoryRepository {
           .where((doc) => doc.data()['visible'] != false)
           .where((doc) => doc.id != ownUid)
           .map(ProviderListing.fromFirestore)
+          // Os dois filtros abaixo só entram em ação quando o ramo lá em
+          // cima já gastou o filtro de servidor com outra coisa (ver
+          // `filtrarCidadeNoApp`/`filtrarCategoriaNoApp`) — aí eles agem
+          // sobre no máximo `_limiteDaBusca` documentos, não sobre a
+          // coleção inteira como antes.
           .where((listing) =>
-              normalizedCity == null || normalizeForSearch(listing.city) == normalizedCity)
+              !filtrarCidadeNoApp || normalizeForSearch(listing.city) == normalizedCity)
+          // Olha a LISTA de categorias, não só a singular: quem atua em
+          // mais de uma precisa aparecer na busca de qualquer uma delas
+          // (pedido do Franck). `categories` já cai na singular quando a
+          // entrada é antiga e não tem a lista — ver
+          // ProviderListing.fromFirestore.
+          .where((listing) =>
+              !filtrarCategoriaNoApp ||
+              listing.categories.contains(category) ||
+              listing.category == category)
           .toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       return listings;
@@ -103,13 +156,37 @@ class ProviderDirectoryRepository {
   /// preencher o campo de busca (ver ClientHomeScreen — autocomplete
   /// estilo iFood, filtra conforme digita).
   ///
-  /// Nota honesta: isso lê TODOS os documentos de providerDirectory pra
-  /// tirar os valores únicos de `city`, porque o Firestore não tem uma
-  /// consulta nativa de "valores distintos". Pro tamanho de diretório
-  /// esperado aqui (prestadores de algumas regiões) isso é barato; se um
-  /// dia isso crescer muito, vira uma coleção separada (`cities`) mantida
-  /// por Cloud Function a cada escrita em providerDirectory.
+  /// Lê de `meta/cidades`, UM documento com a lista pronta — mantido pela
+  /// Cloud Function `onListagemEscrita` a cada escrita no diretório.
+  ///
+  /// Antes isto varria a coleção inteira pra extrair os valores únicos de
+  /// `city` (o Firestore não tem "distinct"), com a justificativa de que
+  /// o diretório era pequeno. Aquele "se um dia isso crescer muito"
+  /// chegou: com ~9.700 entradas, abrir a tela de busca custava ~9.700
+  /// leituras só pra montar o autocomplete de cidades — mais que a busca
+  /// em si. Agora custa UMA.
+  ///
+  /// Se o documento não existir (ainda não foi gerado — ver
+  /// scripts/backfill_diretorio.js), cai no método antigo em vez de
+  /// deixar a tela sem cidade nenhuma.
   Future<List<String>> listCities() async {
+    try {
+      final resumo = await _firestore.collection('meta').doc('cidades').get();
+      final lista = (resumo.data()?['cidades'] as List<dynamic>?)?.cast<String>();
+      if (lista != null && lista.isNotEmpty) {
+        final cidades = lista.toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        return cidades;
+      }
+      return _listCitiesVarrendoTudo();
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível carregar as cidades.');
+    }
+  }
+
+  /// O jeito antigo, caro — só como rede de segurança enquanto
+  /// `meta/cidades` não existir.
+  Future<List<String>> _listCitiesVarrendoTudo() async {
     try {
       final snapshot = await _collection.get();
       // Dedupe por grafia NORMALIZADA (sem acento/maiúscula), não pela
@@ -180,6 +257,15 @@ class ProviderDirectoryRepository {
         'phoneNormalized': (whatsapp != null && whatsapp.trim().isNotEmpty)
             ? normalizePhoneDigits(whatsapp.trim())
             : FieldValue.delete(),
+        // Cópias sem acento e em minúsculas de `name` e `city`, pra busca
+        // poder comparar no SERVIDOR (ver `search` acima). Sem elas, o
+        // Firestore só faria comparação exata, sensível a acento — e foi
+        // justamente pra fugir disso que a busca filtrava tudo no app,
+        // baixando a coleção inteira. A Cloud Function `onListagemEscrita`
+        // também preenche esses campos, pra pegar entradas que não passam
+        // por aqui (carga de curadoria, edição pelo Console).
+        'nameNormalized': normalizeForSearch(name),
+        'cityNormalized': normalizeForSearch(city),
         'claimed': true,
         'providerUid': uid,
         'updatedAt': now,

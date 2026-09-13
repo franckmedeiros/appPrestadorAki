@@ -408,6 +408,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       bio: _isProvider ? _bioController.text.trim() : null,
     );
 
+    // Confere no servidor se esta conta é prestadora, em vez de confiar
+    // no `isProvider` em cache.
+    //
+    // Bug real: `AuthController.isProvider` é resolvido no login/bootstrap
+    // e fica guardado em memória. Uma conta que virou prestadora com o app
+    // já aberto pode ficar com esse valor desatualizado — e aí salvar o
+    // perfil grava tudo normalmente, não mostra erro nenhum, e
+    // simplesmente NÃO publica a vitrine em `providerDirectory`. Foi
+    // exatamente o que aconteceu com a conta opoutsourcingbr: o
+    // `providers/{uid}` estava lá, com `listingStatus: "active"`,
+    // categoria e cidade preenchidas, e mesmo assim a busca não achava
+    // porque a vitrine nunca tinha nascido. Falha silenciosa, o pior tipo.
+    //
+    // Uma leitura a mais no Firestore por salvamento é preço baixo por
+    // não depender de quando a pessoa fez login pela última vez.
+    if (ok) {
+      await auth.refreshProviderStatus();
+    }
+
     if (ok && _isProvider) {
       try {
         // Guarda a área de atuação em providers/{uid} independente do

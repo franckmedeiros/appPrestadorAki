@@ -4,6 +4,35 @@ Scripts que rodam fora do app e das Cloud Functions — usam a chave de
 administrador do Firebase (Admin SDK), que **ignora o `firestore.rules`**.
 Rodam só na sua máquina, nunca daqui do assistente.
 
+## A decisão que manda hoje: convidar primeiro, publicar depois
+
+**13/09 — o diretório de curadoria saiu da busca.** O `providerDirectory`
+tinha ~9.700 entradas raspadas e nenhuma delas usava o app. Na prática,
+todo pedido de orçamento feito pra uma delas morria: o cliente escrevia o
+pedido e recebia "esse profissional ainda não usa o PrestadorAki, copie a
+mensagem e mande você mesmo". Trabalho perdido e primeira impressão
+queimada — num mercado do tamanho de Criciúma, isso circula rápido.
+
+O gargalo de um marketplace não é cliente, é prestador que responde.
+Cinquenta que atendem valem mais que dez mil nomes de catálogo.
+
+Então a ordem se inverteu:
+
+1. `prospeccao_criciuma.csv` — a lista de contato, ordenada com as
+   categorias que sustentam a busca de uma cidade primeiro (eletricista,
+   encanador, pedreiro, pintor, limpeza...). Tem link `wa.me` pronto e
+   coluna `status` pra você marcar quem respondeu.
+2. Convite por WhatsApp — ver `modelo_mensagem_convite.md`.
+3. **Só depois do "sim"**, o perfil vai ao ar.
+
+`ocultar_prospeccao.js` é o que tirou as 9.700 da busca (`visible:
+false`), preservando as exceções passadas em `--manter` e nunca tocando
+em quem tem `claimed: true`. É reversível: `--reverter` traz de volta.
+
+O `importar_prestadores.js` continua aqui e funcionando, mas **não é o
+caminho atual** — ele publica direto na vitrine, que é justamente o que
+a gente deixou de fazer.
+
 ## Dois caminhos de carga inicial — e por que o telefone mudou de lado
 
 | caminho | entrada | grava telefone? | reivindicável? |

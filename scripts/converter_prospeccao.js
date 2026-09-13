@@ -79,6 +79,19 @@ function normalizarTelefone(bruto) {
   return d;
 }
 
+/**
+ * Minúsculas e sem acento — mesma normalização de `normalizeForSearch`
+ * (lib/core/text_normalize.dart) e da Cloud Function
+ * `onListagemEscrita`. Os três precisam concordar: é por esses campos que
+ * a busca compara no servidor.
+ */
+function normalizarTexto(valor) {
+  return String(valor || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
 /** (48) 99161-7128 / (48) 3433-1234 — só pra exibição no perfil. */
 function formatarTelefone(digitos) {
   if (digitos.length === 11) {
@@ -173,6 +186,12 @@ function main() {
       categories: categorias,
       city: (r[col.cidade] || '').trim(),
       state: (r[col.estado] || '').trim() || undefined,
+      // Cópias sem acento e em minúsculas, pra busca poder filtrar no
+      // servidor (ver ProviderDirectoryRepository.search e
+      // functions/src/directory.ts). Gravadas já aqui pra a entrada
+      // nascer pronta, sem depender da Cloud Function passar depois.
+      nameNormalized: normalizarTexto(nome),
+      cityNormalized: normalizarTexto((r[col.cidade] || '').trim()),
       whatsapp: formatarTelefone(telefone),
       phoneNormalized: telefone,
       // Explícito, não ausente: a consulta que reivindica a entrada usa

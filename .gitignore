@@ -58,4 +58,5 @@ app.*.map.json
 # dados ficarem gravados no histórico do git pra sempre.
 /scripts/prospeccao_resultados*.csv
 /scripts/prestadores_para_importar.json
+/scripts/prospeccao_criciuma.csv
 /scripts/fusoes.json
