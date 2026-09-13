@@ -45,6 +45,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // é só um Card que aparece ou não no build(), dependendo do estado atual.
   bool? _biometricAvailable;
   bool _dismissedThisSession = false;
+
+  /// Dica do dia dispensada — só nesta sessão do app, de propósito. Não
+  /// vale a pena gravar isso no banco nem no aparelho: é conteúdo leve,
+  /// e reaparecer na próxima abertura é justamente o comportamento útil
+  /// de uma dica.
+  bool _dispensouDicaDoDia = false;
   // Antes era um Future recarregado só uma vez em initState — igual ao
   // bug já corrigido em Agenda/Clientes (ver AppointmentsRepository.
   // watchRange e CustomersRepository.watchAll): como o Dashboard vive
@@ -133,14 +139,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DecorativeHeader(
-              height: 110,
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              height: 150,
+              padding: const EdgeInsets.fromLTRB(20, 8, 16, 22),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Gerenciamento',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+                  // A saudação VOLTOU, junto do título (mockup aprovado
+                  // pelo Franck). Ela já tinha sido tirada uma vez, a
+                  // pedido dele — mas naquela época era um CARTÃO branco
+                  // separado, flutuando sobre a borda do cabeçalho e
+                  // ocupando uma faixa inteira da tela. Aqui ela é só
+                  // duas linhas de texto dentro do próprio cabeçalho, sem
+                  // roubar altura de nada.
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Gerenciamento',
+                          style: TextStyle(
+                              fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                        Text(
+                          'Olá, ${auth.displayName.split(' ').first}! 👋',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Aqui você organiza seus serviços e acompanha seu dia a dia.',
+                          style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.3),
+                        ),
+                      ],
+                    ),
                   ),
                   IconTheme.merge(
                     data: const IconThemeData(color: Colors.white),
@@ -149,10 +183,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            // Pedido do Franck: tirar o cartão de saudação ("Olá, ...") —
-            // por isso não tem mais nenhum Transform.translate/overlap
-            // com o cabeçalho aqui (esse truque só existia por causa do
-            // cartão flutuando sobre a borda do cabeçalho).
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               child: Column(
@@ -265,6 +295,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 12),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Atalhos',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink),
+                    ),
+                    const Text(
+                      'Acesse rapidamente as principais funções.',
+                      style: TextStyle(fontSize: 12.5, color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 12),
                     GridView.count(
                       crossAxisCount: 2,
                       shrinkWrap: true,
@@ -277,12 +318,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           icon: Icons.people_outline,
                           label: 'Clientes',
                           subtitle: 'Gerencie seus clientes',
+                          color: AppColors.primary,
                           onTap: () => context.push('/clientes'),
                         ),
                         _ShortcutCard(
                           icon: Icons.calendar_month_outlined,
                           label: 'Agenda',
                           subtitle: 'Veja visitas e serviços',
+                          color: const Color(0xFF3B82F6),
                           onTap: () => context.push('/agenda'),
                         ),
                         StreamBuilder<int>(
@@ -291,6 +334,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             icon: Icons.description_outlined,
                             label: 'Orçamentos',
                             subtitle: 'Crie e gerencie seus orçamentos',
+                            color: const Color(0xFF16A34A),
                             onTap: () => context.push('/orcamentos'),
                             badgeCount: snapshot.data,
                           ),
@@ -301,12 +345,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             icon: Icons.build_outlined,
                             label: 'Serviços',
                             subtitle: 'Acompanhe os serviços em execução',
+                            color: const Color(0xFFEA580C),
                             onTap: () => context.push('/servicos'),
                             badgeCount: snapshot.data,
                           ),
                         ),
+                        // Avaliações leva pro PRÓPRIO perfil público — é
+                        // lá que as estrelas e os comentários dos clientes
+                        // moram (ver ProviderPublicProfileScreen). Não
+                        // existe uma tela separada só de avaliações, e
+                        // criar uma duplicaria o que já está no perfil.
+                        // Bônus: o prestador vê exatamente o que o cliente
+                        // vê ao abrir o card dele na busca.
+                        _ShortcutCard(
+                          icon: Icons.star_outline_rounded,
+                          label: 'Avaliações',
+                          subtitle: 'Veja o que seus clientes dizem',
+                          color: const Color(0xFFCA8A04),
+                          onTap: () => context.push('/prestador/${auth.providerId}'),
+                        ),
                       ],
                     ),
+                    if (!_dispensouDicaDoDia) ...[
+                      const SizedBox(height: 16),
+                      _DicaDoDia(onDismiss: () => setState(() => _dispensouDicaDoDia = true)),
+                    ],
                     if (showBiometricOffer) ...[
                       const SizedBox(height: 16),
                       BiometricOfferCard(
@@ -442,12 +505,79 @@ class _TodayAppointmentTile extends StatelessWidget {
 }
 
 
+/// Cartão de "Dica do dia" (mockup aprovado pelo Franck).
+///
+/// Texto fixo, e isso é de propósito: é orientação de uso, o tipo de
+/// coisa que o app pode afirmar sem medir nada. Diferente dos selos do
+/// mockup do card de busca ("Verificado", "Responde rápido"), que
+/// prometiam fatos sobre o prestador que não temos como sustentar.
+class _DicaDoDia extends StatelessWidget {
+  const _DicaDoDia({required this.onDismiss});
+
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 6, 14),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.lightbulb_outline, color: AppColors.primary, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Dica do dia',
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Mantenha sua agenda atualizada',
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Isso evita dois clientes no mesmo horário — o app só '
+                  'consegue bloquear o conflito se a agenda estiver em dia.',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.muted, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close, size: 18, color: AppColors.muted),
+            tooltip: 'Dispensar',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ShortcutCard extends StatelessWidget {
   const _ShortcutCard({
     required this.icon,
     required this.label,
     required this.subtitle,
     required this.onTap,
+    this.color = AppColors.primary,
     this.badgeCount,
   });
 
@@ -455,6 +585,12 @@ class _ShortcutCard extends StatelessWidget {
   final String label;
   final String subtitle;
   final VoidCallback onTap;
+
+  /// Cor do quadradinho do ícone. Uma por atalho (mockup aprovado pelo
+  /// Franck) — com todos os cartões iguais em laranja, o olho não
+  /// distingue um do outro e a pessoa acaba relendo o texto de todos toda
+  /// vez que entra. A cor vira o atalho do reconhecimento.
+  final Color color;
 
   /// Número mostrado num selo no canto do card — hoje só usado no atalho
   /// "Orçamentos" (pedidos pendentes, ver _watchPendingRequests). `null` ou
@@ -481,10 +617,10 @@ class _ShortcutCard extends StatelessWidget {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
+                          color: color.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Icon(icon, color: AppColors.primary, size: 22),
+                        child: Icon(icon, color: color, size: 22),
                       ),
                       const Spacer(),
                       const Icon(Icons.chevron_right, color: AppColors.muted, size: 20),

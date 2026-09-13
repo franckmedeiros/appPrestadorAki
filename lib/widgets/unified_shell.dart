@@ -36,12 +36,16 @@ class UnifiedShell extends StatelessWidget {
   // (conta unificada, ver comentário da classe).
   static const _requestsItem = AppNavItem(
       icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt, label: 'Solicitações');
-  // "Painel" pelo mesmo motivo de espaço. NÃO virou "Serviços" como no
-  // mockup, de propósito: já existe uma tela "Serviços" de verdade (o
-  // quadro de trabalhos em andamento), alcançada a partir desta — duas
-  // coisas diferentes com o mesmo nome seria pior que um nome feio.
+  // "Gerenciamento" continua: cheguei a encurtar pra "Painel" achando que
+  // não caberia com o rótulo embaixo do ícone, mas o mockup que o Franck
+  // aprovou mostra o nome inteiro na barra, e em 9,5px ele cabe.
+  //
+  // NÃO virou "Serviços" (como o primeiro mockup sugeria), de propósito:
+  // já existe uma tela "Serviços" de verdade — o quadro de trabalhos em
+  // andamento, alcançado a partir desta. Duas coisas diferentes com o
+  // mesmo nome seria pior que um nome comprido.
   static const _dashboardItem = AppNavItem(
-      icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Painel');
+      icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Gerenciamento');
   static const _profileItem =
       AppNavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Perfil');
 
