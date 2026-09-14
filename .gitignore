@@ -60,3 +60,8 @@ app.*.map.json
 /scripts/prestadores_para_importar.json
 /scripts/prospeccao_criciuma.csv
 /scripts/fusoes.json
+# Planilha de consentimento de WhatsApp: mesmos nomes e telefones do CSV
+# acima, mais o registro de quem autorizou contato. É a prova de opt-in —
+# guarde o arquivo, mas fora do git.
+/scripts/base_convite_whatsapp.xlsx
+/scripts/base_contatos_export.csv
