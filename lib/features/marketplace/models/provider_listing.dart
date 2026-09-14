@@ -20,6 +20,8 @@ class ProviderListing {
     this.bio,
     this.whatsapp,
     this.visible,
+    this.respostasContadas = 0,
+    this.respostaMinutosSoma = 0,
   });
 
   factory ProviderListing.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -48,6 +50,8 @@ class ProviderListing {
       bio: data['bio'] as String?,
       whatsapp: data['whatsapp'] as String?,
       visible: data['visible'] as bool?,
+      respostasContadas: (data['respostasContadas'] as num?)?.toInt() ?? 0,
+      respostaMinutosSoma: (data['respostaMinutosSoma'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -110,6 +114,43 @@ class ProviderListing {
   /// assinatura, não aparece pra listagem "não reivindicada" nem pra
   /// quem deixou a assinatura vencer.
   bool get isVerifiedSubscriber => claimed && visible != false;
+
+  /// Quantos pedidos de orçamento este prestador já respondeu, e a soma
+  /// dos minutos que levou em cada um. Gravados pela Cloud Function
+  /// `registrarTempoDeResposta` a cada orçamento que sai de "pendente"
+  /// pra "enviado" (ver functions/src/directory.ts).
+  ///
+  /// Soma e contagem em vez da média pronta: `increment` é atômico, então
+  /// duas respostas simultâneas não se atropelam, e dá pra mudar o
+  /// critério do selo depois sem perder o histórico.
+  final int respostasContadas;
+  final int respostaMinutosSoma;
+
+  /// Média de resposta em minutos, ou `null` enquanto não houver resposta
+  /// nenhuma.
+  double? get respostaMediaMinutos =>
+      respostasContadas == 0 ? null : respostaMinutosSoma / respostasContadas;
+
+  /// Selo "Responde rápido" — pedido do Franck.
+  ///
+  /// Três condições, e cada uma existe por um motivo:
+  ///
+  /// - **assinante** (`isVerifiedSubscriber`): decisão do Franck de que o
+  ///   selo é benefício de quem paga. Entrada de curadoria nunca ganha.
+  /// - **pelo menos 3 respostas**: com uma só, qualquer um vira "rápido"
+  ///   por sorte, e um selo que todo mundo tem não ajuda ninguém a
+  ///   escolher.
+  /// - **média abaixo de 2 horas**: o corte combinado.
+  ///
+  /// Consequência assumida: no começo quase ninguém vai ter o selo,
+  /// porque quase não houve orçamentos ainda. Ele aparece quando é
+  /// merecido — é essa a diferença entre um selo e um enfeite.
+  bool get respondeRapido {
+    if (!isVerifiedSubscriber) return false;
+    if (respostasContadas < 3) return false;
+    final media = respostaMediaMinutos;
+    return media != null && media <= 120;
+  }
 
   /// Categoria "principal" (a primeira escolhida) — usada onde só cabe
   /// uma (ícone do avatar do card/perfil). Pra ver TODAS as categorias

@@ -34,6 +34,56 @@ function normalizar(valor: string): string {
     .replace(/[̀-ͯ]/g, '');
 }
 
+/**
+ * Registra quanto tempo o prestador levou pra responder um pedido de
+ * orçamento. Chamada por `onBudgetStatusChanged` (functions/src/
+ * notifications.ts) quando um orçamento sai de `pendente` pra `enviado`.
+ *
+ * Por que esses dois pontos: `createdAt` do orçamento é o instante em que
+ * o CLIENTE pediu, e a virada pra `enviado` é o instante em que o
+ * PRESTADOR respondeu. A diferença é o tempo de resposta de verdade, e os
+ * dois carimbos já existiam desde sempre — o selo "Responde rápido" não
+ * precisou de nenhum dado novo, só de alguém somar.
+ *
+ * Guarda SOMA e CONTAGEM, não a média pronta. Dois motivos: `increment` é
+ * atômico, então dois orçamentos respondidos ao mesmo tempo não se
+ * atropelam (recalcular a média exigiria ler-modificar-gravar); e com os
+ * dois números dá pra mudar o critério do selo depois sem perder o
+ * histórico.
+ *
+ * Só conta a PRIMEIRA resposta de cada orçamento (`pendente` -> `enviado`).
+ * Um aditivo enviado depois é outra conversa, não mede a rapidez em
+ * atender um pedido novo.
+ */
+export async function registrarTempoDeResposta(
+  providerId: string,
+  criadoEm: FirebaseFirestore.Timestamp | undefined,
+): Promise<void> {
+  if (!criadoEm) return;
+
+  const minutos = Math.round((Date.now() - criadoEm.toMillis()) / 60000);
+  // Negativo seria relógio fora de hora; absurdamente alto costuma ser
+  // orçamento antigo que ficou esquecido e alguém respondeu semanas
+  // depois — deixar entrar distorceria a média pra sempre. O teto de uma
+  // semana é generoso e ainda assim protege.
+  if (minutos < 0 || minutos > 60 * 24 * 7) return;
+
+  try {
+    await db
+      .collection('providerDirectory')
+      .doc(providerId)
+      .update({
+        respostasContadas: FieldValue.increment(1),
+        respostaMinutosSoma: FieldValue.increment(minutos),
+      });
+  } catch (e) {
+    // Listagem inexistente (prestador ainda não publicou o perfil) cai
+    // aqui. Estatística é acessório: nunca pode derrubar o fluxo do
+    // orçamento, que é o que importa.
+    logger.warn('Não foi possível registrar tempo de resposta', { providerId, e });
+  }
+}
+
 export const onListagemEscrita = onDocumentWritten(
   'providerDirectory/{listingId}',
   async (event) => {

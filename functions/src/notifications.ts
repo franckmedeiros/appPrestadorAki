@@ -38,6 +38,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { logger } from 'firebase-functions';
 import { db } from './lib/admin';
+import { registrarTempoDeResposta } from './directory';
 
 const messaging = getMessaging();
 
@@ -241,6 +242,16 @@ export const onBudgetStatusChanged = onDocumentUpdated(
 
     switch (afterStatus) {
       case 'enviado':
+        // Só a PRIMEIRA resposta conta pro tempo de resposta: `pendente`
+        // -> `enviado` é o cliente pedindo e o prestador respondendo. Um
+        // `enviado` vindo de outro estado (reenvio depois de revisão) não
+        // mede rapidez em atender um pedido novo.
+        if (beforeStatus === 'pendente') {
+          await registrarTempoDeResposta(
+            providerId,
+            after.createdAt as FirebaseFirestore.Timestamp | undefined,
+          );
+        }
         await notify(clientUid, {
           type: 'resposta_pedido',
           title: 'Orçamento enviado',

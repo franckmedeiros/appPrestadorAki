@@ -55,6 +55,10 @@ Widget providerListingCard({
                                 overflow: TextOverflow.ellipsis,
                               ),
                               if (listing.isVerifiedSubscriber) const _VerifiedBadge(),
+                              if (listing.respondeRapido) ...[
+                                const SizedBox(width: 8),
+                                const _RespondeRapidoBadge(),
+                              ],
                             ],
                           ),
                           const SizedBox(height: 6),
@@ -172,6 +176,44 @@ class _CardAvatar extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
       ),
       child: Icon(icon, color: Colors.white, size: 30),
+    );
+  }
+}
+
+/// Selo "Responde rápido" — pedido do Franck.
+///
+/// A regra de quem ganha está em [ProviderListing.respondeRapido]: precisa
+/// ser assinante, ter pelo menos 3 pedidos respondidos e média abaixo de
+/// 2 horas. O número sai de um dado que o app já guardava sem usar — a
+/// diferença entre a hora em que o cliente pediu o orçamento e a hora em
+/// que o prestador respondeu (ver functions/src/directory.ts,
+/// `registrarTempoDeResposta`).
+///
+/// Nenhum prestador começa com ele. Um selo que já vem aceso não diz nada
+/// sobre quem o carrega.
+class _RespondeRapidoBadge extends StatelessWidget {
+  const _RespondeRapidoBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bolt_rounded, size: 13, color: AppColors.primary),
+          SizedBox(width: 2),
+          Text(
+            'Responde rápido',
+            style: TextStyle(
+                color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }
