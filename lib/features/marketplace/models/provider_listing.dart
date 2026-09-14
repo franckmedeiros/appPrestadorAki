@@ -131,26 +131,21 @@ class ProviderListing {
   double? get respostaMediaMinutos =>
       respostasContadas == 0 ? null : respostaMinutosSoma / respostasContadas;
 
-  /// Selo "Responde rápido" — pedido do Franck.
+  /// Selo "Responde rápido".
   ///
-  /// Três condições, e cada uma existe por um motivo:
+  /// Decisão do Franck (14/09): é BENEFÍCIO DE ASSINATURA, não métrica.
+  /// Aparece sempre pra quem assina, nunca pra quem não assina nem pra
+  /// entrada de curadoria — mesma regra do selo "Verificado". A primeira
+  /// versão condicionava o selo à média real de resposta; foi trocada
+  /// por esta.
   ///
-  /// - **assinante** (`isVerifiedSubscriber`): decisão do Franck de que o
-  ///   selo é benefício de quem paga. Entrada de curadoria nunca ganha.
-  /// - **pelo menos 3 respostas**: com uma só, qualquer um vira "rápido"
-  ///   por sorte, e um selo que todo mundo tem não ajuda ninguém a
-  ///   escolher.
-  /// - **média abaixo de 2 horas**: o corte combinado.
-  ///
-  /// Consequência assumida: no começo quase ninguém vai ter o selo,
-  /// porque quase não houve orçamentos ainda. Ele aparece quando é
-  /// merecido — é essa a diferença entre um selo e um enfeite.
-  bool get respondeRapido {
-    if (!isVerifiedSubscriber) return false;
-    if (respostasContadas < 3) return false;
-    final media = respostaMediaMinutos;
-    return media != null && media <= 120;
-  }
+  /// [respostasContadas]/[respostaMinutosSoma] continuam sendo medidos de
+  /// propósito, mesmo sem ninguém olhar: se um dia o selo voltar a
+  /// depender do desempenho (ou você quiser saber quem de fato responde
+  /// rápido), o histórico já vai estar aqui — é só voltar a usar
+  /// [respostaMediaMinutos]. Parar de medir agora significaria começar do
+  /// zero naquele dia.
+  bool get respondeRapido => isVerifiedSubscriber;
 
   /// Categoria "principal" (a primeira escolhida) — usada onde só cabe
   /// uma (ícone do avatar do card/perfil). Pra ver TODAS as categorias

@@ -55,10 +55,13 @@ Widget providerListingCard({
                                 overflow: TextOverflow.ellipsis,
                               ),
                               if (listing.isVerifiedSubscriber) const _VerifiedBadge(),
-                              if (listing.respondeRapido) ...[
-                                const SizedBox(width: 8),
-                                const _RespondeRapidoBadge(),
-                              ],
+                              // Hoje os dois selos andam juntos (mesma
+                              // condição - ver ProviderListing.
+                              // respondeRapido). Estão separados de
+                              // propósito: o dia em que "Responde
+                              // rápido" voltar a depender do tempo real
+                              // de resposta, só muda o getter.
+                              if (listing.respondeRapido) const _RespondeRapidoBadge(),
                             ],
                           ),
                           const SizedBox(height: 6),
@@ -182,15 +185,8 @@ class _CardAvatar extends StatelessWidget {
 
 /// Selo "Responde rápido" — pedido do Franck.
 ///
-/// A regra de quem ganha está em [ProviderListing.respondeRapido]: precisa
-/// ser assinante, ter pelo menos 3 pedidos respondidos e média abaixo de
-/// 2 horas. O número sai de um dado que o app já guardava sem usar — a
-/// diferença entre a hora em que o cliente pediu o orçamento e a hora em
-/// que o prestador respondeu (ver functions/src/directory.ts,
-/// `registrarTempoDeResposta`).
-///
-/// Nenhum prestador começa com ele. Um selo que já vem aceso não diz nada
-/// sobre quem o carrega.
+/// Quem ganha está em [ProviderListing.respondeRapido]: hoje, todo
+/// assinante. É benefício de assinatura, igual ao "Verificado".
 class _RespondeRapidoBadge extends StatelessWidget {
   const _RespondeRapidoBadge();
 
