@@ -170,18 +170,28 @@ class ProviderDirectoryRepository {
   /// scripts/backfill_diretorio.js), cai no método antigo em vez de
   /// deixar a tela sem cidade nenhuma.
   Future<List<String>> listCities() async {
+    // try/catch PRÓPRIO, e não um `try` só em volta dos dois caminhos: a
+    // primeira versão disto tratava apenas o documento AUSENTE como
+    // motivo pra cair no método antigo, e deixava qualquer erro de
+    // leitura subir. Deu no que tinha que dar — as regras do `meta/`
+    // ainda não estavam publicadas, a leitura foi NEGADA, a exceção subiu
+    // e o campo de cidade virou um botão morto: tocava e não acontecia
+    // nada, porque quem chama faz `await` dessa Future antes de abrir o
+    // seletor (ver ClientHomeScreen._openCityPicker).
+    //
+    // Agora qualquer falha aqui — negada, offline, documento ausente —
+    // cai no caminho antigo, que é lento mas sempre funciona.
     try {
       final resumo = await _firestore.collection('meta').doc('cidades').get();
       final lista = (resumo.data()?['cidades'] as List<dynamic>?)?.cast<String>();
       if (lista != null && lista.isNotEmpty) {
-        final cidades = lista.toList()
-          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-        return cidades;
+        return lista.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
       }
-      return _listCitiesVarrendoTudo();
-    } on FirebaseException catch (e) {
-      throw ApiException(0, e.message ?? 'Não foi possível carregar as cidades.');
+    } catch (_) {
+      // Silencioso de propósito: não é erro do usuário, é um atalho de
+      // desempenho que não estava disponível.
     }
+    return _listCitiesVarrendoTudo();
   }
 
   /// O jeito antigo, caro — só como rede de segurança enquanto

@@ -288,8 +288,26 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   Future<void> _openCityPicker() async {
     // `_citiesFuture` já terminou a essa altura — `loadingCities` no
     // FutureBuilder abaixo desabilita o toque enquanto ela não resolve —
-    // então este `await` é só uma formalidade pra pegar o valor.
-    final cities = await _citiesFuture;
+    // então este `await` seria só uma formalidade pra pegar o valor.
+    //
+    // Só que "terminou" inclui "terminou com erro", e aí o `await`
+    // RELANÇA a exceção: o seletor nunca abria e o campo virava um botão
+    // morto, sem mensagem nenhuma. Foi o que o Franck viu quando a regra
+    // de `meta/cidades` ainda não estava publicada e a leitura era
+    // negada. Com o try/catch, uma falha na lista vira uma lista vazia —
+    // o seletor abre do mesmo jeito, e de dentro dele ainda dá pra usar a
+    // localização atual ou escolher "Todas as cidades".
+    List<String> cities;
+    try {
+      cities = await _citiesFuture;
+    } catch (e) {
+      cities = const [];
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível carregar a lista de cidades.')),
+        );
+      }
+    }
     if (!mounted) return;
     final result = await showModalBottomSheet<String>(
       context: context,
