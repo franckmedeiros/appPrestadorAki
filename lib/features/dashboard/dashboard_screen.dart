@@ -290,12 +290,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       },
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      'Atalhos',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 12),
-                    const SizedBox(height: 20),
                     const Text(
                       'Atalhos',
                       style: TextStyle(

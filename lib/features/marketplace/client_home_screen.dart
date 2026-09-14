@@ -610,10 +610,40 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  final message = snapshot.error is ApiException
-                      ? (snapshot.error as ApiException).message
-                      : 'Não foi possível buscar prestadores.';
-                  return Center(child: Text(message, textAlign: TextAlign.center));
+                  // Mensagem FIXA, sem repassar o texto do erro.
+                  //
+                  // Antes esta tela mostrava o que viesse do Firestore — e o
+                  // Franck filmou o resultado: um parágrafo em inglês com
+                  // "The query requires an index" e uma URL gigante do
+                  // Console, no meio da tela do cliente. Isso não é
+                  // informação pra quem está procurando um eletricista; é
+                  // recado de desenvolvedor vazando pro usuário final.
+                  //
+                  // O detalhe técnico continua existindo pra quem precisa
+                  // dele: vai pro console de depuração via `debugPrint`.
+                  debugPrint('[Busca] falhou: ${snapshot.error}');
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_outlined, size: 40, color: AppColors.muted),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Não foi possível buscar agora.\nVerifique sua conexão e tente de novo.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.muted, fontSize: 13, height: 1.4),
+                          ),
+                          const SizedBox(height: 14),
+                          OutlinedButton(
+                            onPressed: _runSearch,
+                            child: const Text('Tentar de novo'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 }
                 // O filtro por nome agora é feito no SERVIDOR (ver
                 // ProviderDirectoryRepository.search) — aqui não sobra
