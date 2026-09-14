@@ -55,13 +55,27 @@ export const onListagemEscrita = onDocumentWritten(
     // no mesmo documento que a dispara, então ela só pode escrever quando
     // há de fato algo a corrigir. Com os campos já certos, sai sem tocar
     // em nada e o gatilho não se realimenta.
+    // `visible` ausente vira `true`. A busca passou a filtrar esse campo
+    // no SERVIDOR (ver ProviderDirectoryRepository.search), e no Firestore
+    // um documento SEM o campo não casa com `== true` — ou seja, quem não
+    // tiver isso preenchido simplesmente some da busca. Preencher aqui
+    // fecha esse buraco pra qualquer entrada nova, venha de onde vier.
+    //
+    // Só quando está AUSENTE: um `false` foi decisão de alguém (assinatura
+    // inativa, ver functions/src/subscription.ts, ou a curadoria ocultada
+    // pelo scripts/ocultar_prospeccao.js) e não pode ser desfeito por uma
+    // rotina automática.
+    const faltaVisible = depois.visible === undefined || depois.visible === null;
+
     const precisaCorrigir =
+      faltaVisible ||
       (nomeEsperado !== null && depois.nameNormalized !== nomeEsperado) ||
       (cidadeEsperada !== null && depois.cityNormalized !== cidadeEsperada);
 
     if (precisaCorrigir) {
       try {
         await event.data!.after.ref.update({
+          ...(faltaVisible ? { visible: true } : {}),
           ...(nomeEsperado !== null ? { nameNormalized: nomeEsperado } : {}),
           ...(cidadeEsperada !== null ? { cityNormalized: cidadeEsperada } : {}),
         });

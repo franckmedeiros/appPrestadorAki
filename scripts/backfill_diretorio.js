@@ -75,8 +75,26 @@ async function main() {
     const nomeOk = normalizar(d.name);
     const cidadeOk = normalizar(d.city);
 
-    if ((d.name && d.nameNormalized !== nomeOk) || (d.city && d.cityNormalized !== cidadeOk)) {
-      pendentes.push({ ref: doc.ref, nomeOk, cidadeOk, temNome: !!d.name, temCidade: !!d.city });
+    // `visible` ausente vira `true`: a busca passou a filtrar esse campo
+    // no servidor, e no Firestore documento SEM o campo não casa com
+    // `== true` — sem isto, toda entrada antiga sumiria da busca. Nunca
+    // sobrescreve um `false`, que foi decisão de alguém (assinatura
+    // inativa, ou curadoria ocultada pelo ocultar_prospeccao.js).
+    const faltaVisible = d.visible === undefined || d.visible === null;
+
+    if (
+      faltaVisible ||
+      (d.name && d.nameNormalized !== nomeOk) ||
+      (d.city && d.cityNormalized !== cidadeOk)
+    ) {
+      pendentes.push({
+        ref: doc.ref,
+        nomeOk,
+        cidadeOk,
+        temNome: !!d.name,
+        temCidade: !!d.city,
+        faltaVisible,
+      });
     }
 
     if (d.visible === false) continue;
@@ -90,7 +108,8 @@ async function main() {
     if (!cidades.has(cidadeOk)) cidades.set(cidadeOk, d.city);
   }
 
-  console.log(`precisam de normalização: ${pendentes.length}`);
+  console.log(`precisam de ajuste:       ${pendentes.length}`);
+  console.log(`   dos quais sem o campo visible: ${pendentes.filter((p) => p.faltaVisible).length}`);
   console.log(`cidades distintas:        ${cidades.size}`);
   if (semCidade) console.log(`sem cidade (ignorados no resumo): ${semCidade}`);
   console.log(`   ${[...cidades.values()].sort().slice(0, 12).join(', ')}${cidades.size > 12 ? ', ...' : ''}`);
@@ -105,6 +124,7 @@ async function main() {
     const batch = db.batch();
     for (const p of pendentes.slice(i, i + LOTE)) {
       batch.update(p.ref, {
+        ...(p.faltaVisible ? { visible: true } : {}),
         ...(p.temNome ? { nameNormalized: p.nomeOk } : {}),
         ...(p.temCidade ? { cityNormalized: p.cidadeOk } : {}),
       });

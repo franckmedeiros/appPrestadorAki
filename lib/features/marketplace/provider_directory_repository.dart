@@ -74,7 +74,20 @@ class ProviderDirectoryRepository {
       final termoNome = (nome ?? '').trim();
       final normalizedCity = (city != null && city.isNotEmpty) ? normalizeForSearch(city) : null;
 
-      Query<Map<String, dynamic>> query = _collection;
+      // `visible` filtrado no SERVIDOR, e não mais no app.
+      //
+      // Antes ficava no app com a justificativa de que "documento sem o
+      // campo não casa com `== true` de qualquer jeito". Isso era verdade
+      // e deixou de bastar no dia em que a busca ganhou teto de 60
+      // documentos: filtrar depois do limite significa pedir 60 e
+      // descartar os escondidos, podendo sobrar zero. Com ~9.700 entradas
+      // de curadoria ocultadas, TODA busca sem filtro voltaria vazia.
+      //
+      // Para isso funcionar, todo documento precisa ter o campo. Quem
+      // garante são a função `onListagemEscrita` (preenche `true` quando
+      // falta, sem nunca sobrescrever um `false` deliberado) e o
+      // backfill_diretorio.js, pro acervo que já existe.
+      Query<Map<String, dynamic>> query = _collection.where('visible', isEqualTo: true);
       var filtrarCategoriaNoApp = false;
       var filtrarCidadeNoApp = false;
 
@@ -113,6 +126,16 @@ class ProviderDirectoryRepository {
         );
       }
 
+      // Sem filtro nenhum, o teto de 60 precisa de uma ORDEM — senão o
+      // Firestore devolve os 60 primeiros por id do documento, que na
+      // prática são sempre os mesmos (os ids da carga de curadoria
+      // começam com número: `048-...`, `2-irmaos-...`). Foi assim que um
+      // prestador de verdade sumiu da lista e só aparecia quando o Franck
+      // digitava o nome dele.
+      if (termoNome.isEmpty && normalizedCity == null && category == null) {
+        query = query.orderBy('nameNormalized');
+      }
+
       final snapshot = await query.limit(_limiteDaBusca).get();
       // Um prestador logado também pode abrir "Encontre um profissional"
       // pelo lado cliente (a mesma conta pode ter as duas capacidades) —
@@ -125,7 +148,7 @@ class ProviderDirectoryRepository {
       // índice composto, e documentos sem o campo (a maioria, hoje) não
       // combinam com `isEqualTo: true` de qualquer jeito.
       final listings = snapshot.docs
-          .where((doc) => doc.data()['visible'] != false)
+          // `visible` saiu daqui — agora é filtro de servidor (ver acima).
           .where((doc) => doc.id != ownUid)
           .map(ProviderListing.fromFirestore)
           // Os dois filtros abaixo só entram em ação quando o ramo lá em
