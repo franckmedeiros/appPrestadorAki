@@ -1,7 +1,18 @@
 name: prestadoraki
 description: "PrestadorAki — app do prestador (agenda, clientes, orçamentos e rastreamento)."
 publish_to: "none"
-version: 0.1.0+22
+# O número depois do "+" é o versionCode do Android. O Google Play recusa
+# upload com versionCode igual ou menor que algum já enviado: o último
+# aceito foi 22 e o Play já reservou o 23, então o mínimo aqui é 24.
+#
+# ANDROID sai daqui direto — o workflow android-release do codemagic.yaml
+# só roda `flutter build appbundle`, sem mexer no número. Ou seja, este é
+# o único lugar a subir a cada envio pro Play.
+#
+# iOS NÃO usa este número: o workflow ios-release pergunta ao TestFlight
+# qual foi o último build e soma 1, pra não depender de alguém lembrar de
+# editar o arquivo.
+version: 0.2.0+24
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

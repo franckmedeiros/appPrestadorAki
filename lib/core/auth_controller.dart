@@ -681,6 +681,62 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// Troca a senha de quem já está logado (ver ChangePasswordScreen).
+  ///
+  /// Pede a senha ATUAL e reautentica antes de gravar a nova. Isso não é
+  /// burocracia: sem esse passo, qualquer pessoa que pegasse o celular
+  /// destravado trocaria a senha da conta e deixaria o dono de fora — e é
+  /// pior ainda porque o app oferece biometria, ou seja, a sessão fica
+  /// aberta por muito tempo sem ninguém redigitar senha nenhuma.
+  ///
+  /// Também é o que o Firebase exige: `updatePassword` num login antigo
+  /// falha com `requires-recent-login`. Reautenticando aqui, o erro deixa
+  /// de acontecer em vez de virar um recado confuso pro usuário.
+  ///
+  /// A biometria continua funcionando depois da troca — ela só guarda um
+  /// sim/não no aparelho (ver TokenStorage.setBiometricEnabled) e destrava
+  /// a sessão do Firebase; a senha nunca foi gravada aqui.
+  Future<bool> updatePassword({
+    required String senhaAtual,
+    required String novaSenha,
+  }) async {
+    isBusy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      final user = _auth.currentUser;
+      final email = user?.email;
+      if (user == null || email == null || email.isEmpty) {
+        errorMessage = 'Sua sessão expirou. Entre de novo pra trocar a senha.';
+        return false;
+      }
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: senhaAtual),
+      );
+      await user.updatePassword(novaSenha);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      // Mensagens próprias em vez de `_messageFor`: aqui existem DOIS
+      // campos de senha, e "Senha incorreta" sem dizer qual delas manda a
+      // pessoa mexer na nova quando o problema está na atual.
+      errorMessage = switch (e.code) {
+        'wrong-password' || 'invalid-credential' => 'Senha atual incorreta.',
+        'weak-password' => 'A nova senha não atende aos requisitos.',
+        'requires-recent-login' =>
+          'Por segurança, saia e entre de novo antes de trocar a senha.',
+        _ => _messageFor(e.code),
+      };
+      return false;
+    } catch (e) {
+      debugPrint('AuthController.updatePassword: erro inesperado: $e');
+      errorMessage = 'Não foi possível conectar ao servidor.';
+      return false;
+    } finally {
+      isBusy = false;
+      notifyListeners();
+    }
+  }
+
   /// Descobre se a conta também é prestador, olhando se `providers/{uid}`
   /// existe. Diferente de antes, isso NÃO é mais exclusivo com ser
   /// cliente — só responde "essa conta tem a capacidade de prestador?".

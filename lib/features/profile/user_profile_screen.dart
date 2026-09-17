@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/testing_flags.dart';
+import '../auth/change_password_screen.dart';
 import '../welcome/welcome_screen.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/prestadoraki_mark.dart';
@@ -127,6 +128,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         duration: Duration(seconds: 6),
       ));
     }
+  }
+
+  /// Abre a troca de senha (ver ChangePasswordScreen) e confirma aqui
+  /// quando dá certo — a própria tela não mostra a confirmação porque sai
+  /// da frente no mesmo instante em que termina.
+  Future<void> _alterarSenha() async {
+    final trocou = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+    );
+    if (!mounted || trocou != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Senha alterada.')),
+    );
   }
 
   Future<void> _openMyReviews() async {
@@ -475,12 +489,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       const SizedBox(height: 12),
                       _BecomeProviderCard(onTap: _becomeProvider),
                     ],
-                    if (_biometricAvailable == true) ...[
-                      const SizedBox(height: 28),
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: _ProfileSectionLabel(icon: Icons.lock_outline, label: 'Segurança'),
+                    // A seção Segurança passou a aparecer SEMPRE. Antes ela
+                    // só existia quando o aparelho tinha biometria — e como
+                    // "Alterar senha" mora aqui, num celular sem leitor
+                    // biométrico a pessoa simplesmente não teria onde
+                    // trocar a senha sem sair da conta.
+                    const SizedBox(height: 28),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: _ProfileSectionLabel(icon: Icons.lock_outline, label: 'Segurança'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _alterarSenha,
+                      icon: const Icon(Icons.password_outlined, color: AppColors.ink),
+                      label: const Text('Alterar senha', style: TextStyle(color: AppColors.ink)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: BorderSide(color: AppColors.muted.withValues(alpha: 0.35)),
                       ),
+                    ),
+                    if (_biometricAvailable == true) ...[
                       const SizedBox(height: 10),
                       Card(
                         margin: EdgeInsets.zero,
