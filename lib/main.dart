@@ -25,6 +25,8 @@ import 'features/marketplace/provider_directory_repository.dart';
 import 'features/marketplace/budget_requests_repository.dart';
 import 'features/notifications/notifications_repository.dart';
 import 'features/marketplace/models/service_category.dart';
+import 'features/moderation/blocked_users_controller.dart';
+import 'features/moderation/moderation_repository.dart';
 import 'firebase_options.dart';
 import 'router/app_router.dart';
 
@@ -136,8 +138,16 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
         Provider(create: (context) => BudgetRequestsRepository()),
         Provider(create: (context) => FavoritesRepository()),
         Provider(create: (context) => NotificationsRepository()),
+        Provider(create: (context) => ModerationRepository()),
         ChangeNotifierProvider(
           create: (context) => FavoritesController(context.read<FavoritesRepository>()),
+        ),
+        // Quem eu bloqueei. Precisa ser compartilhado (e não estado local
+        // de cada tela) porque bloquear alguém no perfil de um prestador
+        // tem que esconder essa pessoa também nas listas já montadas nas
+        // outras abas — mesma razão do FavoritesController acima.
+        ChangeNotifierProvider(
+          create: (context) => BlockedUsersController(context.read<ModerationRepository>()),
         ),
       ],
       child: MaterialApp.router(

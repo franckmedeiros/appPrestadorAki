@@ -1,27 +1,40 @@
+import 'dart:io' show Platform;
+
 /// Flags temporárias só pra testar mais rápido, sem esperar o Play
 /// Billing/Play Console (ou o StoreKit/App Store Connect) estarem prontos
 /// de verdade — NUNCA devem ir pra produção ligadas assim.
 ///
-/// Combinado com o Franck (27/08): enquanto o produto de assinatura não
-/// está cadastrado no Play Console (ver README.md, "Assinatura mensal do
-/// prestador"), "virar prestador" volta a ser de graça — sem paywall,
-/// `listingStatus` já nasce/vira `'active'` — só pra dar pra testar a
-/// busca/listagem do lado do cliente sem depender da configuração externa.
+/// HISTÓRICO: ficou ligada desde 27/08, quando o produto de assinatura
+/// ainda não existia no Play Console e "virar prestador" precisava ser de
+/// graça só pra dar pra testar a busca do lado do cliente. Foi religada em
+/// 10/09 por causa de um travamento no App Store Connect no envio do grupo
+/// de assinatura pra revisão ("Novos grupos de assinatura devem ser
+/// enviados com uma assinatura com renovação automática desse grupo").
 ///
-/// Religada em 10/09: o lado Apple (App Store Connect) ainda está preso
-/// num travamento no envio pra revisão da assinatura ("Novos grupos de
-/// assinatura devem ser enviados com uma assinatura com renovação
-/// automática desse grupo" — parece bug conhecido do App Store Connect,
-/// não erro de configuração nossa). Enquanto isso não resolve, volta a
-/// bypassar pra não travar o resto do teste no iPhone.
+/// AGORA É POR PLATAFORMA (18/09). O Android já tem a assinatura pronta no
+/// Play, o iOS ainda não — e uma flag só, valendo pros dois, obrigava a
+/// escolher entre deixar o Android sem paywall ou pôr o iPhone numa tela
+/// de compra que não consegue concluir. Nenhuma das duas serve.
 ///
-/// **Antes de publicar de verdade**: mude isto pra `false`. Os dois
-/// lugares que usam essa flag (`AuthController._createProviderDocument`/
-/// `updateProviderBusinessInfo` e
+/// Ligar o paywall onde ele funciona é o que permite testar a compra de
+/// verdade sem quebrar o teste na outra loja.
+const bool _bypassNoAndroid = false; // Play Billing pronto: paywall VALENDO
+const bool _bypassNoIOS = true; //     App Store Connect travado: ainda bypassa
+
+/// **Quando a Apple destravar**: mude `_bypassNoIOS` pra `false`. Os três
+/// lugares que usam esta flag (`AuthController._createProviderDocument` e
+/// `updateProviderBusinessInfo`, e
 /// `UserProfileScreen._BecomeProviderSheet._submit`) voltam sozinhos a
-/// exigir a assinatura de verdade — não precisa reverter mais nada além
-/// de trocar esse valor aqui.
-const bool kBypassProviderSubscriptionGate = true;
+/// exigir a assinatura — não precisa mexer em mais nada.
+///
+/// Fora de Android e iOS (desktop, usado só em desenvolvimento) não existe
+/// loja pra cobrar, então bypassa: senão não dá nem pra abrir a tela de
+/// prestador numa máquina de desenvolvimento.
+bool get kBypassProviderSubscriptionGate {
+  if (Platform.isAndroid) return _bypassNoAndroid;
+  if (Platform.isIOS) return _bypassNoIOS;
+  return true;
+}
 
 /// Liga o rastro de diagnóstico do push em `clients/{uid}.pushDebug`
 /// (ver `NotificationService._debugLog`).

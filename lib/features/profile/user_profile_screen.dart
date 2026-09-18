@@ -4,6 +4,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/testing_flags.dart';
 import '../auth/change_password_screen.dart';
+import '../moderation/blocked_users_screen.dart';
 import '../welcome/welcome_screen.dart';
 import '../../widgets/decorative_header.dart';
 import '../../widgets/prestadoraki_mark.dart';
@@ -504,6 +505,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       onPressed: _alterarSenha,
                       icon: const Icon(Icons.password_outlined, color: AppColors.ink),
                       label: const Text('Alterar senha', style: TextStyle(color: AppColors.ink)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: BorderSide(color: AppColors.muted.withValues(alpha: 0.35)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Metade que fecha o par do bloqueio (ver
+                    // ReviewModerationMenu): sem um lugar pra desfazer,
+                    // bloquear vira decisão sem volta.
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
+                      ),
+                      icon: const Icon(Icons.block, color: AppColors.ink),
+                      label: const Text('Usuários bloqueados', style: TextStyle(color: AppColors.ink)),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                         side: BorderSide(color: AppColors.muted.withValues(alpha: 0.35)),

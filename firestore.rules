@@ -307,6 +307,52 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ------------------------------------------------------------------
+    // MODERAÇÃO DE CONTEÚDO (App Store Review Guideline 1.2)
+    //
+    // O app exibe texto escrito por usuários — o comentário das avaliações
+    // (ver `ratings` abaixo). A Apple exige, pra esse tipo de conteúdo:
+    // denunciar, bloquear quem publicou, e remoção pela operação em até
+    // 24 horas. Estes dois blocos são a parte de dados disso.
+    // ------------------------------------------------------------------
+
+    // Denúncias. O app só CRIA — e isso é a regra inteira, de propósito.
+    //
+    // Não tem `read`: uma denúncia não é publicação, é pedido de análise.
+    // Se quem denuncia pudesse ler a coleção, leria também as denúncias
+    // dos outros, com o texto denunciado e o uid de quem denunciou dentro
+    // — ou seja, a ferramenta anti-abuso viraria fonte de abuso.
+    //
+    // Não tem `update` nem `delete`: ninguém apaga a própria denúncia
+    // depois de feita, nem a denúncia que recebeu. Quem analisa e resolve
+    // é a operação, pelo Admin SDK, que ignora estas regras
+    // (scripts/moderar_denuncias.js).
+    //
+    // `denuncianteUid` obrigatoriamente igual a quem está chamando: sem
+    // isso dá pra encher a fila de moderação assinando com o uid de
+    // outra pessoa.
+    match /reports/{reportId} {
+      allow read: if false;
+      allow create: if request.auth != null &&
+        request.resource.data.denuncianteUid == request.auth.uid &&
+        request.resource.data.status == 'aberta' &&
+        request.resource.data.motivo is string &&
+        request.resource.data.autorUid is string;
+      allow update, delete: if false;
+    }
+
+    // Bloqueios: um documento por pessoa, com a lista de quem ELA
+    // bloqueou. Só o dono lê e escreve — o id do documento é o próprio
+    // uid, então `isOwner` já diz tudo.
+    //
+    // Quem foi bloqueado não consegue descobrir que foi: o documento
+    // pertence a quem bloqueou, e ninguém mais o lê. Isso é intencional —
+    // bloqueio que avisa o bloqueado convida retaliação, que é justamente
+    // o que a pessoa está tentando evitar.
+    match /blocks/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
     match /providerDirectory/{listingId} {
       allow read: if true;
 

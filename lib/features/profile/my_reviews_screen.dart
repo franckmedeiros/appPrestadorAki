@@ -6,6 +6,8 @@ import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/provider_rating.dart';
 import '../marketplace/provider_directory_repository.dart';
 import '../marketplace/widgets/star_rating_bar.dart';
+import '../moderation/blocked_users_controller.dart';
+import '../moderation/review_moderation_menu.dart';
 
 /// "Minhas avaliações" — pedido do Franck: "ter a opção no app do
 /// prestador ver as suas avaliações". Antes só existia o lado do cliente
@@ -16,7 +18,7 @@ import '../marketplace/widgets/star_rating_bar.dart';
 /// pública) — o id do documento de avaliações é o uid do prestador (ver
 /// `ProviderDirectoryRepository.get`), então não precisa de mais nada
 /// além do uid pra abrir esta tela (ver UserProfileScreen).
-class MyReviewsScreen extends StatelessWidget {
+class MyReviewsScreen extends StatefulWidget {
   const MyReviewsScreen({super.key, required this.providerId, this.listing});
 
   final String providerId;
@@ -27,21 +29,47 @@ class MyReviewsScreen extends StatelessWidget {
   final ProviderListing? listing;
 
   @override
+  State<MyReviewsScreen> createState() => _MyReviewsScreenState();
+}
+
+class _MyReviewsScreenState extends State<MyReviewsScreen> {
+  /// A stream é criada UMA vez: chamar `watchRatings` direto no
+  /// StreamBuilder abriria um listener novo no Firestore a cada rebuild —
+  /// e agora esta tela reconstrói toda vez que alguém é bloqueado.
+  late final Stream<List<ProviderRating>> _avaliacoes =
+      context.read<ProviderDirectoryRepository>().watchRatings(widget.providerId, limit: 100);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BlockedUsersController>().ensureLoaded();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final repository = context.read<ProviderDirectoryRepository>();
+    final bloqueios = context.watch<BlockedUsersController>();
     return Scaffold(
       appBar: AppBar(title: const Text('Minhas avaliações')),
       body: StreamBuilder<List<ProviderRating>>(
-        stream: repository.watchRatings(providerId, limit: 100),
+        stream: _avaliacoes,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final ratings = snapshot.data ?? const <ProviderRating>[];
+          // Avaliação de quem o prestador bloqueou some daqui. A NOTA dela
+          // continua contando na média (ver o resumo acima): bloquear é
+          // "não quero ler essa pessoa", não "a opinião dela deixa de
+          // existir" — deixar o próprio avaliado apagar notas ruins do
+          // próprio placar seria outra coisa bem diferente.
+          final ratings = (snapshot.data ?? const <ProviderRating>[])
+              .where((r) => !bloqueios.bloqueou(r.clientUid))
+              .toList();
           if (ratings.isEmpty) {
             return const _EmptyState();
           }
-          final listing = this.listing;
+          final listing = widget.listing;
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             itemCount: ratings.length + (listing != null ? 1 : 0),
@@ -49,9 +77,9 @@ class MyReviewsScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               if (listing != null) {
                 if (index == 0) return _SummaryCard(listing: listing);
-                return _ReviewTile(rating: ratings[index - 1]);
+                return _ReviewTile(rating: ratings[index - 1], listingId: widget.providerId);
               }
-              return _ReviewTile(rating: ratings[index]);
+              return _ReviewTile(rating: ratings[index], listingId: widget.providerId);
             },
           );
         },
@@ -101,13 +129,16 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _ReviewTile extends StatelessWidget {
-  const _ReviewTile({required this.rating});
+  const _ReviewTile({required this.rating, required this.listingId});
 
   final ProviderRating rating;
+  final String listingId;
 
   @override
   Widget build(BuildContext context) {
     final comment = rating.comment?.trim();
+    final nome =
+        (rating.clientName ?? '').trim().isNotEmpty ? rating.clientName!.trim() : 'Cliente';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -122,7 +153,7 @@ class _ReviewTile extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  (rating.clientName ?? '').trim().isNotEmpty ? rating.clientName!.trim() : 'Cliente',
+                  nome,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: AppColors.ink),
@@ -131,6 +162,14 @@ class _ReviewTile extends StatelessWidget {
               Text(
                 formatDateDdMmYyyy(rating.createdAt),
                 style: const TextStyle(fontSize: 11, color: AppColors.muted),
+              ),
+              // Denunciar / bloquear (Guideline 1.2). Aqui é onde mais
+              // importa: é o prestador olhando o que escreveram sobre ele.
+              ReviewModerationMenu(
+                listingId: listingId,
+                autorUid: rating.clientUid,
+                autorNome: nome,
+                conteudo: comment,
               ),
             ],
           ),

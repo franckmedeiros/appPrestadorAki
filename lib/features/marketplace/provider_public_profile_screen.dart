@@ -12,6 +12,8 @@ import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
 import 'budget_requests_repository.dart';
 import 'provider_directory_repository.dart';
+import '../moderation/blocked_users_controller.dart';
+import '../moderation/review_moderation_menu.dart';
 
 /// Perfil público de um prestador do marketplace — visto pelo cliente,
 /// seja um perfil "reivindicado" (com conta no PrestadorAki) ou "não
@@ -68,6 +70,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
     _future = context.read<ProviderDirectoryRepository>().get(widget.listingId);
     _ratingsStream = context.read<ProviderDirectoryRepository>().watchRatings(widget.listingId);
     context.read<FavoritesController>().ensureLoaded();
+    context.read<BlockedUsersController>().ensureLoaded();
     _loadRatingContext();
   }
 
@@ -371,7 +374,15 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                               StreamBuilder<List<ProviderRating>>(
                                 stream: _ratingsStream,
                                 builder: (context, ratingsSnapshot) {
-                                  final ratings = ratingsSnapshot.data ?? const <ProviderRating>[];
+                                  // Some com o que foi escrito por quem o
+                                  // usuário bloqueou (Guideline 1.2). A nota
+                                  // segue contando na média do prestador:
+                                  // bloquear é deixar de LER a pessoa, não
+                                  // apagar a opinião dela do placar.
+                                  final bloqueios = context.watch<BlockedUsersController>();
+                                  final ratings = (ratingsSnapshot.data ?? const <ProviderRating>[])
+                                      .where((r) => !bloqueios.bloqueou(r.clientUid))
+                                      .toList();
                                   if (ratingsSnapshot.connectionState == ConnectionState.waiting &&
                                       ratings.isEmpty) {
                                     return const Padding(
@@ -390,7 +401,7 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                                     children: [
                                       for (var i = 0; i < ratings.length; i++) ...[
                                         if (i > 0) const SizedBox(height: 12),
-                                        _ReviewTile(rating: ratings[i]),
+                                        _ReviewTile(rating: ratings[i], listingId: widget.listingId),
                                       ],
                                     ],
                                   );
@@ -847,13 +858,16 @@ class _RatingForm extends StatelessWidget {
 /// comentário (quando houver) — pedido do Franck: os comentários
 /// precisam realmente aparecer, não só ficar gravados no banco.
 class _ReviewTile extends StatelessWidget {
-  const _ReviewTile({required this.rating});
+  const _ReviewTile({required this.rating, required this.listingId});
 
   final ProviderRating rating;
+  final String listingId;
 
   @override
   Widget build(BuildContext context) {
     final comment = rating.comment?.trim();
+    final nome =
+        (rating.clientName ?? '').trim().isNotEmpty ? rating.clientName!.trim() : 'Cliente';
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -867,7 +881,7 @@ class _ReviewTile extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  (rating.clientName ?? '').trim().isNotEmpty ? rating.clientName!.trim() : 'Cliente',
+                  nome,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
@@ -876,6 +890,12 @@ class _ReviewTile extends StatelessWidget {
               Text(
                 formatDateDdMmYyyy(rating.createdAt),
                 style: const TextStyle(fontSize: 11, color: AppColors.muted),
+              ),
+              ReviewModerationMenu(
+                listingId: listingId,
+                autorUid: rating.clientUid,
+                autorNome: nome,
+                conteudo: comment,
               ),
             ],
           ),
