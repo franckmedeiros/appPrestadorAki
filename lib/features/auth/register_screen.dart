@@ -8,6 +8,7 @@ import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
 import '../../widgets/password_requirements_hint.dart';
+import 'terms_acceptance_checkbox.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 
 /// Cadastro (decisão combinada com o Franck): toda conta nasce como
@@ -36,6 +37,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _phoneMask = MaskTextInputFormatter('(##) #####-####');
   bool _obscurePassword = true;
+
+  /// Aceite dos Termos de Uso — obrigatório pra concluir o cadastro
+  /// (Guideline 1.2). Começa falso, e o botão "Criar conta" fica
+  /// desabilitado até virar verdadeiro.
+  bool _aceitouOsTermos = false;
 
   // Mesma ideia da LoginScreen/DashboardScreen: oferece biometria já no
   // cadastro, em vez de só depois do primeiro login — assim quem já sabe
@@ -210,6 +216,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onChanged: (value) => setState(() => _useBiometrics = value),
                         ),
                       ],
+                      const SizedBox(height: 18),
+                      TermsAcceptanceCheckbox(
+                        value: _aceitouOsTermos,
+                        onChanged: (v) => setState(() => _aceitouOsTermos = v),
+                      ),
                       if (auth.errorMessage != null) ...[
                         const SizedBox(height: 12),
                         Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
@@ -218,7 +229,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       GradientPillButton(
                         label: 'Criar conta',
                         isLoading: auth.isBusy,
-                        onPressed: auth.isBusy ? null : () => _submit(auth),
+                        onPressed: (auth.isBusy || !_aceitouOsTermos) ? null : () => _submit(auth),
                       ),
                       const SizedBox(height: 20),
                       Center(

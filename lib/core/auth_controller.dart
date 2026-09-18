@@ -258,6 +258,14 @@ class AuthController extends ChangeNotifier {
           'name': name,
           'email': email,
           'whatsapp': phone,
+          // Quando esta conta aceitou os Termos de Uso. As telas de
+          // cadastro não deixam concluir sem marcar a caixa (ver
+          // TermsAcceptanceCheckbox), então toda conta criada daqui em
+          // diante tem esta data. Fica gravado porque "o usuário aceitou"
+          // sem registro de quando é uma afirmação que ninguém consegue
+          // sustentar depois — e é justamente isso que se precisa mostrar
+          // se houver reclamação sobre conteúdo publicado.
+          'termsAcceptedAt': now,
           'createdAt': now,
           'updatedAt': now,
         });

@@ -9,6 +9,7 @@ import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/password_requirements_hint.dart';
+import '../auth/terms_acceptance_checkbox.dart';
 
 /// Ponto único de "gate" pro lado do cliente do marketplace, depois da
 /// mudança de ideia: buscar e ver o perfil público de um prestador NÃO
@@ -114,6 +115,11 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
   final _phoneMask = MaskTextInputFormatter('(##) #####-####');
   _Mode _mode = _Mode.register;
   bool _senhaEscondida = true;
+
+  /// Aceite dos Termos (Guideline 1.2). Só aparece — e só é exigido — no
+  /// modo de CADASTRO: quem já tem conta aceitou quando criou, e pedir de
+  /// novo a cada login seria pedir aceite de quem já é usuário.
+  bool _aceitouOsTermos = false;
 
   @override
   void dispose() {
@@ -273,6 +279,13 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
                       validator: criando ? validateStrongPassword : validateLoginPassword,
                     ),
                     if (criando) PasswordRequirementsHint(controller: _passwordController),
+                    if (criando) ...[
+                      const SizedBox(height: 16),
+                      TermsAcceptanceCheckbox(
+                        value: _aceitouOsTermos,
+                        onChanged: (v) => setState(() => _aceitouOsTermos = v),
+                      ),
+                    ],
                     if (auth.errorMessage != null) ...[
                       const SizedBox(height: 12),
                       Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
@@ -281,7 +294,9 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
                     GradientPillButton(
                       label: criando ? 'Criar conta' : 'Entrar',
                       isLoading: auth.isBusy,
-                      onPressed: auth.isBusy ? null : () => _submit(auth),
+                      onPressed: (auth.isBusy || (criando && !_aceitouOsTermos))
+                          ? null
+                          : () => _submit(auth),
                     ),
                     const SizedBox(height: 16),
                     Center(

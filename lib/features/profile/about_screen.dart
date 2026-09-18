@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
+import '../auth/terms_screen.dart';
 
 /// "Sobre o app" — pedido do Franck: "seria interessante ter em algum
 /// lugar no app os dados da empresa responsável pelo produto e o
@@ -92,6 +93,20 @@ class AboutScreen extends StatelessWidget {
             label: 'E-mail',
             value: _email,
             onTap: () => _abrirEmail(context),
+          ),
+          const SizedBox(height: 28),
+          const _SectionLabel('Documentos'),
+          const SizedBox(height: 10),
+          // Os Termos precisam continuar acessíveis DEPOIS do cadastro, e
+          // não só na tela onde foram aceitos: quem quer reler as regras de
+          // conduta (ou o canal de denúncia) já tem conta faz tempo.
+          _ContactTile(
+            icon: Icons.description_outlined,
+            label: 'Termos de Uso',
+            value: 'Regras de uso, conduta e privacidade',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TermsScreen()),
+            ),
           ),
         ],
       ),

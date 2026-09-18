@@ -8,6 +8,7 @@ import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/password_requirements_hint.dart';
+import '../auth/terms_acceptance_checkbox.dart';
 
 /// Aba "Meu perfil" pra quem ainda não tem sessão - login/cadastro
 /// embutidos direto na tela (sem precisar abrir uma folha/modal), a
@@ -50,6 +51,10 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
   // distância, só não é mais o padrão).
   _Mode _mode = _Mode.login;
   bool _obscurePassword = true;
+
+  /// Aceite dos Termos (Guideline 1.2). Exigido só no modo de CADASTRO —
+  /// ver o mesmo comentário em ClientAuthGate.
+  bool _aceitouOsTermos = false;
 
   @override
   void dispose() {
@@ -173,6 +178,13 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
                         validator: isRegister ? validateStrongPassword : validateLoginPassword,
                       ),
                       if (isRegister) PasswordRequirementsHint(controller: _passwordController),
+                      if (isRegister) ...[
+                        const SizedBox(height: 16),
+                        TermsAcceptanceCheckbox(
+                          value: _aceitouOsTermos,
+                          onChanged: (v) => setState(() => _aceitouOsTermos = v),
+                        ),
+                      ],
                       if (auth.errorMessage != null) ...[
                         const SizedBox(height: 12),
                         Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
@@ -182,7 +194,9 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
                         label: isRegister ? 'Criar conta' : 'Entrar',
                         icon: Icons.arrow_forward,
                         isLoading: auth.isBusy,
-                        onPressed: auth.isBusy ? null : () => _submit(auth),
+                        onPressed: (auth.isBusy || (isRegister && !_aceitouOsTermos))
+                            ? null
+                            : () => _submit(auth),
                       ),
                       const SizedBox(height: 20),
                       Center(
