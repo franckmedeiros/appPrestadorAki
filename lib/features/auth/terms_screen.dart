@@ -6,7 +6,30 @@ import '../../core/app_theme.dart';
 /// Contato para denúncias e assuntos dos Termos. É o mesmo endereço que
 /// aparece no texto — deixado numa constante pra nunca divergir entre o
 /// que o usuário lê e o link em que ele toca.
-const String kEmailDeContato = 'franck.medeiros.silva@gmail.com';
+const String kEmailDeContato = 'opoutsourcingbr@gmail.com';
+
+/// Marca sob a qual o app é oferecido. Igual ao que a tela "Sobre o app"
+/// já mostra (ver AboutScreen._nomeEmpresa) — as duas telas falando nomes
+/// diferentes da mesma coisa é o tipo de detalhe que um revisor nota.
+const String kNomeDaMarca = 'OPOutSourcing Brasil';
+
+/// Quem responde juridicamente hoje.
+///
+/// A marca aparece em primeiro lugar no texto, mas o nome civil precisa
+/// estar lá: [kNomeDaMarca] não é pessoa jurídica registrada, então não
+/// pode ser a parte contratante. Um contrato precisa apontar pra alguém
+/// que exista de fato — sem isso, o consumidor que quiser reclamar não tem
+/// contra quem, e o Código de Defesa do Consumidor exige identificação
+/// clara do fornecedor.
+///
+/// Há ainda uma razão prática: a conta de desenvolvedor nas duas lojas é
+/// PESSOAL, então a ficha do app já exibe este nome como vendedor. Termos
+/// que só citassem a marca contradiriam a própria loja.
+///
+/// **Quando o CNPJ existir**, troque as duas constantes por razão social +
+/// CNPJ e ajuste a frase da seção 1 — é o único ponto do texto que fala
+/// de quem responde.
+const String kResponsavelLegal = 'Franck Medeiros Silva';
 
 /// Termos de Uso do PrestadorAki.
 ///
@@ -36,9 +59,12 @@ class TermsScreen extends StatelessWidget {
 
           const _Secao('1. Quem oferece o PrestadorAki'),
           const _Paragrafo(
-            'O PrestadorAki é oferecido por Franck Medeiros Silva, pessoa '
-            'física. Para falar sobre estes Termos, denunciar conteúdo ou '
-            'pedir a remoção de algo publicado, use o e-mail abaixo.',
+            'O PrestadorAki é um produto da $kNomeDaMarca, marca sob a qual '
+            '$kResponsavelLegal, pessoa física, opera e responde pelo app.',
+          ),
+          const _Paragrafo(
+            'Para falar sobre estes Termos, denunciar conteúdo ou pedir a '
+            'remoção de algo publicado, use o e-mail abaixo.',
           ),
           const SizedBox(height: 8),
           const _BotaoDeEmail(),
