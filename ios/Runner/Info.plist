@@ -18,6 +18,10 @@
 	<string>Use Face ID para entrar no PrestadorAki mais rápido.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Usamos sua localização só pra sugerir sua cidade na busca por prestadores — nunca é salva nem compartilhada.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Usamos a câmera para você fotografar a logo que aparece no seu perfil de prestador.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Usamos suas fotos para você escolher a logo que aparece no seu perfil de prestador.</string>
 	<key>CFBundleName</key>
 	<string>prestadoraki</string>
 	<key>CFBundlePackageType</key>
