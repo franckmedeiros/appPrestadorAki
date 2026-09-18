@@ -19,7 +19,19 @@ import 'dart:io' show Platform;
 /// Ligar o paywall onde ele funciona é o que permite testar a compra de
 /// verdade sem quebrar o teste na outra loja.
 const bool _bypassNoAndroid = false; // Play Billing pronto: paywall VALENDO
-const bool _bypassNoIOS = true; //     App Store Connect travado: ainda bypassa
+const bool _bypassNoIOS = false; //    paywall VALENDO (ver nota abaixo)
+
+// NOTA sobre o iOS (18/09): ligado a pedido do Franck, mesmo com o grupo de
+// assinatura ainda travado no App Store Connect — uma empresa foi contratada
+// pra resolver aquilo. Enquanto não resolver, a TELA aparece normalmente,
+// mas a compra em si falha na App Store: o ProviderPaywallScreen trata isso
+// e mostra "A assinatura ainda não está disponível pra compra — volte em
+// breve." dentro da própria tela, sem quebrar nada.
+//
+// Consequência que importa: enquanto a compra não conclui, NINGUÉM consegue
+// virar prestador pelo iPhone. Se precisar cadastrar um prestador de teste
+// nesse período, use o Android ou crie a conta pelo app e ajuste
+// `listingStatus` pelo Console.
 
 /// **Quando a Apple destravar**: mude `_bypassNoIOS` pra `false`. Os três
 /// lugares que usam esta flag (`AuthController._createProviderDocument` e
