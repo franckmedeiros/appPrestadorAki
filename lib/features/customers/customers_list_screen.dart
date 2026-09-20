@@ -42,12 +42,22 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
         .toList();
   }
 
-  Future<void> _openCustomer(Customer? customer) async {
-    final saved = await context.push<bool>('/clientes/editar', extra: customer);
+  /// Tocar num cliente agora abre a PÁGINA dele (contato, próximo
+  /// compromisso, quanto pagou e deve, histórico), não o formulário de
+  /// edição. Editar virou uma ação dentro dela.
+  ///
+  /// A razão: na esmagadora maioria das vezes que alguém toca num cliente,
+  /// quer VER alguma coisa sobre ele — não corrigir o cadastro. O caminho
+  /// antigo tratava o caso raro como se fosse o comum.
+  void _abrirCliente(Customer customer) {
+    context.push('/clientes/detalhe', extra: customer);
+  }
+
+  /// Só pro botão "+": cliente novo não tem página pra ver ainda.
+  Future<void> _novoCliente() async {
+    await context.push<bool>('/clientes/editar');
     // Não precisa recarregar nada manualmente — a stream já reflete a
-    // escrita sozinha (ver `_stream` acima). O retorno só importa se um
-    // dia isso precisar de outro efeito colateral aqui.
-    if (saved != true) return;
+    // escrita sozinha (ver `_stream` acima).
   }
 
   @override
@@ -55,7 +65,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Clientes')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _openCustomer(null),
+        onPressed: _novoCliente,
         child: const Icon(Icons.add),
       ),
       body: Column(
@@ -106,7 +116,7 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                     itemBuilder: (context, index) {
                       final customer = customers[index];
                       return AppListCard(
-                        onTap: () => _openCustomer(customer),
+                        onTap: () => _abrirCliente(customer),
                         leading: Container(
                           width: 52,
                           height: 52,

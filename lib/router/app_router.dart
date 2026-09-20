@@ -8,6 +8,7 @@ import '../features/auth/forgot_password_screen.dart';
 import '../features/customers/customer_form_screen.dart';
 import '../features/customers/customers_list_screen.dart';
 import '../features/agenda/agenda_screen.dart';
+import '../features/customers/customer_detail_screen.dart';
 import '../features/financeiro/financeiro_screen.dart';
 import '../features/agenda/appointment_form_screen.dart';
 import '../features/customers/models/customer.dart';
@@ -67,6 +68,7 @@ const _confirmarEmail = '/confirmar-email';
 const _providerOnlyRoutes = {
   '/dashboard',
   '/clientes',
+  '/clientes/detalhe',
   '/clientes/novo',
   '/clientes/editar',
   '/agenda',
@@ -150,6 +152,13 @@ GoRouter buildAppRouter(AuthController authController) {
       // botões dentro do Dashboard (ver DashboardScreen), como rotas
       // empilhadas normais em vez de branches do shell.
       GoRoute(path: '/clientes', builder: (context, state) => const CustomersListScreen()),
+      // A página do cliente (contato, próximo compromisso, quanto pagou e
+      // quanto deve, histórico). Recebe o Customer já carregado pela
+      // lista via `extra` — mesmo padrão de '/clientes/editar'.
+      GoRoute(
+        path: '/clientes/detalhe',
+        builder: (context, state) => CustomerDetailScreen(customer: state.extra as Customer),
+      ),
       GoRoute(
         path: '/clientes/novo',
         builder: (context, state) => const CustomerFormScreen(),
