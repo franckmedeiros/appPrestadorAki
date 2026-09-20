@@ -22,6 +22,7 @@ class ProviderListing {
     this.visible,
     this.respostasContadas = 0,
     this.respostaMinutosSoma = 0,
+    this.cidadesAtendidas = const [],
   });
 
   factory ProviderListing.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -52,6 +53,8 @@ class ProviderListing {
       visible: data['visible'] as bool?,
       respostasContadas: (data['respostasContadas'] as num?)?.toInt() ?? 0,
       respostaMinutosSoma: (data['respostaMinutosSoma'] as num?)?.toInt() ?? 0,
+      cidadesAtendidas:
+          (data['cidadesAtendidas'] as List?)?.map((e) => e.toString()).toList() ?? const [],
     );
   }
 
@@ -125,6 +128,25 @@ class ProviderListing {
   /// critério do selo depois sem perder o histórico.
   final int respostasContadas;
   final int respostaMinutosSoma;
+
+  /// Outras cidades que o prestador atende ALÉM da do endereço dele, no
+  /// formato "Cidade/UF" (pedido do Franck: "hoje ele pode atender
+  /// Criciúma e Florianópolis").
+  ///
+  /// A busca por cidade casa tanto isto quanto o [city] principal — ver
+  /// ProviderDirectoryRepository.search. Vazio nas entradas antigas e na
+  /// carga de curadoria, que continuam achadas só pela cidade principal.
+  final List<String> cidadesAtendidas;
+
+  /// Cidade principal + as adicionais, sem repetir — o que mostrar num
+  /// "Atende em ...".
+  List<String> get todasAsCidades {
+    final principal = state == null || state!.isEmpty ? city : '$city/$state';
+    return [
+      if (city.isNotEmpty) principal,
+      ...cidadesAtendidas.where((c) => c != principal),
+    ];
+  }
 
   /// Média de resposta em minutos, ou `null` enquanto não houver resposta
   /// nenhuma.

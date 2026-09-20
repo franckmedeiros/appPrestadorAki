@@ -12,6 +12,7 @@ import '../../core/validators.dart';
 import '../../core/provider_logo_service.dart';
 import '../../core/provider_bio_ai_service.dart';
 import '../../widgets/mask_text_input_formatter.dart';
+import '../../widgets/service_area_field.dart';
 import '../../widgets/state_city_fields.dart';
 import '../../widgets/service_category_field.dart';
 import '../marketplace/models/provider_listing.dart';
@@ -57,6 +58,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _addressCity;
   String? _addressUf;
   String? _areaCity;
+
+  /// Cidades ADICIONAIS que o prestador atende, além da do endereço
+  /// (ver ServiceAreaField). Formato "Cidade/UF".
+  List<String> _cidadesAtendidas = const [];
   String? _areaUf;
   final _streetFocusNode = FocusNode();
   List<ServiceCategory> _categories = [];
@@ -88,6 +93,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _emailController = TextEditingController(text: auth.currentUserEmail ?? '');
     final listing = widget.currentListing;
     _areaCity = listing?.city;
+    // Só as adicionais no estado da tela: a principal é derivada do
+    // endereço e o widget a mostra sozinho. Guardar as duas juntas aqui
+    // faria a principal virar removível, e o prestador sumiria da busca
+    // da própria cidade.
+    _cidadesAtendidas = (listing?.cidadesAtendidas ?? const [])
+        .where((c) => c.split('/').first.trim() != (listing?.city ?? '').trim())
+        .toList();
     _areaUf = listing?.state;
     if (listing != null) _categories = listing.categories;
     _loadOwnData();
@@ -457,6 +469,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 state: (_areaUf ?? '').trim().toUpperCase(),
                 bio: _bioController.text.trim(),
                 whatsapp: _whatsappController.text.trim(),
+                cidadesAtendidas: _cidadesAtendidas,
               );
         }
       } catch (e) {
@@ -607,7 +620,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 16),
+                  ServiceAreaField(
+                    cidadePrincipal: _areaCity,
+                    ufPrincipal: _areaUf,
+                    selecionadas: _cidadesAtendidas,
+                    onChanged: (cidades) => setState(() => _cidadesAtendidas = cidades),
+                  ),
+                  const SizedBox(height: 8),
                   const Text(
                     'Cidade e categoria são o que faz você aparecer nas buscas '
                     'dos clientes no PrestadorAki.',

@@ -301,6 +301,30 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                             ),
                             const SizedBox(height: 12),
 
+                            // Área de atendimento — só aparece pra quem
+                            // atende MAIS de uma cidade. Com uma só, essa
+                            // seção repetiria o "Criciúma/SC" que já está
+                            // no topo.
+                            if (listing.todasAsCidades.length > 1) ...[
+                              const _SectionLabel(
+                                icon: Icons.map_outlined,
+                                title: 'Onde atende',
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final cidade in listing.todasAsCidades)
+                                    Chip(
+                                      label: Text(cidade),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+
                             const _SectionLabel(
                               icon: Icons.grid_view_rounded,
                               title: 'Serviços oferecidos',

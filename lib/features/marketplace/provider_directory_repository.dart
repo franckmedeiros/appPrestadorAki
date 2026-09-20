@@ -109,7 +109,21 @@ class ProviderDirectoryRepository {
         filtrarCategoriaNoApp = category != null;
         filtrarCidadeNoApp = normalizedCity != null;
       } else if (normalizedCity != null) {
-        query = query.where('cityNormalized', isEqualTo: normalizedCity);
+        // Casa quem tem a cidade como PRINCIPAL e quem a tem na área de
+        // atendimento (pedido do Franck: atender Criciúma e Florianópolis
+        // sem precisar de duas contas).
+        //
+        // Mesmo `Filter.or` usado nas categorias, e pelo mesmo motivo:
+        // `cidadesNormalizadas` só existe em quem salvou o perfil depois
+        // desta mudança. As ~9.700 entradas de curadoria e os cadastros
+        // antigos continuam sendo achados pelo `cityNormalized` de sempre,
+        // sem migração nenhuma.
+        query = query.where(
+          Filter.or(
+            Filter('cidadesNormalizadas', arrayContains: normalizedCity),
+            Filter('cityNormalized', isEqualTo: normalizedCity),
+          ),
+        );
         filtrarCategoriaNoApp = category != null;
       } else if (category != null) {
         // `Filter.or` casa tanto quem já tem o campo novo `categories`
@@ -260,6 +274,7 @@ class ProviderDirectoryRepository {
     String? state,
     String? bio,
     String? whatsapp,
+    List<String> cidadesAtendidas = const [],
   }) async {
     assert(categories.isNotEmpty, 'upsertOwnListing precisa de ao menos uma categoria');
     try {
@@ -299,6 +314,20 @@ class ProviderDirectoryRepository {
         // por aqui (carga de curadoria, edição pelo Console).
         'nameNormalized': normalizeForSearch(name),
         'cityNormalized': normalizeForSearch(city),
+        // Área de atendimento (pedido do Franck: "hoje ele pode atender
+        // Criciúma e Florianópolis"). Duas listas com papéis diferentes:
+        // `cidadesAtendidas` guarda "Cidade/UF" pra mostrar na tela, e
+        // `cidadesNormalizadas` guarda só o nome sem acento, que é o que a
+        // busca compara no servidor (ver `search`).
+        //
+        // A cidade principal entra nas DUAS. Sem isso, um prestador que
+        // preenchesse a área de atendimento deixaria de ser achado na
+        // própria cidade, porque a busca passaria a casar pela lista.
+        'cidadesAtendidas': _comCidadePrincipal(cidadesAtendidas, city, state),
+        'cidadesNormalizadas': _comCidadePrincipal(cidadesAtendidas, city, state)
+            .map((c) => normalizeForSearch(c.split('/').first.trim()))
+            .toSet()
+            .toList(),
         'claimed': true,
         'providerUid': uid,
         'updatedAt': now,
@@ -307,6 +336,26 @@ class ProviderDirectoryRepository {
     } on FirebaseException catch (e) {
       throw ApiException(0, e.message ?? 'Não foi possível salvar o perfil público.');
     }
+  }
+
+  /// Junta a cidade principal com as adicionais, sem repetir e sem
+  /// vazios. Separado num helper porque o valor é usado duas vezes (lista
+  /// de exibição e lista normalizada) e as duas PRECISAM conter os mesmos
+  /// municípios — se divergirem, o prestador aparece escrito numa cidade
+  /// e é encontrado em outra.
+  static List<String> _comCidadePrincipal(
+    List<String> adicionais,
+    String city,
+    String? state,
+  ) {
+    final uf = (state ?? '').trim().toUpperCase();
+    final principal = city.trim().isEmpty
+        ? null
+        : (uf.isEmpty ? city.trim() : '${city.trim()}/$uf');
+    return <String>{
+      if (principal != null) principal,
+      ...adicionais.where((c) => c.trim().isNotEmpty),
+    }.toList();
   }
 
   /// A avaliação que o cliente logado já deu pra esse prestador, se

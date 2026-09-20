@@ -15,6 +15,20 @@
       ]
     },
     {
+      "collectionGroup": "providerDirectory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visible",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cidadesNormalizadas",
+          "arrayConfig": "CONTAINS"
+        }
+      ]
+    },
+    {
       "collectionGroup": "budgets",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -114,24 +128,42 @@
       "collectionGroup": "providerDirectory",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "visible", "order": "ASCENDING" },
-        { "fieldPath": "nameNormalized", "order": "ASCENDING" }
+        {
+          "fieldPath": "visible",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nameNormalized",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "providerDirectory",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "visible", "order": "ASCENDING" },
-        { "fieldPath": "categories", "arrayConfig": "CONTAINS" }
+        {
+          "fieldPath": "visible",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "categories",
+          "arrayConfig": "CONTAINS"
+        }
       ]
     },
     {
       "collectionGroup": "providerDirectory",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "visible", "order": "ASCENDING" },
-        { "fieldPath": "category", "order": "ASCENDING" }
+        {
+          "fieldPath": "visible",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "category",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],
@@ -140,10 +172,22 @@
       "collectionGroup": "budgets",
       "fieldPath": "clientUid",
       "indexes": [
-        { "order": "ASCENDING", "queryScope": "COLLECTION" },
-        { "order": "DESCENDING", "queryScope": "COLLECTION" },
-        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
-        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
       ]
     }
   ]

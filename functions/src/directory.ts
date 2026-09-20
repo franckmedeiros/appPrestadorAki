@@ -98,6 +98,21 @@ export const onListagemEscrita = onDocumentWritten(
     const nome = String(depois.name ?? '');
     const cidade = String(depois.city ?? '');
 
+    // Área de atendimento (ver ProviderDirectoryRepository.upsertOwnListing).
+    // A lista de exibição é "Cidade/UF"; a de busca guarda só o nome sem
+    // acento. Recalcular aqui cobre o que não passa pelo app — edição pelo
+    // Console, script de carga — e garante que as duas nunca divirjam.
+    const cidadesAtendidas: string[] = Array.isArray(depois.cidadesAtendidas)
+      ? depois.cidadesAtendidas.map((c: unknown) => String(c)).filter((c) => c.trim() !== '')
+      : [];
+    const nomesDasCidades = [
+      ...(cidade ? [cidade] : []),
+      ...cidadesAtendidas.map((c) => c.split('/')[0]),
+    ]
+      .map((c) => c.trim())
+      .filter((c) => c !== '');
+    const cidadesEsperadas = [...new Set(nomesDasCidades.map(normalizar))];
+
     const nomeEsperado = nome ? normalizar(nome) : null;
     const cidadeEsperada = cidade ? normalizar(cidade) : null;
 
@@ -117,8 +132,19 @@ export const onListagemEscrita = onDocumentWritten(
     // rotina automática.
     const faltaVisible = depois.visible === undefined || depois.visible === null;
 
+    // Comparação por conteúdo, não por referência: ordenar os dois lados
+    // antes de comparar evita reescrever (e disparar o gatilho de novo) só
+    // porque os mesmos municípios vieram em ordem diferente.
+    const cidadesAtuais: string[] = Array.isArray(depois.cidadesNormalizadas)
+      ? depois.cidadesNormalizadas.map((c: unknown) => String(c))
+      : [];
+    const cidadesDivergem =
+      cidadesEsperadas.length > 0 &&
+      JSON.stringify([...cidadesAtuais].sort()) !== JSON.stringify([...cidadesEsperadas].sort());
+
     const precisaCorrigir =
       faltaVisible ||
+      cidadesDivergem ||
       (nomeEsperado !== null && depois.nameNormalized !== nomeEsperado) ||
       (cidadeEsperada !== null && depois.cityNormalized !== cidadeEsperada);
 
@@ -128,6 +154,7 @@ export const onListagemEscrita = onDocumentWritten(
           ...(faltaVisible ? { visible: true } : {}),
           ...(nomeEsperado !== null ? { nameNormalized: nomeEsperado } : {}),
           ...(cidadeEsperada !== null ? { cityNormalized: cidadeEsperada } : {}),
+          ...(cidadesDivergem ? { cidadesNormalizadas: cidadesEsperadas } : {}),
         });
       } catch (e) {
         logger.warn('Falha ao normalizar listagem', { id: event.params.listingId, e });
@@ -137,14 +164,19 @@ export const onListagemEscrita = onDocumentWritten(
     // Cidade nova no resumo. `arrayUnion` não duplica, então dá pra
     // chamar sempre sem checar antes — e sem risco de corrida entre duas
     // escritas simultâneas, diferente de ler-e-regravar a lista.
-    if (cidade) {
+    // TODAS as cidades atendidas entram no autocomplete, não só a
+    // principal: se o prestador atende Florianópolis, o cliente de lá
+    // precisa conseguir escolher "Florianópolis" no filtro — senão a área
+    // de atendimento existiria no banco e não teria como ser usada.
+    const paraOAutocomplete = [...new Set(nomesDasCidades)];
+    if (paraOAutocomplete.length > 0) {
       try {
         await db
           .collection('meta')
           .doc('cidades')
-          .set({ cidades: FieldValue.arrayUnion(cidade) }, { merge: true });
+          .set({ cidades: FieldValue.arrayUnion(...paraOAutocomplete) }, { merge: true });
       } catch (e) {
-        logger.warn('Falha ao atualizar meta/cidades', { cidade, e });
+        logger.warn('Falha ao atualizar meta/cidades', { cidades: paraOAutocomplete, e });
       }
     }
   },
