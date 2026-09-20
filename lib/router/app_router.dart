@@ -8,6 +8,7 @@ import '../features/auth/forgot_password_screen.dart';
 import '../features/customers/customer_form_screen.dart';
 import '../features/customers/customers_list_screen.dart';
 import '../features/agenda/agenda_screen.dart';
+import '../features/financeiro/financeiro_screen.dart';
 import '../features/agenda/appointment_form_screen.dart';
 import '../features/customers/models/customer.dart';
 import '../features/agenda/models/appointment.dart';
@@ -74,6 +75,7 @@ const _providerOnlyRoutes = {
   '/orcamentos',
   '/orcamentos/editar',
   '/servicos',
+  '/financeiro',
 };
 
 GoRouter buildAppRouter(AuthController authController) {
@@ -170,6 +172,7 @@ GoRouter buildAppRouter(AuthController authController) {
       ),
       GoRoute(path: '/orcamentos', builder: (context, state) => const BudgetsScreen()),
       GoRoute(path: '/servicos', builder: (context, state) => const JobsKanbanScreen()),
+      GoRoute(path: '/financeiro', builder: (context, state) => const FinanceiroScreen()),
       // `extra` carrega o Budget sendo editado, null pra criar um novo —
       // mesmo padrão de '/clientes/editar' e '/agenda/editar'.
       GoRoute(

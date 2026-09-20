@@ -358,6 +358,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           color: const Color(0xFFCA8A04),
                           onTap: () => context.push('/prestador/${auth.providerId}'),
                         ),
+                        // Financeiro não tem tela de lançamento: os
+                        // números saem dos serviços que ele já movimenta
+                        // no Kanban (ver FinanceiroScreen).
+                        _ShortcutCard(
+                          icon: Icons.bar_chart_rounded,
+                          label: 'Financeiro',
+                          subtitle: 'Quanto entrou e quanto falta',
+                          color: const Color(0xFF15803D),
+                          onTap: () => context.push('/financeiro'),
+                        ),
                       ],
                     ),
                     if (!_dispensouDicaDoDia) ...[
