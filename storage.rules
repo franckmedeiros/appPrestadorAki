@@ -7,8 +7,10 @@ rules_version = '2';
 // pelo Console, a menos que "storage" seja adicionado ao firebase.json
 // pra permitir `firebase deploy --only storage`).
 //
-// Por enquanto só guarda a logo do prestador (ver ProviderLogoService) —
-// um arquivo fixo por uid, então nunca precisa listar nada.
+// Guarda a logo do prestador (ver ProviderLogoService), num arquivo fixo
+// por uid, e as fotos de trabalhos feitos (ver ProviderPhotosService),
+// numa pasta por uid. Nenhum dos dois precisa de `list`: o app descobre as
+// fotos pelas URLs gravadas no providerDirectory, não varrendo a pasta.
 service firebase.storage {
   match /b/{bucket}/o {
     // Logo do prestador — aparece no perfil público do diretório (ver
@@ -19,6 +21,27 @@ service firebase.storage {
     match /providers/{uid}/logo.jpg {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Fotos de serviços — aparecem no perfil público, então leitura
+    // liberada pela mesma razão da logo. Escrita só do dono.
+    //
+    // O LIMITE DE TAMANHO É AQUI, e não só no app: a validação do app é
+    // uma conveniência pra quem usa o app: qualquer um com o token de
+    // login pode chamar a API do Storage direto. Sem esta linha, uma conta
+    // conseguiria despejar arquivos de qualquer tamanho na sua conta do
+    // Firebase.
+    //
+    // 8 MB cobre com folga uma foto de celular já comprimida pelo
+    // image_picker (ver EditProfileScreen, que pede imageQuality) e barra
+    // vídeo disfarçado de .jpg.
+    match /providers/{uid}/fotos/{arquivo} {
+      allow read: if true;
+      allow write: if request.auth != null &&
+        request.auth.uid == uid &&
+        request.resource.size < 8 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
   }
 }

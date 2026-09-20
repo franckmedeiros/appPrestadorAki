@@ -13,6 +13,7 @@ import '../../core/provider_logo_service.dart';
 import '../../core/provider_bio_ai_service.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/service_area_field.dart';
+import '../../widgets/service_photos_field.dart';
 import '../../widgets/state_city_fields.dart';
 import '../../widgets/service_category_field.dart';
 import '../marketplace/models/provider_listing.dart';
@@ -62,6 +63,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   /// Cidades ADICIONAIS que o prestador atende, além da do endereço
   /// (ver ServiceAreaField). Formato "Cidade/UF".
   List<String> _cidadesAtendidas = const [];
+
+  /// Fotos de trabalhos feitos (ver ServicePhotosField). Já são URLs do
+  /// Storage quando chegam aqui — o envio acontece no próprio widget.
+  List<String> _fotos = const [];
   String? _areaUf;
   final _streetFocusNode = FocusNode();
   List<ServiceCategory> _categories = [];
@@ -97,6 +102,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     // endereço e o widget a mostra sozinho. Guardar as duas juntas aqui
     // faria a principal virar removível, e o prestador sumiria da busca
     // da própria cidade.
+    _fotos = listing?.fotos ?? const [];
     _cidadesAtendidas = (listing?.cidadesAtendidas ?? const [])
         .where((c) => c.split('/').first.trim() != (listing?.city ?? '').trim())
         .toList();
@@ -470,6 +476,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 bio: _bioController.text.trim(),
                 whatsapp: _whatsappController.text.trim(),
                 cidadesAtendidas: _cidadesAtendidas,
+                // A logo já existia na conta; o que faltava era ela chegar
+                // ao diretório público, que é o que o cliente lê.
+                logoUrl: _logoUrl,
+                fotos: _fotos,
               );
         }
       } catch (e) {
@@ -620,7 +630,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  ServicePhotosField(
+                    uid: context.read<AuthController>().providerId,
+                    fotos: _fotos,
+                    onChanged: (fotos) => setState(() => _fotos = fotos),
+                  ),
+                  const SizedBox(height: 20),
                   ServiceAreaField(
                     cidadePrincipal: _areaCity,
                     ufPrincipal: _areaUf,

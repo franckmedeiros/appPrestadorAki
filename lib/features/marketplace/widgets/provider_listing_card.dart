@@ -37,7 +37,7 @@ Widget providerListingCard({
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _CardAvatar(icon: listing.category.icon),
+                    _CardAvatar(icon: listing.category.icon, fotoUrl: listing.logoUrl),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -161,15 +161,22 @@ Widget providerListingCard({
 /// pra chegar mais perto da proporção do mockup que o Franck mandou
 /// nessa tela específica de busca.
 class _CardAvatar extends StatelessWidget {
-  const _CardAvatar({required this.icon});
+  const _CardAvatar({required this.icon, this.fotoUrl});
 
   final IconData icon;
 
+  /// Foto do prestador, quando ele mandou uma. Sem ela, o ícone da
+  /// categoria — que é o caso da maioria hoje, incluindo toda a carga de
+  /// curadoria, e fica melhor que uma silhueta vazia.
+  final String? fotoUrl;
+
   @override
   Widget build(BuildContext context) {
+    final url = (fotoUrl ?? '').trim();
     return Container(
       width: 62,
       height: 62,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -178,7 +185,13 @@ class _CardAvatar extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Icon(icon, color: Colors.white, size: 30),
+      child: url.isEmpty
+          ? Icon(icon, color: Colors.white, size: 30)
+          : Image.network(
+              url,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Icon(icon, color: Colors.white, size: 30),
+            ),
     );
   }
 }

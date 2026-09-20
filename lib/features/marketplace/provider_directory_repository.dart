@@ -275,6 +275,8 @@ class ProviderDirectoryRepository {
     String? bio,
     String? whatsapp,
     List<String> cidadesAtendidas = const [],
+    String? logoUrl,
+    List<String> fotos = const [],
   }) async {
     assert(categories.isNotEmpty, 'upsertOwnListing precisa de ao menos uma categoria');
     try {
@@ -328,6 +330,15 @@ class ProviderDirectoryRepository {
             .map((c) => normalizeForSearch(c.split('/').first.trim()))
             .toSet()
             .toList(),
+        // Foto do prestador e fotos de trabalhos feitos. A logo já existia
+        // em `providers/{uid}.logoUrl`, mas nunca era copiada pra cá — o
+        // prestador subia a foto e o cliente continuava vendo um ícone
+        // genérico. `FieldValue.delete()` quando vazio pra uma foto
+        // removida sumir de fato, em vez de virar string vazia.
+        'logoUrl': (logoUrl != null && logoUrl.trim().isNotEmpty)
+            ? logoUrl.trim()
+            : FieldValue.delete(),
+        'fotos': fotos.where((f) => f.trim().isNotEmpty).toList(),
         'claimed': true,
         'providerUid': uid,
         'updatedAt': now,

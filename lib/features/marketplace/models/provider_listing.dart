@@ -23,6 +23,8 @@ class ProviderListing {
     this.respostasContadas = 0,
     this.respostaMinutosSoma = 0,
     this.cidadesAtendidas = const [],
+    this.logoUrl,
+    this.fotos = const [],
   });
 
   factory ProviderListing.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -55,6 +57,8 @@ class ProviderListing {
       respostaMinutosSoma: (data['respostaMinutosSoma'] as num?)?.toInt() ?? 0,
       cidadesAtendidas:
           (data['cidadesAtendidas'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      logoUrl: data['logoUrl'] as String?,
+      fotos: (data['fotos'] as List?)?.map((e) => e.toString()).toList() ?? const [],
     );
   }
 
@@ -147,6 +151,20 @@ class ProviderListing {
       ...cidadesAtendidas.where((c) => c != principal),
     ];
   }
+
+  /// Foto/logo do prestador.
+  ///
+  /// Ela já existia em `providers/{uid}.logoUrl` desde que o upload foi
+  /// feito, mas NUNCA chegava ao diretório público — ou seja, o prestador
+  /// subia a foto, via ela no próprio perfil, e o cliente que o procurava
+  /// continuava olhando um ícone genérico. Copiar pra cá (ver
+  /// upsertOwnListing) é o que faz a foto aparecer pra quem importa.
+  final String? logoUrl;
+
+  /// Fotos de trabalhos feitos, que aparecem no perfil público (pedido do
+  /// Franck). Ficam no Storage em `providers/{uid}/fotos/` — ver
+  /// ProviderPhotosService.
+  final List<String> fotos;
 
   /// Média de resposta em minutos, ou `null` enquanto não houver resposta
   /// nenhuma.

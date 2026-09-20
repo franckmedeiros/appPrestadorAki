@@ -222,7 +222,10 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _ProfileAvatar(icon: listing.category.icon),
+                                _ProfileAvatar(
+                                  icon: listing.category.icon,
+                                  fotoUrl: listing.logoUrl,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
@@ -300,6 +303,32 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                               color: AppColors.muted.withValues(alpha: 0.16),
                             ),
                             const SizedBox(height: 12),
+
+                            // Galeria de trabalhos feitos. Fica ANTES das
+                            // categorias de propósito: a foto é o argumento
+                            // mais forte que o prestador tem, e o cliente
+                            // decide olhando, não lendo.
+                            if (listing.fotos.isNotEmpty) ...[
+                              const _SectionLabel(
+                                icon: Icons.photo_library_outlined,
+                                title: 'Trabalhos feitos',
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 150,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: listing.fotos.length,
+                                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                                  itemBuilder: (context, i) => _FotoDoTrabalho(
+                                    url: listing.fotos[i],
+                                    todas: listing.fotos,
+                                    indice: i,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                            ],
 
                             // Área de atendimento — só aparece pra quem
                             // atende MAIS de uma cidade. Com uma só, essa
@@ -541,16 +570,25 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
 }
 
 /// Avatar compacto do profissional.
+/// Foto do prestador no topo do perfil; o ícone da categoria é o que
+/// aparece quando ele não mandou nenhuma.
+///
+/// O ícone continua existindo de propósito: perfis de curadoria e quem
+/// ainda não subiu foto são a maioria hoje, e um avatar vazio ou uma
+/// silhueta genérica ficariam piores do que o símbolo do ofício.
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({required this.icon});
+  const _ProfileAvatar({required this.icon, this.fotoUrl});
 
   final IconData icon;
+  final String? fotoUrl;
 
   @override
   Widget build(BuildContext context) {
+    final url = (fotoUrl ?? '').trim();
     return Container(
       width: 64,
       height: 64,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -559,7 +597,16 @@ class _ProfileAvatar extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Icon(icon, color: Colors.white, size: 29),
+      child: url.isEmpty
+          ? Icon(icon, color: Colors.white, size: 29)
+          : Image.network(
+              url,
+              fit: BoxFit.cover,
+              // Foto que não carrega cai no ícone, e não num retângulo de
+              // erro: o perfil continua apresentável mesmo com a imagem
+              // fora do ar.
+              errorBuilder: (_, __, ___) => Icon(icon, color: Colors.white, size: 29),
+            ),
     );
   }
 }
@@ -933,6 +980,101 @@ class _ReviewTile extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+
+/// Uma foto da galeria. Tocar abre em tela cheia, com as outras ao lado —
+/// numa miniatura de 150px o cliente vê que existe um trabalho, mas não
+/// consegue julgar o acabamento, que é justamente o que ele quer ver.
+class _FotoDoTrabalho extends StatelessWidget {
+  const _FotoDoTrabalho({
+    required this.url,
+    required this.todas,
+    required this.indice,
+  });
+
+  final String url;
+  final List<String> todas;
+  final int indice;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _GaleriaEmTelaCheia(fotos: todas, inicial: indice),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.network(
+          url,
+          width: 190,
+          height: 150,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: 190,
+            height: 150,
+            color: AppColors.background,
+            alignment: Alignment.center,
+            child: const Icon(Icons.broken_image_outlined, color: AppColors.muted),
+          ),
+          loadingBuilder: (context, child, progresso) => progresso == null
+              ? child
+              : Container(
+                  width: 190,
+                  height: 150,
+                  color: AppColors.background,
+                  alignment: Alignment.center,
+                  child: const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GaleriaEmTelaCheia extends StatelessWidget {
+  const _GaleriaEmTelaCheia({required this.fotos, required this.inicial});
+
+  final List<String> fotos;
+  final int inicial;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: PageView.builder(
+        controller: PageController(initialPage: inicial),
+        itemCount: fotos.length,
+        itemBuilder: (context, i) => InteractiveViewer(
+          // Até 4x: o prestador tira foto de longe, e o acabamento que o
+          // cliente quer conferir está num canto da imagem.
+          maxScale: 4,
+          child: Center(
+            child: Image.network(
+              fotos[i],
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.broken_image_outlined,
+                color: Colors.white54,
+                size: 48,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
