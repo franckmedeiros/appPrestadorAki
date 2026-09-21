@@ -20,7 +20,14 @@ Widget providerListingCard({
   required VoidCallback onTap,
   required bool isFavorite,
   required VoidCallback onToggleFavorite,
+  VoidCallback? onChat,
 }) {
+  // Chat direto do card — pedido do Franck: abaixo do coração, e só pra
+  // prestador assinante. Quem não assina (e toda a curadoria) não recebe
+  // mensagem pelo app, então oferecer o botão seria prometer uma conversa
+  // que ninguém vai ver.
+  final mostrarChat = onChat != null && listing.isVerifiedSubscriber;
+
   return Card(
     margin: EdgeInsets.zero,
     clipBehavior: Clip.antiAlias,
@@ -107,23 +114,49 @@ Widget providerListingCard({
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.muted.withValues(alpha: 0.3)),
-                          ),
-                          child: IconButton(
-                            onPressed: onToggleFavorite,
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                            icon: Icon(
-                              isFavorite ? Icons.favorite : Icons.favorite_border,
-                              color: isFavorite ? AppColors.primary : AppColors.muted,
-                              size: 20,
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppColors.muted.withValues(alpha: 0.3)),
+                              ),
+                              child: IconButton(
+                                onPressed: onToggleFavorite,
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                icon: Icon(
+                                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                                  color: isFavorite ? AppColors.primary : AppColors.muted,
+                                  size: 20,
+                                ),
+                                tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar',
+                              ),
                             ),
-                            tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar',
-                          ),
+                            if (mostrarChat) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                ),
+                                child: IconButton(
+                                  onPressed: onChat,
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                  icon: const Icon(
+                                    Icons.chat_bubble_outline_rounded,
+                                    color: AppColors.primary,
+                                    size: 19,
+                                  ),
+                                  tooltip: 'Conversar com o profissional',
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         Container(
                           width: 1,

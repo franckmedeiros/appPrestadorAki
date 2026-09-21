@@ -33,7 +33,20 @@ class ProviderPhotosService {
     _sequencia++;
     final nome = '${DateTime.now().millisecondsSinceEpoch}_$_sequencia.jpg';
     final ref = FirebaseStorage.instance.ref('providers/$uid/fotos/$nome');
-    await ref.putFile(arquivo);
+    // `contentType` EXPLÍCITO — e é isto que fazia o envio falhar com
+    // "permissão negada". A regra do Storage só aceita `image/*` (ver
+    // storage.rules), mas `putFile` sem metadados deixa o SDK adivinhar o
+    // tipo pelo arquivo local, e o arquivo temporário que o image_picker
+    // devolve nem sempre tem extensão que ele reconheça. Aí o upload chega
+    // como `application/octet-stream`, a regra recusa, e o erro diz
+    // "permissão" quando o problema era o tipo.
+    //
+    // A logo nunca teve esse problema porque a regra dela não confere o
+    // tipo. Declarar aqui torna o resultado igual em qualquer aparelho.
+    //
+    // Sempre JPEG: o image_picker já recomprime a foto (ver
+    // ServicePhotosField, `imageQuality`), e a saída dele é JPEG.
+    await ref.putFile(arquivo, SettableMetadata(contentType: 'image/jpeg'));
     return ref.getDownloadURL();
   }
 

@@ -14,6 +14,7 @@ import '../../widgets/biometric_offer_card.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/service_category_field.dart';
 import 'client_auth_gate.dart';
+import 'abrir_conversa.dart';
 import 'favorites_controller.dart';
 import 'models/provider_listing.dart';
 import 'models/service_category.dart';
@@ -710,6 +711,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       },
                       isFavorite: favoriteIds.contains(listing.id),
                       onToggleFavorite: () => _toggleFavorite(listing),
+                      onChat: () => abrirConversaComPrestador(context, listing),
                     );
                   },
                 );

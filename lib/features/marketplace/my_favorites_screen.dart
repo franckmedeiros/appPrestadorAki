@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'abrir_conversa.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import 'client_auth_gate.dart';
@@ -112,6 +113,7 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
                         onTap: () => context.push('/prestador/${listing.id}'),
                         isFavorite: true,
                         onToggleFavorite: () => _removeFavorite(listing),
+                        onChat: () => abrirConversaComPrestador(context, listing),
                       );
                     },
                   );
