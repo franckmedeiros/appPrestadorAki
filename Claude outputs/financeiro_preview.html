@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Financeiro — prévia</title>
+<style>
+  :root{
+    --primary:#E7502E; --primary-dark:#E74B32; --ink:#241512;
+    --bg:#F7F5F4; --surface:#FFFFFF; --success:#2E9E5B;
+    --warning:#C98A1B; --muted:#8A7B76;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:#ECE8E6; color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:28px 16px 48px; -webkit-font-smoothing:antialiased;
+  }
+  .topo{max-width:900px;margin:0 auto 26px;text-align:center}
+  .topo h1{font-size:19px;font-weight:800;letter-spacing:-.2px}
+  .topo p{font-size:13px;color:#6b5f5b;margin-top:6px;line-height:1.5}
+  .palco{
+    display:flex;gap:28px;justify-content:center;
+    align-items:flex-start;flex-wrap:wrap;max-width:900px;margin:0 auto;
+  }
+  .coluna{width:360px;max-width:100%}
+  .rotulo{
+    font-size:12px;font-weight:700;color:#6b5f5b;text-transform:uppercase;
+    letter-spacing:.7px;margin:0 0 10px 4px;
+  }
+  .fone{
+    background:var(--bg);border-radius:26px;overflow:hidden;
+    box-shadow:0 12px 34px rgba(36,21,18,.16);border:1px solid rgba(36,21,18,.07);
+  }
+  .appbar{
+    background:var(--surface);padding:16px;font-size:16px;font-weight:600;
+    border-bottom:1px solid rgba(138,123,118,.14);
+  }
+  .tela{padding:16px 16px 26px;display:flex;flex-direction:column;gap:12px}
+
+  /* cartão do mês */
+  .mes{
+    background:linear-gradient(135deg,var(--primary),var(--primary-dark));
+    border-radius:18px;padding:20px;color:#fff;
+  }
+  .mes .cap{font-size:12.5px;color:rgba(255,255,255,.7)}
+  .mes .valor{font-size:30px;font-weight:800;line-height:1.1;margin-top:6px}
+  .mini{display:flex;margin-top:14px;align-items:center}
+  .mini>div{flex:1}
+  .mini .sep{flex:0 0 1px;height:30px;background:rgba(255,255,255,.24)}
+  .mini .r{font-size:11px;color:rgba(255,255,255,.7)}
+  .mini .v{font-size:15px;font-weight:700;margin-top:2px}
+  .mini .dir{padding-left:14px}
+
+  /* cartões brancos */
+  .card{
+    background:var(--surface);border-radius:16px;
+    border:1px solid rgba(138,123,118,.12);
+  }
+  .card.alerta{border-color:rgba(201,138,27,.25)}
+  .linha-topo{display:flex;align-items:center;padding:16px;gap:14px}
+  .icone{
+    width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+    font-size:18px;flex:0 0 40px;
+  }
+  .rotulo-p{font-size:12.5px;color:var(--muted)}
+  .valor-p{font-size:19px;font-weight:800;margin-top:2px}
+  .tag{font-size:12px;font-weight:600}
+  .seta{font-size:15px;margin-left:4px}
+  .div{height:1px;background:rgba(138,123,118,.12)}
+  .item{display:flex;align-items:center;padding:12px 14px;gap:10px}
+  .item .nome{font-size:13.5px}
+  .item .det{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .item .val{font-size:13.5px;font-weight:700;margin-left:auto}
+
+  /* gráfico */
+  .grafico{padding:16px 16px 12px}
+  .grafico h3{font-size:14.5px;font-weight:700}
+  .grafico .sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .barras{display:flex;align-items:flex-end;height:150px;margin-top:16px}
+  .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+  .cap-val{height:26px;display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--muted)}
+  .cap-val.on{color:var(--primary)}
+  .barra{width:calc(100% - 8px);background:rgba(231,80,46,.28);border-radius:4px 4px 0 0}
+  .barra.on{background:var(--primary)}
+  .nome-mes{font-size:11px;color:var(--muted);margin-top:8px}
+  .nome-mes.on{color:var(--ink);font-weight:700}
+
+  /* seção */
+  .sec-cab{display:flex;align-items:baseline;gap:10px;margin:12px 4px 10px}
+  .sec-cab h3{font-size:14.5px;font-weight:700;flex:1}
+  .sec-cab span{font-size:11.5px;color:var(--muted)}
+
+  .nota{
+    max-width:900px;margin:30px auto 0;background:#fff;border-radius:14px;
+    padding:18px 20px;font-size:13.5px;line-height:1.65;color:#3d2c27;
+    border:1px solid rgba(36,21,18,.08);
+  }
+  .nota b{color:var(--ink)}
+  .nota p+p{margin-top:10px}
+  @media (max-width:820px){.palco{gap:34px}}
+</style>
+</head>
+<body>
+
+<div class="topo">
+  <h1>Financeiro — como vai ficar</h1>
+  <p>Desenho estático com as cores reais do tema e os dados do script de demonstração.
+     Não é o app rodando: serve pra conferir o layout antes de gastar o build.</p>
+</div>
+
+<div class="palco">
+
+  <!-- ============ 1: como fica com os dados do script ============ -->
+  <div class="coluna">
+    <div class="rotulo">Com os dados do script</div>
+    <div class="fone">
+      <div class="appbar">Financeiro</div>
+      <div class="tela">
+
+        <div class="mes">
+          <div class="cap">Recebido em setembro de 2026</div>
+          <div class="valor">R$ 6.480,00</div>
+          <div class="mini">
+            <div><div class="r">Serviços pagos</div><div class="v">3</div></div>
+            <div class="sep"></div>
+            <div class="dir"><div class="r">Ticket médio</div><div class="v">R$ 2.160,00</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="linha-topo">
+            <div class="icone" style="background:rgba(138,123,118,.12);color:var(--muted)">◷</div>
+            <div style="flex:1">
+              <div class="rotulo-p">A receber hoje</div>
+              <div class="valor-p">R$ 0,00</div>
+            </div>
+            <div class="tag" style="color:var(--muted)">nada parado</div>
+          </div>
+        </div>
+
+        <div class="card grafico">
+          <h3>Faturamento por mês</h3>
+          <div class="sub">Toque num mês para ver os detalhes dele</div>
+          <div class="barras">
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:59px"></div><div class="nome-mes">abr</div></div>
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:68px"></div><div class="nome-mes">mai</div></div>
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:47px"></div><div class="nome-mes">jun</div></div>
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:78px"></div><div class="nome-mes">jul</div></div>
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:87px"></div><div class="nome-mes">ago</div></div>
+            <div class="col"><div class="cap-val on">6.480,00</div><div class="barra on" style="height:96px"></div><div class="nome-mes on">set</div></div>
+          </div>
+        </div>
+
+        <div class="sec-cab">
+          <h3>Recebidos em setembro de 2026</h3>
+          <span>3 pagamentos</span>
+        </div>
+        <div class="card">
+          <div class="item">
+            <div><div class="nome">Marina Doring</div><div class="det">24 de set</div></div>
+            <div class="val" style="color:var(--success)">R$ 1.500,00</div>
+          </div>
+          <div class="div"></div>
+          <div class="item">
+            <div><div class="nome">Michel Búrigo</div><div class="det">16 de set</div></div>
+            <div class="val" style="color:var(--success)">R$ 2.380,00</div>
+          </div>
+          <div class="div"></div>
+          <div class="item">
+            <div><div class="nome">Ed. Atlântico</div><div class="det">8 de set</div></div>
+            <div class="val" style="color:var(--success)">R$ 2.600,00</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 2: com pendências, cartão aberto ============ -->
+  <div class="coluna">
+    <div class="rotulo">Com pendências — cartão aberto</div>
+    <div class="fone">
+      <div class="appbar">Financeiro</div>
+      <div class="tela">
+
+        <div class="mes">
+          <div class="cap">Recebido em setembro de 2026</div>
+          <div class="valor">R$ 6.480,00</div>
+          <div class="mini">
+            <div><div class="r">Serviços pagos</div><div class="v">3</div></div>
+            <div class="sep"></div>
+            <div class="dir"><div class="r">Ticket médio</div><div class="v">R$ 2.160,00</div></div>
+          </div>
+        </div>
+
+        <div class="card alerta">
+          <div class="linha-topo">
+            <div class="icone" style="background:rgba(201,138,27,.12);color:var(--warning)">◷</div>
+            <div style="flex:1">
+              <div class="rotulo-p">A receber hoje</div>
+              <div class="valor-p">R$ 1.130,00</div>
+            </div>
+            <div class="tag" style="color:var(--warning)">2 serviços</div>
+            <div class="seta" style="color:var(--warning)">⌃</div>
+          </div>
+          <div class="div"></div>
+          <div class="item">
+            <div><div class="nome">Ana Cechinel</div><div class="det">Instalação de luminárias</div></div>
+            <div class="val" style="color:var(--warning)">R$ 650,00</div>
+          </div>
+          <div class="div"></div>
+          <div class="item">
+            <div><div class="nome">Carlos Zanette</div><div class="det">Troca de tomadas da cozinha</div></div>
+            <div class="val" style="color:var(--warning)">R$ 480,00</div>
+          </div>
+        </div>
+
+        <div class="card grafico">
+          <h3>Faturamento por mês</h3>
+          <div class="sub">Toque num mês para ver os detalhes dele</div>
+          <div class="barras">
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:59px"></div><div class="nome-mes">abr</div></div>
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:68px"></div><div class="nome-mes">mai</div></div>
+            <div class="col"><div class="cap-val on">3.150,00</div><div class="barra on" style="height:47px"></div><div class="nome-mes on">jun</div></div>
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:78px"></div><div class="nome-mes">jul</div></div>
+            <div class="col"><div class="cap-val"></div><div class="barra" style="height:87px"></div><div class="nome-mes">ago</div></div>
+            <div class="col"><div class="cap-val">6.480,00</div><div class="barra" style="height:96px"></div><div class="nome-mes">set</div></div>
+          </div>
+        </div>
+
+        <div class="sec-cab">
+          <h3>Recebidos em junho de 2026</h3>
+          <span>3 pagamentos</span>
+        </div>
+        <div class="card">
+          <div class="item">
+            <div><div class="nome">Marina Doring</div><div class="det">24 de jun</div></div>
+            <div class="val" style="color:var(--success)">R$ 800,00</div>
+          </div>
+          <div class="div"></div>
+          <div class="item">
+            <div><div class="nome">Ana Cechinel</div><div class="det">16 de jun</div></div>
+            <div class="val" style="color:var(--success)">R$ 1.400,00</div>
+          </div>
+          <div class="div"></div>
+          <div class="item">
+            <div><div class="nome">Michel Búrigo</div><div class="det">8 de jun</div></div>
+            <div class="val" style="color:var(--success)">R$ 950,00</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="nota">
+  <p><b>A coluna da direita mostra junho selecionado</b> pra deixar claro o que
+  muda ao tocar numa barra: o cartão do topo, o título da lista e as linhas
+  trocam juntos. O rótulo de valor continua aparecendo no mês mais alto (set)
+  mesmo sem ele estar selecionado — é a régua de comparação.</p>
+
+  <p><b>"Por categoria" não aparece em nenhuma das duas.</b> O Denilson é
+  eletricista em todos os serviços, e o bloco agora só é montado quando há mais
+  de uma categoria no mês. Era exatamente ele que estava sozinho na tela antes.</p>
+
+  <p><b>Um detalhe do script de demonstração:</b> hoje todos os serviços dele
+  nascem como <i>concluído</i>, então "A receber" fica zerado e o cartão nem
+  ganha a seta — a tela de verdade vai ficar igual à coluna da esquerda. Se
+  quiser que a funcionalidade apareça na revisão da Apple e no vídeo, eu
+  acrescento dois serviços em "aguardando pagamento" ao script.</p>
+</div>
+
+</body>
+</html>

@@ -142,20 +142,27 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
           // "A receber" é um número de AGORA, não do mês escolhido: é
           // dinheiro que ainda não entrou, então não pertence a nenhum mês
           // do passado. Fica separado dos outros dois de propósito.
-          final aReceberCents = jobs
-              .where((j) => j.status == JobStatus.aguardandoPagamento)
-              .fold<int>(0, (soma, j) => soma + j.totalCents);
-          final aReceberQtd =
-              jobs.where((j) => j.status == JobStatus.aguardandoPagamento).length;
+          final aReceber =
+              jobs.where((j) => j.status == JobStatus.aguardandoPagamento).toList();
 
           final ticketCents = mes.servicos == 0 ? 0 : (mes.recebidoCents / mes.servicos).round();
+          final doMes = _doMesSelecionado(jobs, mes);
+
+          // "Por categoria" só faz sentido pra quem atua em mais de uma: um
+          // eletricista tem uma categoria só, e o bloco virava uma linha
+          // única repetindo o total do mês — ocupando espaço sem responder
+          // nada. Pedido do Franck (25/09): o que ele precisa ver ali é
+          // QUEM pagou, pra conferir ("ver se a Marina pagou"). Essa
+          // resposta agora é a lista abaixo; a categoria virou o detalhe
+          // secundário que só aparece quando de fato há o que comparar.
+          final categorias = doMes.map((j) => (j.category ?? '').trim()).toSet();
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
               _CartaoDoMes(mes: mes, ticketCents: ticketCents),
               const SizedBox(height: 12),
-              _CartaoAReceber(cents: aReceberCents, quantidade: aReceberQtd),
+              _CartaoAReceber(servicos: aReceber),
               const SizedBox(height: 20),
               _GraficoDeFaturamento(
                 meses: meses,
@@ -163,7 +170,11 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                 onSelecionar: (i) => setState(() => _mesSelecionado = i),
               ),
               const SizedBox(height: 24),
-              _PorCategoria(servicos: _doMesSelecionado(jobs, mes), mes: mes),
+              _RecebidosNoMes(servicos: doMes, mes: mes),
+              if (categorias.length > 1) ...[
+                const SizedBox(height: 24),
+                _PorCategoria(servicos: doMes, mes: mes),
+              ],
             ],
           );
         },
@@ -258,61 +269,108 @@ class _MiniDado extends StatelessWidget {
   }
 }
 
-class _CartaoAReceber extends StatelessWidget {
-  const _CartaoAReceber({required this.cents, required this.quantidade});
+/// "A receber hoje" — e, ao tocar, DE QUEM.
+///
+/// O valor sozinho respondia "quanto falta entrar" mas não "quem ainda não
+/// me pagou", que é a pergunta que o prestador realmente faz. Como a lista
+/// costuma ser curta (é o que está parado agora, não o histórico), ela cabe
+/// aqui dentro em vez de virar outra tela.
+class _CartaoAReceber extends StatefulWidget {
+  const _CartaoAReceber({required this.servicos});
 
-  final int cents;
-  final int quantidade;
+  final List<Job> servicos;
+
+  @override
+  State<_CartaoAReceber> createState() => _CartaoAReceberState();
+}
+
+class _CartaoAReceberState extends State<_CartaoAReceber> {
+  bool _aberto = false;
 
   @override
   Widget build(BuildContext context) {
+    final cents = widget.servicos.fold<int>(0, (s, j) => s + j.totalCents);
+    final quantidade = widget.servicos.length;
     // Zero aqui é notícia boa — não vale acender um alerta laranja.
     final cor = cents == 0 ? AppColors.muted : AppColors.warning;
+    // Sem nada parado não há o que abrir: o cartão continua sendo só o
+    // número, sem uma seta que não leva a lugar nenhum.
+    final podeAbrir = quantidade > 0;
+
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: cor.withValues(alpha: 0.25)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: cor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.schedule, color: cor, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'A receber hoje',
-                  style: TextStyle(fontSize: 12.5, color: AppColors.muted),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  formatCentsBRL(cents),
-                  style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
+          InkWell(
+            onTap: podeAbrir ? () => setState(() => _aberto = !_aberto) : null,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: cor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.schedule, color: cor, size: 20),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'A receber hoje',
+                          style: TextStyle(fontSize: 12.5, color: AppColors.muted),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          formatCentsBRL(cents),
+                          style: const TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    quantidade == 0
+                        ? 'nada parado'
+                        : '$quantidade serviço${quantidade == 1 ? '' : 's'}',
+                    style: TextStyle(fontSize: 12, color: cor, fontWeight: FontWeight.w600),
+                  ),
+                  if (podeAbrir)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Icon(
+                        _aberto ? Icons.expand_less : Icons.expand_more,
+                        size: 20,
+                        color: cor,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-          Text(
-            quantidade == 0
-                ? 'nada parado'
-                : '$quantidade serviço${quantidade == 1 ? '' : 's'}',
-            style: TextStyle(fontSize: 12, color: cor, fontWeight: FontWeight.w600),
-          ),
+          if (_aberto)
+            for (final job in widget.servicos) ...[
+              Divider(height: 1, color: AppColors.muted.withValues(alpha: 0.12)),
+              _LinhaDeServico(
+                nome: job.customerName,
+                detalhe: job.addressText,
+                cents: job.totalCents,
+                cor: cor,
+              ),
+            ],
         ],
       ),
     );
@@ -467,9 +525,18 @@ class _Barra extends StatelessWidget {
   }
 }
 
-/// Quanto cada categoria rendeu no mês selecionado.
-class _PorCategoria extends StatelessWidget {
-  const _PorCategoria({required this.servicos, required this.mes});
+/// Quem pagou o quê no mês selecionado.
+///
+/// É a resposta à pergunta que o prestador faz de verdade ao abrir o
+/// Financeiro — "a Marina já me pagou?" — e que o total do mês, sozinho,
+/// nunca respondeu. Vem do MESMO `Job.paidAt` que soma a barra do gráfico,
+/// então a lista sempre fecha com o número de cima: se somar as linhas e
+/// der outra coisa, é bug, não arredondamento.
+///
+/// Ordenada do pagamento mais recente pro mais antigo: conferindo, a
+/// pessoa procura o que acabou de entrar, não o começo do mês.
+class _RecebidosNoMes extends StatelessWidget {
+  const _RecebidosNoMes({required this.servicos, required this.mes});
 
   final List<Job> servicos;
   final _MesDeFaturamento mes;
@@ -492,6 +559,132 @@ class _PorCategoria extends StatelessWidget {
       );
     }
 
+    final ordenados = [...servicos]
+      ..sort((a, b) => (b.paidAt ?? DateTime(0)).compareTo(a.paidAt ?? DateTime(0)));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Recebidos em ${mes.rotuloLongo}',
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.ink,
+                ),
+              ),
+            ),
+            Text(
+              '${ordenados.length} pagamento${ordenados.length == 1 ? '' : 's'}',
+              style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.muted.withValues(alpha: 0.12)),
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < ordenados.length; i++) ...[
+                if (i > 0)
+                  Divider(height: 1, color: AppColors.muted.withValues(alpha: 0.12)),
+                _LinhaDeServico(
+                  nome: ordenados[i].customerName.isEmpty
+                      ? 'Sem cliente'
+                      : ordenados[i].customerName,
+                  detalhe: _dataCurta(ordenados[i].paidAt),
+                  cents: ordenados[i].totalCents,
+                  cor: AppColors.success,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String? _dataCurta(DateTime? data) {
+    if (data == null) return null;
+    return '${data.day} de ${_mesesCurtos[data.month - 1]}';
+  }
+}
+
+/// Uma linha de "fulano — R$ tanto", usada tanto pelo que já entrou quanto
+/// pelo que está pendente. A cor do valor é o que separa os dois (verde pro
+/// recebido, laranja pro parado), em vez de dois widgets quase idênticos.
+class _LinhaDeServico extends StatelessWidget {
+  const _LinhaDeServico({
+    required this.nome,
+    required this.cents,
+    required this.cor,
+    this.detalhe,
+  });
+
+  final String nome;
+  final String? detalhe;
+  final int cents;
+  final Color cor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  nome,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, color: AppColors.ink),
+                ),
+                if (detalhe != null && detalhe!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    detalhe!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            formatCentsBRL(cents),
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: cor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Quanto cada categoria rendeu no mês selecionado.
+///
+/// Só é montado por quem atua em mais de uma categoria (ver a decisão em
+/// `FinanceiroScreen.build`) — daí não haver estado vazio aqui: a tela não
+/// chega a construir este bloco quando não há o que comparar.
+class _PorCategoria extends StatelessWidget {
+  const _PorCategoria({required this.servicos, required this.mes});
+
+  final List<Job> servicos;
+  final _MesDeFaturamento mes;
+
+  @override
+  Widget build(BuildContext context) {
     final porCategoria = <String, int>{};
     for (final job in servicos) {
       final chave = (job.category ?? '').trim();
