@@ -270,11 +270,22 @@ class _CardDivulgacaoScreenState extends State<CardDivulgacaoScreen> {
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
+              // Rótulo junto do ícone: só o "Tt" não diz nada pra quem abre
+              // a tela pela primeira vez — o próprio Franck precisou
+              // perguntar o que era, e ele sabia que a opção existia.
               _MiniFoto(
                 selecionada: _foto == -1,
                 onTap: () => setState(() => _foto = -1),
-                child: const Center(
-                  child: Icon(Icons.text_fields_rounded, color: AppColors.muted, size: 22),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.text_fields_rounded, color: AppColors.muted, size: 20),
+                    SizedBox(height: 3),
+                    Text(
+                      'Sem foto',
+                      style: TextStyle(fontSize: 9.5, color: AppColors.muted, height: 1),
+                    ),
+                  ],
                 ),
               ),
               for (var i = 0; i < fotos.length; i++)
@@ -473,94 +484,145 @@ class _Card extends StatelessWidget {
               ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (servico.isNotEmpty)
-                    Text(
-                      servico,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                        height: 1.2,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                  const SizedBox(height: 6),
-                  Text(
-                    [nome, categoria, local].where((t) => t.isNotEmpty).join(' · '),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                  if (avaliacoes > 0) ...[
-                    const SizedBox(height: 5),
-                    Row(
+              child: fotoUrl != null
+                  // COM FOTO: tudo no rodapé, sobre o véu escuro. A foto é a
+                  // estrela do card; o texto é legenda dela.
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        const Icon(Icons.star_rounded, color: Color(0xFFFFC93C), size: 15),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${nota.toStringAsFixed(1).replaceAll('.', ',')} · $avaliacoes avaliações',
-                          style: const TextStyle(color: Colors.white70, fontSize: 11),
+                        if (servico.isNotEmpty) _frase(servico, 21),
+                        const SizedBox(height: 6),
+                        _identidade(nome, categoria, local, nota, avaliacoes),
+                        const SizedBox(height: 12),
+                        _marca(),
+                      ],
+                    )
+                  // SEM FOTO: a frase sobe pro topo e o resto desce pro pé,
+                  // preenchendo o card.
+                  //
+                  // Antes os dois modelos usavam o mesmo alinhamento no
+                  // rodapé, e sem foto isso deixava METADE DO CARD como um
+                  // bloco laranja vazio — parecia defeito, não desenho. Foi
+                  // o que apareceu no primeiro teste no aparelho.
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Sem serviço digitado a categoria assume: um card
+                        // com o topo em branco seria o mesmo problema de
+                        // novo, só que em outro lugar.
+                        _frase(servico.isEmpty ? categoria : servico, 27),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _identidade(nome, categoria, local, nota, avaliacoes),
+                            const SizedBox(height: 12),
+                            _marca(),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.only(top: 11),
-                    decoration: const BoxDecoration(
-                      border: Border(top: BorderSide(color: Colors.white24)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: QrImageView(
-                            data: kLinkDoApp,
-                            version: QrVersions.auto,
-                            size: 42,
-                            padding: EdgeInsets.zero,
-                            backgroundColor: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 9),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Peça seu orçamento no PrestadorAki',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Aponte a câmera para o código',
-                                style: TextStyle(color: Colors.white60, fontSize: 9.5),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// A frase grande do card. Tamanho vem por parâmetro porque o modelo sem
+  /// foto precisa dela maior — ali ela é o card inteiro, não uma legenda.
+  Widget _frase(String texto, double tamanho) {
+    return Text(
+      texto,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: tamanho,
+        fontWeight: FontWeight.w800,
+        height: 1.15,
+        letterSpacing: -0.4,
+      ),
+    );
+  }
+
+  /// Quem é o prestador: nome, categoria, cidade e a nota quando existe.
+  Widget _identidade(String nome, String categoria, String local, double nota, int avaliacoes) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          [nome, categoria, local].where((t) => t.isNotEmpty).join(' · '),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        if (avaliacoes > 0) ...[
+          const SizedBox(height: 5),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.star_rounded, color: Color(0xFFFFC93C), size: 15),
+              const SizedBox(width: 3),
+              Text(
+                '${nota.toStringAsFixed(1).replaceAll('.', ',')} · $avaliacoes avaliações',
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// A faixa do rodapé com o QR — a única parte do card que fala do app.
+  Widget _marca() {
+    return Container(
+      padding: const EdgeInsets.only(top: 11),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.white24)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: QrImageView(
+              data: kLinkDoApp,
+              version: QrVersions.auto,
+              size: 42,
+              padding: EdgeInsets.zero,
+              backgroundColor: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 9),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Peça seu orçamento no PrestadorAki',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Aponte a câmera para o código',
+                  style: TextStyle(color: Colors.white60, fontSize: 9.5),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
