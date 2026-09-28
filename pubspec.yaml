@@ -84,7 +84,31 @@ dependencies:
 
   # QR Code do Pix na tela de Serviços (ver lib/core/pix_payload.dart) —
   # gera a imagem do QR a partir do payload "Copia e Cola" já montado.
+  # Reaproveitado no card de divulgação (ver CardDivulgacaoScreen), onde
+  # aponta pra página do app em vez de pra chave Pix.
   qr_flutter: ^4.1.0
+
+  # Abre a folha de compartilhamento do sistema com a imagem do card de
+  # divulgação (ver CardDivulgacaoScreen). O `printing` já instalado só
+  # compartilha PDF, que não serve pra rede social.
+  #
+  # Compartilha os BYTES direto (XFile.fromData), sem escrever na galeria —
+  # por isso não precisa de permissão de armazenamento em nenhum dos dois
+  # sistemas, e o prestador escolhe no próprio menu do celular se salva ou
+  # posta.
+  #
+  # PRESO NO 12, e não no 13 (a versão atual), por conflito de dependência:
+  # o share_plus 13 exige `win32 ^6`, e o `flutter_secure_storage 9` puxa um
+  # pacote que trava em `win32 ^5` — o pub não resolve os dois. A outra
+  # saída seria subir o flutter_secure_storage pra 11, duas versões maiores
+  # numa peça que guarda sessão e desbloqueio biométrico e que hoje
+  # funciona; não vale o risco por um número de versão. O `win32` nem entra
+  # nas builds de Android e iOS, mas o pub resolve todas as plataformas de
+  # uma vez.
+  #
+  # A API que o app usa (`SharePlus.instance.share(ShareParams(...))`)
+  # existe desde a 11, então nada muda no código.
+  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:

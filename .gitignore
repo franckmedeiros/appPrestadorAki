@@ -65,3 +65,32 @@ app.*.map.json
 # guarde o arquivo, mas fora do git.
 /scripts/base_convite_whatsapp.xlsx
 /scripts/base_contatos_export.csv
+
+# Gravações de tela e qualquer mídia pesada. Em 28/09 duas gravações
+# (1,25 GB somadas) entraram num `git add -A` e o push morreu com HTTP 408
+# — o GitHub recusa arquivo acima de 100 MB, e um binário desse tamanho
+# fica no histórico pra sempre mesmo depois de apagado. Guarde os vídeos,
+# só não aqui: eles vão pro YouTube, não pro repositório.
+/videos/
+*.mp4
+*.mov
+
+# Material de assinatura iOS: a chave privada, o pedido de certificado e o
+# .p12 exportado. Quem tem esses três assina build em nome da conta Apple.
+# Moram em ~/chaves-prestadoraki, fora do projeto — isto aqui é só rede de
+# segurança pra quando um deles for parar na pasta errada por engano.
+*.p12
+*.key
+*.certSigningRequest
+*.cer
+*.mobileprovision
+
+# Pasta onde o app do Claude salva o que é entregue na conversa (prévias,
+# roteiros, planilhas, vídeos cortados). É material de trabalho, não código
+# do app — e foi por aqui que um .mp4 de 6 MB entrou num commit.
+/Claude outputs/
+
+# Cache local do Firebase Hosting — gravado a cada `firebase deploy` e sem
+# valor pra mais ninguém. Versionar isso faz todo deploy virar sujeira no
+# diff do próximo commit.
+/.firebase/

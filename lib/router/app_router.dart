@@ -15,8 +15,10 @@ import '../features/customers/models/customer.dart';
 import '../features/agenda/models/appointment.dart';
 import '../features/budgets/budget_form_screen.dart';
 import '../features/budgets/budgets_screen.dart';
+import '../features/budgets/conversas_screen.dart';
 import '../features/budgets/models/budget.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/divulgacao/card_divulgacao_screen.dart';
 import '../features/jobs/jobs_kanban_screen.dart';
 import '../features/marketplace/client_home_screen.dart';
 import '../features/marketplace/models/provider_listing.dart';
@@ -78,6 +80,7 @@ const _providerOnlyRoutes = {
   '/orcamentos/editar',
   '/servicos',
   '/financeiro',
+  '/divulgar',
 };
 
 GoRouter buildAppRouter(AuthController authController) {
@@ -182,6 +185,9 @@ GoRouter buildAppRouter(AuthController authController) {
       GoRoute(path: '/orcamentos', builder: (context, state) => const BudgetsScreen()),
       GoRoute(path: '/servicos', builder: (context, state) => const JobsKanbanScreen()),
       GoRoute(path: '/financeiro', builder: (context, state) => const FinanceiroScreen()),
+      // Gera a imagem que o prestador posta nas redes dele (ver
+      // CardDivulgacaoScreen) — alcançada pelo atalho no Dashboard.
+      GoRoute(path: '/divulgar', builder: (context, state) => const CardDivulgacaoScreen()),
       // `extra` carrega o Budget sendo editado, null pra criar um novo —
       // mesmo padrão de '/clientes/editar' e '/agenda/editar'.
       GoRoute(
@@ -247,6 +253,15 @@ GoRouter buildAppRouter(AuthController authController) {
                 ),
               ],
             ),
+          ]),
+          // Conversas — acrescentado no FIM da lista de propósito, mesmo
+          // aparecendo antes do Perfil na barra. StatefulShellRoute
+          // identifica cada branch pelo índice, e inserir no meio
+          // renumeraria todos os seguintes (inclusive o `_profileBranchIndex`
+          // que UnifiedShell usa). A ordem de exibição é resolvida lá, não
+          // aqui.
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/conversas', builder: (context, state) => const ConversasScreen()),
           ]),
         ],
       ),

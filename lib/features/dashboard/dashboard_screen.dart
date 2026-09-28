@@ -368,6 +368,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           color: const Color(0xFF15803D),
                           onTap: () => context.push('/financeiro'),
                         ),
+                        // Monta uma imagem pronta pra ele postar no
+                        // Instagram/WhatsApp com as fotos que já estão no
+                        // perfil dele (ver CardDivulgacaoScreen). Fica no
+                        // Dashboard, junto do resto do trabalho, e não no
+                        // Perfil: postar é tarefa de quem está tocando o
+                        // negócio, não configuração de conta.
+                        _ShortcutCard(
+                          icon: Icons.campaign_outlined,
+                          label: 'Divulgar',
+                          subtitle: 'Poste seu trabalho nas redes',
+                          color: const Color(0xFF7C3AED),
+                          onTap: () => context.push('/divulgar'),
+                        ),
                       ],
                     ),
                     if (!_dispensouDicaDoDia) ...[

@@ -24,6 +24,26 @@ const _borderColor = PdfColor.fromInt(0xFFE0E0E0);
 const _mutedColor = PdfColor.fromInt(0xFF6B7280);
 const _headerBgColor = PdfColor.fromInt(0xFFF5F5F5);
 
+/// Laranja da marca (o mesmo `AppColors.primary` do app) — usado só no
+/// nome no rodapé, pra ele existir sem competir com o conteúdo.
+const _marcaColor = PdfColor.fromInt(0xFFE7502E);
+
+/// Assinatura do app no rodapé de todas as páginas.
+///
+/// Este PDF é o documento que o PRESTADOR manda pro cliente dele — é dele
+/// a autoria, não nossa. Por isso a marca entra em 8pt no rodapé e não
+/// como banner: um orçamento que parece panfleto de outra empresa faz o
+/// prestador parar de usar o PDF, e aí a divulgação vira zero. Discreto e
+/// em todo orçamento vale mais que chamativo e evitado.
+///
+/// O ganho real aqui é que quem lê é um cliente que ainda não conhece o
+/// app: é a única peça do produto que chega sozinha em quem não baixou.
+/// Quando existir um endereço na web, é aqui que ele entra (e aí vale um
+/// QR Code no lugar do texto) — por enquanto, sem inventar link que não
+/// existe.
+const String kNomeDoApp = 'PrestadorAki';
+const String kChamadaDoRodape = 'encontre profissionais de confiança na sua cidade';
+
 /// Gera o PDF do orçamento no layout combinado com o Franck (ver
 /// orcamento_Franck_Medeiros_..._.pdf, exemplo mandado por ele): logo +
 /// nome da empresa à esquerda, "ORÇAMENTO" + data à direita, caixa de
@@ -50,6 +70,12 @@ Future<Uint8List> buildBudgetPdf(Budget budget, BudgetPdfProvider provider) asyn
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(32),
+      // `footer` do MultiPage, e não um widget no fim do `build`: assim ele
+      // aparece no pé de TODAS as páginas, e o próprio pacote reserva o
+      // espaço dele ao quebrar a página. Um orçamento com muitos itens
+      // ocupa duas ou três folhas, e um rodapé que só sai na última é
+      // justamente o que não seria visto.
+      footer: _rodape,
       build: (context) => [
         pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -221,6 +247,51 @@ Future<Uint8List> buildBudgetPdf(Budget budget, BudgetPdfProvider provider) asyn
   );
 
   return doc.save();
+}
+
+/// Rodapé de todas as páginas: assinatura do app à esquerda, número da
+/// página à direita.
+///
+/// A numeração entra junto porque o rodapé é o lugar dela e o custo é uma
+/// linha — num orçamento de duas ou três folhas soltas, saber que falta
+/// página é o tipo de coisa que só se percebe quando falta.
+pw.Widget _rodape(pw.Context context) {
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    children: [
+      pw.Divider(color: _borderColor, thickness: 0.5),
+      pw.SizedBox(height: 3),
+      pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.end,
+        children: [
+          pw.Expanded(
+            child: pw.RichText(
+              text: pw.TextSpan(
+                style: const pw.TextStyle(fontSize: 8, color: _mutedColor),
+                children: [
+                  pw.TextSpan(text: 'Orçamento criado no '),
+                  pw.TextSpan(
+                    text: kNomeDoApp,
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                      color: _marcaColor,
+                    ),
+                  ),
+                  pw.TextSpan(text: ' — $kChamadaDoRodape'),
+                ],
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 12),
+          pw.Text(
+            '${context.pageNumber}/${context.pagesCount}',
+            style: const pw.TextStyle(fontSize: 8, color: _mutedColor),
+          ),
+        ],
+      ),
+    ],
+  );
 }
 
 pw.Widget _cell(String text, {bool bold = false, pw.TextAlign align = pw.TextAlign.left}) {

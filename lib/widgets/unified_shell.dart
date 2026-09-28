@@ -10,15 +10,18 @@ import 'app_shell_scaffold.dart';
 /// OU um OU outro — ver AuthController). Substitui os dois shells antigos
 /// (AppShell/ClientShell).
 ///
-/// A árvore de rotas sempre tem 5 branches fixos (Buscar/Favoritos/
-/// Solicitações/Dashboard/Perfil — StatefulShellRoute exige uma lista
-/// estática), mas a barra de navegação só MOSTRA a aba "Dashboard" pra
-/// quem tem a capacidade de prestador (`auth.isProvider`) — pra quem não
-/// tem, ela some da barra (vira 4 abas) e o redirect do go_router nunca
-/// deixa a rota `/dashboard` ser alcançada por engano (ver app_router.dart).
-/// Por isso o índice "de exibição" (o que aparece na barra) e o índice
-/// real do branch podem divergir só nesse caso — `_displayToBranch`/
-/// `_branchToDisplay` fazem essa tradução.
+/// A árvore de rotas sempre tem 6 branches fixos (Buscar/Favoritos/
+/// Solicitações/Dashboard/Perfil/Conversas — StatefulShellRoute exige uma
+/// lista estática), mas a barra mostra SUBCONJUNTOS diferentes conforme a
+/// conta tenha ou não a capacidade de prestador:
+///
+///   prestador -> Buscar · Conversas · Gerenciamento · Perfil
+///   cliente   -> Buscar · Favoritos · Solicitações · Conversas · Perfil
+///
+/// Por isso o índice "de exibição" (posição na barra) e o índice real do
+/// branch não coincidem: `branches` é a tradução de um pro outro, e o
+/// redirect do go_router continua impedindo que `/dashboard` seja
+/// alcançado por quem não é prestador (ver app_router.dart).
 class UnifiedShell extends StatelessWidget {
   const UnifiedShell({super.key, required this.navigationShell});
 
@@ -48,11 +51,18 @@ class UnifiedShell extends StatelessWidget {
       icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Gerenciamento');
   static const _profileItem =
       AppNavItem(icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Perfil');
+  static const _chatItem = AppNavItem(
+      icon: Icons.chat_bubble_outline, selectedIcon: Icons.chat_bubble, label: 'Conversas');
 
-  // Índice fixo do branch "Perfil" na árvore de rotas (ver
-  // app_router.dart) — sempre o último dos 5, independente do que aparece
-  // na barra.
-  static const _profileBranchIndex = 4;
+  // Índices dos branches na árvore de rotas (ver app_router.dart). A ordem
+  // lá é fixa e não pode ser mexida sem renumerar tudo, então "Conversas"
+  // é o 5 mesmo aparecendo no meio da barra.
+  static const _buscarBranch = 0;
+  static const _favoritosBranch = 1;
+  static const _solicitacoesBranch = 2;
+  static const _dashboardBranch = 3;
+  static const _perfilBranch = 4;
+  static const _conversasBranch = 5;
 
   @override
   Widget build(BuildContext context) {
@@ -72,26 +82,43 @@ class UnifiedShell extends StatelessWidget {
     if (auth.status == AuthStatus.authenticated) {
       NotificationService.instance.init();
     }
+    // A barra mostra coisas diferentes conforme a conta (pedido do Franck,
+    // 28/09): "se eu sou prestador, não precisa aparecer o Favoritos e
+    // Solicitações — essas informações só aparecem pro cliente".
+    //
+    // Favoritar prestador e acompanhar pedidos que EU fiz são ações de
+    // quem contrata. Pra quem está trabalhando elas competiam por espaço
+    // com o que ele usa o dia inteiro. Tirando as duas, "Conversas" entra
+    // sem estourar a barra — que era o problema de somar uma sexta aba.
+    //
+    // Elas continuam existindo como rota: a mesma conta pode contratar
+    // alguém (conta unificada, ver AuthController), e nesse caso chega
+    // nelas por dentro do app, não pela barra.
+    final branches = isProvider
+        ? const [_buscarBranch, _conversasBranch, _dashboardBranch, _perfilBranch]
+        : const [
+            _buscarBranch,
+            _favoritosBranch,
+            _solicitacoesBranch,
+            _conversasBranch,
+            _perfilBranch,
+          ];
     final items = isProvider
-        ? const [_searchItem, _favoritesItem, _requestsItem, _dashboardItem, _profileItem]
-        : const [_searchItem, _favoritesItem, _requestsItem, _profileItem];
+        ? const [_searchItem, _chatItem, _dashboardItem, _profileItem]
+        : const [_searchItem, _favoritesItem, _requestsItem, _chatItem, _profileItem];
 
-    int displayToBranch(int displayIndex) {
-      if (!isProvider && displayIndex == items.length - 1) return _profileBranchIndex;
-      return displayIndex;
-    }
-
-    int branchToDisplay(int branchIndex) {
-      if (!isProvider && branchIndex == _profileBranchIndex) return items.length - 1;
-      return branchIndex;
-    }
+    // Um prestador PODE estar numa rota que não tem ícone na barra dele
+    // (ex.: abriu "Meus pedidos" por dentro do app). Sem o corte pra zero,
+    // `items[-1]` derrubaria a tela inteira — é o tipo de crash que só
+    // aparece no caminho que ninguém testa.
+    final selecionado = branches.indexOf(navigationShell.currentIndex);
 
     return AppShellScaffold(
       body: navigationShell,
       items: items,
-      selectedIndex: branchToDisplay(navigationShell.currentIndex),
+      selectedIndex: selecionado < 0 ? 0 : selecionado,
       onDestinationSelected: (displayIndex) {
-        final branchIndex = displayToBranch(displayIndex);
+        final branchIndex = branches[displayIndex];
         navigationShell.goBranch(
           branchIndex,
           initialLocation: branchIndex == navigationShell.currentIndex,

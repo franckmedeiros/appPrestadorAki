@@ -34,6 +34,18 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Declaração de conformidade de exportação (criptografia).
+	     `false` = o app NÃO usa criptografia além da isenta. É o caso aqui:
+	     todo o tráfego é HTTPS/TLS padrão via Firebase, que a Apple isenta
+	     explicitamente — não há algoritmo próprio nem criptografia de dados
+	     em repouso implementada pelo app.
+	     Sem esta chave, TODA build nova sobe, processa e trava no App Store
+	     Connect esperando essa resposta à mão — foi o que derrubou o envio
+	     pro TestFlight em 28/09 ("The build is missing export compliance").
+	     A resposta gravada aqui é a mesma que o Franck deu no painel naquele
+	     dia; a chave só evita ter que repetir a cada build. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<!-- Sem isso, o app não se registra pra push em segundo plano/fechado
 	     (mensagens "data-only" da FCM, e o refresh silencioso de token) —
 	     sem essa entrada, o iOS nunca acorda o app pra processar uma
