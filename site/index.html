@@ -147,10 +147,7 @@
   <div class="videos">
     <div class="video">
       <h3>Para quem contrata <span class="quem">· lado do cliente</span></h3>
-      <!-- Troque ID_DO_VIDEO_CLIENTE pelo id do vídeo no YouTube.
-           O id é o que vem depois de "v=" no endereço:
-           youtube.com/watch?v=ABC123xyz  ->  ABC123xyz -->
-      <div class="player" data-video="ID_DO_VIDEO_CLIENTE">
+      <div class="player" data-video="j70DTRbzZew">
         <div class="capa">
           <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
           <div class="dica">Buscar um profissional, ver o perfil e pedir orçamento</div>
@@ -197,9 +194,26 @@
 // `rel=0` mantém as sugestões do fim dentro do mesmo canal, pra não
 // terminar num vídeo de outra pessoa.
 document.querySelectorAll('.player').forEach(function (caixa) {
+  var id = caixa.getAttribute('data-video');
+
+  // Vídeo ainda não gravado: vira "Em breve" em vez de um botão de play
+  // que não faz nada. Um play morto numa página pública parece defeito, e
+  // quem tocou nele duas vezes sem resposta fecha a página.
+  if (!id || id.indexOf('ID_DO_VIDEO') === 0) {
+    var capa = caixa.querySelector('.capa');
+    if (capa) {
+      var play = capa.querySelector('.play');
+      if (play) {
+        play.style.background = 'rgba(255,255,255,.14)';
+        play.innerHTML = '<span style="color:#fff;font-size:10px;font-weight:700;' +
+                         'letter-spacing:.5px">EM<br>BREVE</span>';
+      }
+    }
+    caixa.style.cursor = 'default';
+    return;
+  }
+
   caixa.addEventListener('click', function () {
-    var id = caixa.getAttribute('data-video');
-    if (!id || id.indexOf('ID_DO_VIDEO') === 0) return; // ainda sem id
     var f = document.createElement('iframe');
     f.src = 'https://www.youtube-nocookie.com/embed/' + id +
             '?autoplay=1&rel=0&playsinline=1&modestbranding=1';
