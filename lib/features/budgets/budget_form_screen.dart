@@ -583,7 +583,21 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     }
   }
 
-  Future<void> _generatePdf() async {
+  Future<void> _generatePdf() => _comOPdf(imprimir: false);
+
+  /// Manda o orçamento pra folha de impressão do sistema — imprimir de
+  /// verdade ou salvar em PDF no aparelho, que é o mesmo diálogo.
+  ///
+  /// Existe separado do compartilhar por pedido do Franck ("preciso
+  /// reimprimir o orçamento quando eu quiser"): compartilhar é via de mão
+  /// única — mandou pro WhatsApp, acabou. Quem precisa da folha na mão,
+  /// ou de guardar o arquivo, não tinha caminho nenhum antes disso.
+  Future<void> _printPdf() => _comOPdf(imprimir: true);
+
+  /// Monta o PDF a partir do formulário e entrega pra ação escolhida. Os
+  /// dois caminhos passam por aqui de propósito: gerar em dois lugares é
+  /// como o documento compartilhado e o impresso acabam saindo diferentes.
+  Future<void> _comOPdf({required bool imprimir}) async {
     setState(() {
       _generatingPdf = true;
       _error = null;
@@ -599,16 +613,41 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           name: auth.displayName,
           logoUrl: profileData['logoUrl'] as String?,
           pixKey: profileData['pixKey'] as String?,
+          subtitle: _subtituloDoCabecalho(profileData),
         ),
       );
       if (!mounted) return;
       final suffix = budget.revisionNumber > 0 ? '_aditivo${budget.revisionNumber}' : '';
-      await Printing.sharePdf(bytes: bytes, filename: 'orcamento_${budget.customerName}$suffix.pdf');
+      final nomeDoArquivo = 'orcamento_${budget.customerName}$suffix.pdf';
+      if (imprimir) {
+        await Printing.layoutPdf(onLayout: (_) async => bytes, name: nomeDoArquivo);
+      } else {
+        await Printing.sharePdf(bytes: bytes, filename: nomeDoArquivo);
+      }
     } catch (_) {
       if (mounted) _setError('Não foi possível gerar o PDF. Tenta de novo.');
     } finally {
       if (mounted) setState(() => _generatingPdf = false);
     }
+  }
+
+  /// "Eletricista · Criciúma/SC" embaixo do nome no cabeçalho do PDF.
+  ///
+  /// Devolve `null` quando o perfil não tem nem categoria nem cidade — aí
+  /// o cabeçalho sai só com o nome, que é o comportamento antigo. Os
+  /// campos são os de `providers/{uid}` (`category`/`city`/`state`, ver
+  /// AuthController), e a categoria passa pelo catálogo pra virar rótulo
+  /// legível: no banco ela é o id ("eletricista"), e sair minúsculo no
+  /// cabeçalho de um documento entrega que ali tem um dado cru.
+  String? _subtituloDoCabecalho(Map<String, dynamic> profileData) {
+    final categoriaId = (profileData['category'] as String? ?? '').trim();
+    final categoria = categoriaId.isEmpty ? '' : serviceCategoryFromWire(categoriaId).label;
+    final cidade = (profileData['city'] as String? ?? '').trim();
+    final uf = (profileData['state'] as String? ?? '').trim();
+    final local = [cidade, uf].where((p) => p.isNotEmpty).join('/');
+    final partes = [categoria, local].where((p) => p.isNotEmpty).toList();
+    if (partes.isEmpty) return null;
+    return partes.join(' · ');
   }
 
   Widget _buildItemRow(int index) {
@@ -1012,19 +1051,37 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             ),
           ),
         ),
-        TextButton.icon(
-          onPressed: busy ? null : _generatePdf,
-          icon: _generatingPdf
-              ? const SizedBox(
-                  height: 15,
-                  width: 15,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(
-                  Icons.picture_as_pdf_outlined,
-                  size: 17,
-                ),
-          label: const Text('Gerar e compartilhar PDF'),
+        // Compartilhar e imprimir lado a lado, com o mesmo peso.
+        //
+        // Pedido do Franck: "preciso reimprimir o orçamento quando eu
+        // quiser". Até aqui o único caminho era o compartilhar, que é de
+        // mão única — some do app assim que vai pro WhatsApp. Imprimir
+        // abre a folha de impressão do sistema, que também é de onde se
+        // salva o PDF no aparelho; é o botão pra quem vai levar papel na
+        // visita ou guardar o arquivo.
+        Row(
+          children: [
+            Expanded(
+              child: TextButton.icon(
+                onPressed: busy ? null : _generatePdf,
+                icon: _generatingPdf
+                    ? const SizedBox(
+                        height: 15,
+                        width: 15,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.picture_as_pdf_outlined, size: 17),
+                label: const Text('Compartilhar'),
+              ),
+            ),
+            Expanded(
+              child: TextButton.icon(
+                onPressed: busy ? null : _printPdf,
+                icon: const Icon(Icons.print_outlined, size: 17),
+                label: const Text('Imprimir'),
+              ),
+            ),
+          ],
         ),
         if (_editingAditivo)
           TextButton.icon(
