@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -7,8 +8,13 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/currency_text_utils.dart';
 import '../../core/pix_payload.dart';
+import '../budgets/budget_pdf.dart' show BudgetPdfProvider;
+import '../budgets/budget_pdf_preview_screen.dart';
+import '../budgets/budgets_repository.dart';
+import '../marketplace/models/service_category.dart';
 import 'jobs_repository.dart';
 import 'models/job.dart';
+import 'recibo_pdf.dart';
 
 /// Painel de detalhes + ações de um Job — aberto ao tocar num card, tanto
 /// no Kanban de "Serviços" quanto (pedido do Franck) direto no card de um
@@ -30,6 +36,7 @@ class JobDetailsSheet extends StatefulWidget {
 
 class _JobDetailsSheetState extends State<JobDetailsSheet> {
   bool _busy = false;
+  bool _gerandoRecibo = false;
 
   /// Confere se o prestador já tem uma chave Pix cadastrada ANTES de
   /// deixar o serviço ir pra "Aguardando pagamento" — pedido do Franck:
@@ -198,8 +205,120 @@ class _JobDetailsSheetState extends State<JobDetailsSheet> {
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
           ),
+          const SizedBox(height: 14),
+          // O recibo só existe aqui, no serviço concluído: recibo é
+          // comprovante de pagamento RECEBIDO, e emitir antes disso seria
+          // dar quitação de dinheiro que não entrou.
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: _gerandoRecibo ? null : () => _comORecibo(visualizar: true),
+                  icon: _gerandoRecibo
+                      ? const SizedBox(
+                          height: 15,
+                          width: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.visibility_outlined, size: 17),
+                  label: const Text('Ver recibo'),
+                ),
+              ),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: _gerandoRecibo ? null : () => _comORecibo(visualizar: false),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 17),
+                  label: const Text('Enviar recibo'),
+                ),
+              ),
+            ],
+          ),
         ];
     }
+  }
+
+  /// Monta o recibo e abre pra ver, ou entrega pro compartilhar.
+  ///
+  /// O número é reservado aqui (ver
+  /// `JobsRepository.garantirNumeroDeRecibo`) — na primeira emissão, e
+  /// só nela. Sem número, não emite: recibo sem número não serve de
+  /// comprovante, e imprimir um assim seria pior do que avisar que não
+  /// deu.
+  Future<void> _comORecibo({required bool visualizar}) async {
+    setState(() => _gerandoRecibo = true);
+    try {
+      final job = widget.job;
+      final jobs = context.read<JobsRepository>();
+      final numero = job.reciboNumber ?? await jobs.garantirNumeroDeRecibo(job.id);
+      if (numero == null) {
+        if (mounted) _avisar('Não foi possível emitir o recibo agora. Tenta de novo.');
+        return;
+      }
+
+      if (!mounted) return;
+      final auth = context.read<AuthController>();
+      final perfil = await auth.fetchOwnProfileData();
+
+      if (!mounted) return;
+      final budgetId = job.budgetId;
+      final numeroDoOrcamento =
+          budgetId == null ? null : await context.read<BudgetsRepository>().numeroDoDocumento(budgetId);
+
+      final bytes = await buildReciboPdf(
+        job,
+        BudgetPdfProvider(
+          name: auth.displayName,
+          logoUrl: perfil['logoUrl'] as String?,
+          subtitle: _subtituloDoCabecalho(perfil),
+          cidade: _cidadeDoPrestador(perfil),
+        ),
+        numeroDoRecibo: numero,
+        numeroDoOrcamento: numeroDoOrcamento,
+      );
+
+      if (!mounted) return;
+      final nomeDoArquivo = 'recibo_${numero.toString().padLeft(4, '0')}_${job.customerName}.pdf';
+      if (visualizar) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BudgetPdfPreviewScreen(
+              bytes: bytes,
+              fileName: nomeDoArquivo,
+              title: 'Recibo nº ${numero.toString().padLeft(4, '0')}',
+            ),
+          ),
+        );
+      } else {
+        await Printing.sharePdf(bytes: bytes, filename: nomeDoArquivo);
+      }
+    } catch (_) {
+      if (mounted) _avisar('Não foi possível gerar o recibo. Tenta de novo.');
+    } finally {
+      if (mounted) setState(() => _gerandoRecibo = false);
+    }
+  }
+
+  void _avisar(String mensagem) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensagem)));
+  }
+
+  /// "Eletricista · Criciúma/SC" — mesma linha do cabeçalho do orçamento
+  /// (ver BudgetFormScreen), pros dois documentos chegarem iguais no
+  /// mesmo cliente.
+  String? _subtituloDoCabecalho(Map<String, dynamic> perfil) {
+    final categoriaId = (perfil['category'] as String? ?? '').trim();
+    final categoria = categoriaId.isEmpty ? '' : serviceCategoryFromWire(categoriaId).label;
+    final local = _cidadeDoPrestador(perfil) ?? '';
+    final partes = [categoria, local].where((p) => p.isNotEmpty).toList();
+    if (partes.isEmpty) return null;
+    return partes.join(' · ');
+  }
+
+  String? _cidadeDoPrestador(Map<String, dynamic> perfil) {
+    final cidade = (perfil['city'] as String? ?? '').trim();
+    final uf = (perfil['state'] as String? ?? '').trim();
+    final local = [cidade, uf].where((p) => p.isNotEmpty).join('/');
+    return local.isEmpty ? null : local;
   }
 
   String _formatDate(DateTime date) =>

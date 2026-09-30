@@ -86,6 +86,7 @@ class Job {
     this.updatedAt,
     this.paidAt,
     this.completedAt,
+    this.reciboNumber,
     this.archived = false,
   });
 
@@ -108,6 +109,7 @@ class Job {
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
       paidAt: (data['paidAt'] as Timestamp?)?.toDate(),
       completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+      reciboNumber: (data['reciboNumber'] as num?)?.toInt(),
       archived: data['archived'] as bool? ?? false,
     );
   }
@@ -134,6 +136,22 @@ class Job {
   final DateTime? updatedAt;
   final DateTime? paidAt;
   final DateTime? completedAt;
+
+  /// Número do recibo deste serviço (1, 2, 3... por prestador), gravado
+  /// por `JobsRepository.garantirNumeroDeRecibo` na PRIMEIRA vez que o
+  /// prestador emite o recibo — nunca depois. Reemitir o mesmo recibo
+  /// tem que devolver o mesmo número; dois papéis com números
+  /// diferentes pro mesmo pagamento é exatamente o que um bloco de
+  /// recibo existe pra evitar.
+  ///
+  /// Sequência própria, separada da do orçamento
+  /// (`Budget.documentNumber`): são dois blocos diferentes, e quem
+  /// emitiu 40 orçamentos e 12 recibos no ano não espera que o recibo
+  /// comece no 41.
+  ///
+  /// `null` enquanto o recibo nunca foi emitido — inclusive em serviço
+  /// concluído, porque o número só é queimado quando o papel sai.
+  final int? reciboNumber;
 
   /// Tirado da lista de Serviços sem ser apagado — pedido do Franck
   /// ("adicionar em serviço a opção de arquivamento"), mesmo desenho já

@@ -165,6 +165,20 @@ class BudgetsRepository {
     }
   }
 
+  /// Número impresso de um orçamento (ver `Budget.documentNumber`), lido
+  /// direto do documento. Existe pro RECIBO amarrar os dois papéis
+  /// ("conforme orçamento nº 0042") sem precisar carregar o orçamento
+  /// inteiro na tela de Serviços. `null` em orçamento anterior ao
+  /// contador, e aí o recibo simplesmente não cita nenhum.
+  Future<int?> numeroDoDocumento(String budgetId) async {
+    try {
+      final doc = await _collection.doc(budgetId).get();
+      return (doc.data()?['documentNumber'] as num?)?.toInt();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> delete(String id) async {
     try {
       await _collection.doc(id).delete();

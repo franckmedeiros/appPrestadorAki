@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/api_exception.dart';
@@ -28,6 +30,49 @@ class JobsRepository {
       .collection('providers')
       .doc(_auth.currentUser!.uid)
       .collection('jobs');
+
+  /// Devolve o número do recibo deste serviço, criando um se ainda não
+  /// existe (ver `Job.reciboNumber`).
+  ///
+  /// Chamado na hora de EMITIR o recibo, não na confirmação do
+  /// pagamento: um número de recibo só deve ser queimado quando o papel
+  /// realmente sai. Serviço pago cujo cliente nunca pediu recibo não
+  /// precisa abrir buraco na sequência.
+  ///
+  /// Idempotente de verdade — relê o documento gravado em vez de confiar
+  /// no `Job` que a tela tem em mãos, senão reabrir a tela e emitir de
+  /// novo daria um número novo pro mesmo pagamento.
+  ///
+  /// Devolve `null` se não deu pra numerar (regra do Firestore, rede
+  /// caindo). A tela trata isso como "não consegui emitir agora" em vez
+  /// de imprimir um recibo sem número, que é pior que recibo nenhum.
+  Future<int?> garantirNumeroDeRecibo(String jobId) async {
+    try {
+      final jobRef = _collection.doc(jobId);
+      final atual = await jobRef.get();
+      final gravado = (atual.data()?['reciboNumber'] as num?)?.toInt();
+      if (gravado != null) return gravado;
+
+      final providerRef = _firestore.collection('providers').doc(_auth.currentUser!.uid);
+      final perfil = await providerRef.get();
+      final numero = (perfil.data()?['proximoNumeroDeRecibo'] as num?)?.toInt() ?? 1;
+
+      await jobRef.update({'reciboNumber': numero});
+      // Sem `await`: o future de uma escrita do Firestore só completa
+      // quando o servidor confirma, e o contador não pode ser o que
+      // segura a emissão do recibo. O cache local já aplica o incremento
+      // pra próxima leitura.
+      unawaited(
+        providerRef.set(
+          {'proximoNumeroDeRecibo': FieldValue.increment(1)},
+          SetOptions(merge: true),
+        ).catchError((Object _) {}),
+      );
+      return numero;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Ao vivo, mais recente primeiro — usado pelo Kanban (agrupa por
   /// status na tela, ver JobsKanbanScreen) e pelo selo de contagem no

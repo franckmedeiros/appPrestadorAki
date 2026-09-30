@@ -18,6 +18,7 @@ class BudgetPdfProvider {
     this.logoUrl,
     this.pixKey,
     this.subtitle,
+    this.cidade,
   });
 
   final String name;
@@ -29,6 +30,14 @@ class BudgetPdfProvider {
   /// dados à mão (categoria/cidade do `providerDirectory`) passa; quem não
   /// tiver, omite.
   final String? subtitle;
+
+  /// "Criciúma/SC" sozinho. Não é usado no orçamento; existe pro RECIBO
+  /// (ver `lib/features/jobs/recibo_pdf.dart`), que fecha com o par
+  /// local + data ("Criciúma/SC, 30 de setembro de 2026."). Mora aqui, e
+  /// não numa classe própria, porque é o mesmo prestador nos dois
+  /// documentos — duas classes quase iguais seria o começo de os dois
+  /// cabeçalhos divergirem.
+  final String? cidade;
 }
 
 // ---------------------------------------------------------------------------
