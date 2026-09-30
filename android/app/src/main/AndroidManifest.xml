@@ -66,5 +66,15 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Sem isto, no Android 11 pra cima o app NAO ENXERGA o navegador
+             (nem o WhatsApp) e `launchUrl` falha em silencio: o toque nao
+             faz nada e nao aparece erro nenhum. Vale pro botao "Manual do
+             prestador" (Perfil) e pro atalho de WhatsApp do card de
+             prestador (`abrirWhatsapp`), que tambem usa um link https
+             (wa.me) e ja corria esse risco. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

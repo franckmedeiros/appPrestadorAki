@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
+import '../../core/links_do_app.dart';
 import 'models/budget.dart';
 
 /// Dados do prestador que entram no PDF — separado de `AuthController`/
@@ -72,8 +73,7 @@ const _logoVazia = PdfColor.fromInt(0xFFDCD9D6);
 /// estava aqui antes — quando não existia página nenhuma pra apontar, a
 /// frase era o que dava; agora que existe, um endereço que a pessoa
 /// consegue digitar vale mais que um slogan que ela não pode seguir.
-const String kNomeDoApp = 'PrestadorAki';
-const String kSiteDoApp = 'prestadoraki.web.app';
+
 
 /// Gera o PDF do orçamento.
 ///
@@ -646,7 +646,7 @@ pw.Widget _rodape(pw.Context context) {
                     text: kNomeDoApp,
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: _laranja),
                   ),
-                  const pw.TextSpan(text: ' — $kSiteDoApp'),
+                  const pw.TextSpan(text: ' — $kDominioDoApp'),
                 ],
               ),
             ),

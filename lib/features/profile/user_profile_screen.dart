@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/links_do_app.dart';
 import '../../core/testing_flags.dart';
 import '../auth/change_password_screen.dart';
 import '../moderation/blocked_users_screen.dart';
@@ -134,6 +136,29 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   /// Abre a troca de senha (ver ChangePasswordScreen) e confirma aqui
   /// quando dá certo — a própria tela não mostra a confirmação porque sai
   /// da frente no mesmo instante em que termina.
+  /// Abre o manual do prestador no navegador.
+  ///
+  /// Se não abrir (aparelho sem navegador padrão, link bloqueado por
+  /// política do aparelho), mostra o endereço em vez de um "não foi
+  /// possível" seco — escrito na tela, ele ainda dá pra digitar.
+  Future<void> _abrirManual(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    var abriu = false;
+    try {
+      abriu = await launchUrl(
+        Uri.parse(kManualDoPrestador),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      abriu = false;
+    }
+    if (!abriu) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Abra no navegador: $kDominioDoApp/manual')),
+      );
+    }
+  }
+
   Future<void> _alterarSenha() async {
     final trocou = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
@@ -541,6 +566,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                     ],
                     const SizedBox(height: 28),
+                    // Manual do prestador — só pra quem é prestador: o
+                    // manual é sobre orçamento, agenda, cobrança e recibo,
+                    // coisas que a conta de cliente não tem. Item que abre
+                    // algo que não serve pra você é item que ensina a
+                    // ignorar o menu.
+                    //
+                    // Abre no navegador (o manual mora em site/manual.html,
+                    // publicado no Firebase Hosting) em vez de virar tela
+                    // do app: assim corrigir o texto é um deploy, não uma
+                    // versão nova esperando aprovação da loja.
+                    if (auth.isProvider) ...[
+                      OutlinedButton.icon(
+                        onPressed: () => _abrirManual(context),
+                        icon: const Icon(Icons.menu_book_outlined, color: AppColors.ink),
+                        label: const Text('Manual do prestador', style: TextStyle(color: AppColors.ink)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          side: BorderSide(color: AppColors.muted.withValues(alpha: 0.35)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     // "Sobre o app" — pedido do Franck: dados da empresa
                     // responsável pelo produto + WhatsApp/e-mail de
                     // contato, visível pra qualquer conta (cliente ou

@@ -6,8 +6,9 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
+import '../../core/links_do_app.dart';
 import '../../core/valor_por_extenso.dart';
-import '../budgets/budget_pdf.dart' show BudgetPdfProvider, kNomeDoApp, kSiteDoApp;
+import '../budgets/budget_pdf.dart' show BudgetPdfProvider;
 import '../marketplace/models/service_category.dart';
 import 'models/job.dart';
 
@@ -337,7 +338,7 @@ pw.Widget _rodape(pw.Context context) {
                     text: kNomeDoApp,
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: _laranja),
                   ),
-                  const pw.TextSpan(text: ' — $kSiteDoApp'),
+                  const pw.TextSpan(text: ' — $kDominioDoApp'),
                 ],
               ),
             ),

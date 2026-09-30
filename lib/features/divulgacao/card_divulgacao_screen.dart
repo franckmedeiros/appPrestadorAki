@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/links_do_app.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/provider_rating.dart';
 import '../marketplace/provider_directory_repository.dart';
@@ -18,7 +19,6 @@ import '../marketplace/provider_directory_repository.dart';
 /// É a página publicada no Firebase Hosting (ver `site/index.html`), e não
 /// um link de loja direto, de propósito: um link só serve pra um sistema, e
 /// quem escaneia pode estar em qualquer um dos dois. A página decide.
-const String kLinkDoApp = 'https://prestadoraki.web.app';
 
 /// Os cinco modelos de card.
 ///
@@ -1076,7 +1076,7 @@ class _Card extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
             ),
             child: QrImageView(
-              data: kLinkDoApp,
+              data: kSiteDoApp,
               version: QrVersions.auto,
               size: 42,
               padding: EdgeInsets.zero,
