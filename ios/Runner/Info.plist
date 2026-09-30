@@ -18,6 +18,23 @@
 	<string>Use Face ID para entrar no PrestadorAki mais rápido.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Usamos sua localização só pra sugerir sua cidade na busca por prestadores — nunca é salva nem compartilhada.</string>
+	<!-- O app NÃO usa localização em segundo plano: são duas leituras
+	     pontuais com `Geolocator.getCurrentPosition` (sugerir a cidade na
+	     busca e preencher o endereço no pedido de orçamento), sem
+	     `getPositionStream` e sem `requestAlwaysAuthorization`.
+	     Esta chave existe só porque o BINÁRIO do geolocator referencia a
+	     API de autorização "sempre", e a validação da Apple olha o
+	     binário, não o seu código — sem ela vem o aviso ITMS-90683 a cada
+	     envio (chegou no build 62).
+	     O texto é o mesmo da chave acima de propósito: como o app nunca
+	     chega a pedir essa permissão, esta frase não é exibida a ninguém;
+	     inventar uma explicação de uso em segundo plano seria descrever
+	     um comportamento que não existe.
+	     Só a chave moderna: `NSLocationAlwaysUsageDescription` (a forma
+	     antiga) só é exigida com alvo mínimo iOS 10 ou anterior, e o
+	     IPHONEOS_DEPLOYMENT_TARGET aqui é 13.0. -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Usamos sua localização só pra sugerir sua cidade na busca por prestadores — nunca é salva nem compartilhada.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Usamos a câmera para você fotografar a logo que aparece no seu perfil de prestador.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
