@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual do prestador — PrestadorAki</title>
+<meta name="description" content="Como usar o PrestadorAki no dia a dia: perfil, pedidos, orçamento, agenda, execução do serviço, cobrança por Pix, recibo, financeiro e divulgação.">
+<meta name="theme-color" content="#E7502E">
+
+<meta property="og:title" content="Manual do prestador — PrestadorAki">
+<meta property="og:description" content="Do primeiro pedido ao recibo: como o app funciona, passo a passo.">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="pt_BR">
+
+<style>
+  :root{
+    --primary:#E7502E; --primary-dark:#E74B32; --ink:#241512;
+    --bg:#F7F5F4; --surface:#fff; --muted:#8A7B76;
+    --linha:rgba(138,123,118,.20);
+    --sucesso:#2E9E5B; --aviso:#C98A1B;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.6;font-size:16px;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:0 20px}
+
+  /* ---------- topo ---------- */
+  header.topo{
+    background:linear-gradient(150deg,var(--primary),var(--primary-dark));
+    color:#fff;padding:40px 0 34px;
+  }
+  .voltar{
+    font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
+    color:rgba(255,255,255,.8);text-decoration:none;
+  }
+  .voltar:hover{color:#fff}
+  header.topo h1{font-size:30px;font-weight:800;letter-spacing:-.6px;line-height:1.15;margin-top:14px}
+  header.topo p{font-size:15px;color:rgba(255,255,255,.92);margin-top:10px;max-width:46ch}
+
+  /* ---------- índice ---------- */
+  nav.indice{
+    background:var(--surface);border-radius:16px;padding:18px 20px;
+    margin:-22px auto 0;position:relative;max-width:720px;
+    box-shadow:0 8px 24px rgba(36,21,18,.09);
+  }
+  nav.indice h2{font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;
+    color:var(--muted);margin-bottom:10px}
+  nav.indice ol{list-style:none;counter-reset:i;columns:2;column-gap:24px}
+  nav.indice li{counter-increment:i;margin-bottom:5px;break-inside:avoid}
+  nav.indice a{
+    color:var(--ink);text-decoration:none;font-size:14px;display:flex;gap:8px;align-items:baseline;
+  }
+  nav.indice a:hover{color:var(--primary)}
+  nav.indice a::before{
+    content:counter(i);font-size:10.5px;font-weight:800;color:var(--primary);
+    min-width:14px;
+  }
+
+  /* ---------- seções ---------- */
+  main{padding:8px 0 20px}
+  section{padding-top:38px}
+  section h2{
+    font-size:21px;font-weight:800;letter-spacing:-.3px;line-height:1.25;
+    padding-bottom:10px;border-bottom:2px solid var(--primary);display:inline-block;
+  }
+  section h3{font-size:15.5px;font-weight:800;margin-top:24px}
+  p{margin-top:12px;font-size:15px}
+  .lead{color:#4a3a35}
+  ul.corrido,ol.corrido{margin:12px 0 0 20px;font-size:15px}
+  ul.corrido li,ol.corrido li{margin-bottom:7px}
+  b,strong{font-weight:700}
+  code{
+    background:rgba(36,21,18,.06);border-radius:5px;padding:1px 5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;
+  }
+
+  /* passos numerados */
+  ol.passos{list-style:none;counter-reset:p;margin-top:16px}
+  ol.passos li{
+    counter-increment:p;position:relative;padding-left:38px;margin-bottom:14px;font-size:15px;
+  }
+  ol.passos li::before{
+    content:counter(p);position:absolute;left:0;top:1px;
+    width:25px;height:25px;border-radius:50%;background:var(--primary);color:#fff;
+    font-size:12.5px;font-weight:800;display:grid;place-items:center;
+  }
+
+  /* caixas */
+  .nota,.cuidado{
+    margin-top:18px;padding:14px 16px;border-radius:12px;font-size:14.5px;line-height:1.55;
+    border-left:3px solid var(--muted);background:var(--surface);
+  }
+  .cuidado{border-left-color:var(--aviso);background:#FFF9EE}
+  .nota .rot,.cuidado .rot{
+    display:block;font-size:10.5px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;
+    color:var(--muted);margin-bottom:5px;
+  }
+  .cuidado .rot{color:var(--aviso)}
+
+  /* ---------- maquetes de tela ---------- */
+  .telas{display:flex;flex-wrap:wrap;gap:22px;margin-top:22px;justify-content:center}
+  figure.tela{margin:0;width:262px}
+  figcaption{font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.45;text-align:center}
+  .fone{
+    width:262px;background:var(--bg);border:1px solid rgba(36,21,18,.16);
+    border-radius:22px;overflow:hidden;box-shadow:0 8px 22px rgba(36,21,18,.10);
+    display:flex;flex-direction:column;height:472px;
+  }
+  .fone-topo{
+    background:var(--primary);color:#fff;padding:13px 14px 11px;flex:0 0 auto;
+  }
+  .fone-topo .t{font-size:14px;font-weight:800;letter-spacing:-.2px}
+  .fone-topo .s{font-size:10px;color:rgba(255,255,255,.85);margin-top:2px}
+  .fone-corpo{flex:1;overflow:hidden;padding:11px}
+  .fone-barra{
+    flex:0 0 auto;background:#fff;border-top:1px solid var(--linha);
+    display:flex;padding:7px 0 8px;
+  }
+  .fone-barra div{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+    font-size:8px;color:var(--muted)}
+  .fone-barra div.on{color:var(--primary);font-weight:700}
+  .ic{width:15px;height:15px;fill:currentColor;display:block}
+  .ic.g{width:19px;height:19px}
+
+  /* peças internas das maquetes */
+  .cartao{background:#fff;border-radius:11px;padding:9px 10px;margin-bottom:7px;
+    border:1px solid var(--linha);font-size:10.5px;line-height:1.4}
+  .cartao .tt{font-weight:800;font-size:11px}
+  .cartao .ss{color:var(--muted);font-size:9.5px;margin-top:1px}
+  .grade{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .atalho{background:#fff;border:1px solid var(--linha);border-radius:11px;padding:9px;
+    font-size:10px;line-height:1.3;position:relative}
+  .atalho .tt{font-weight:800;font-size:10.5px;margin-top:5px}
+  .atalho .ss{color:var(--muted);font-size:8.5px;margin-top:1px}
+  .atalho .ic{color:var(--primary)}
+  .selo{position:absolute;top:7px;right:7px;background:var(--primary);color:#fff;
+    font-size:8px;font-weight:800;border-radius:9px;padding:1px 5px}
+  .rotulo-secao{font-size:8.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+    color:var(--muted);margin:9px 0 6px}
+  .rotulo-secao:first-child{margin-top:0}
+  .pill{display:inline-block;font-size:8.5px;font-weight:700;border-radius:20px;
+    padding:2px 7px;margin-top:5px}
+  .pill.espera{background:#FFF3E0;color:#B26A00}
+  .pill.acao{background:#FDE7E1;color:var(--primary)}
+  .pill.ok{background:#E6F4EC;color:var(--sucesso)}
+  .pill.nao{background:#FBE9E7;color:#B3261E}
+  .valor{font-size:17px;font-weight:800;letter-spacing:-.3px}
+  .botao{background:var(--primary);color:#fff;border-radius:9px;padding:7px;
+    text-align:center;font-size:10px;font-weight:800;margin-top:7px}
+  .botao.vazio{background:#fff;color:var(--primary);border:1px solid var(--primary)}
+  .linha-b{display:flex;gap:6px;margin-top:7px}
+  .linha-b .botao{flex:1;margin-top:0}
+  .barras{display:flex;align-items:flex-end;gap:5px;height:56px;margin-top:8px}
+  .barras i{flex:1;background:#FDE7E1;border-radius:3px 3px 0 0;display:block}
+  .barras i.on{background:var(--primary)}
+  .qr{width:66px;height:66px;margin:8px auto;background:
+      repeating-conic-gradient(var(--ink) 0 25%, #fff 0 50%) 0 0/11px 11px;
+    border:3px solid #fff;outline:1px solid var(--linha)}
+  .miniflow{display:flex;gap:4px;margin-top:8px}
+  .miniflow span{flex:1;font-size:7.5px;text-align:center;background:#fff;
+    border:1px solid var(--linha);border-radius:6px;padding:4px 2px;color:var(--muted)}
+  .miniflow span.on{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:800}
+
+  /* ---------- fluxo do orçamento ---------- */
+  .fluxo{margin-top:20px;display:flex;flex-direction:column;gap:9px}
+  .etapa{
+    background:var(--surface);border:1px solid var(--linha);border-left:3px solid var(--primary);
+    border-radius:12px;padding:12px 14px;
+  }
+  .etapa .quem{font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--primary)}
+  .etapa .quem.cliente{color:var(--muted)}
+  .etapa.cliente{border-left-color:var(--muted)}
+  .etapa .est{font-size:14.5px;font-weight:800;margin-top:3px}
+  .etapa .desc{font-size:13.5px;color:#4a3a35;margin-top:3px}
+  .seta{text-align:center;color:var(--muted);font-size:13px;line-height:1}
+
+  /* ---------- tabela ---------- */
+  .tabela{margin-top:16px;width:100%;border-collapse:collapse;font-size:14px;
+    background:var(--surface);border-radius:12px;overflow:hidden}
+  .tabela th{
+    text-align:left;font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--muted);padding:10px 12px;border-bottom:1px solid var(--linha);
+  }
+  .tabela td{padding:10px 12px;border-bottom:1px solid var(--linha);vertical-align:top}
+  .tabela tr:last-child td{border-bottom:0}
+
+  footer{margin-top:44px;padding:26px 0 44px;border-top:1px solid var(--linha);
+    text-align:center;font-size:12.5px;color:var(--muted);line-height:1.8}
+  footer a{color:var(--muted)}
+  footer .marca{font-weight:700;color:var(--ink);font-size:13.5px}
+
+  @media (max-width:560px){
+    nav.indice ol{columns:1}
+    header.topo h1{font-size:25px}
+    .telas{gap:18px}
+  }
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-buscar" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+  <symbol id="i-conversa" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></symbol>
+  <symbol id="i-painel" viewBox="0 0 24 24"><path d="M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z"/></symbol>
+  <symbol id="i-perfil" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
+  <symbol id="i-clientes" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3m-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3m0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5m8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></symbol>
+  <symbol id="i-agenda" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m0 16H5V8h14z"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8zm2 16H8v-2h8zm0-4H8v-2h8zm-3-5V3.5L18.5 9z"/></symbol>
+  <symbol id="i-servico" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></symbol>
+  <symbol id="i-estrela" viewBox="0 0 24 24"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></symbol>
+  <symbol id="i-dinheiro" viewBox="0 0 24 24"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></symbol>
+  <symbol id="i-divulgar" viewBox="0 0 24 24"><path d="M18 11v2h4v-2zm-1.5 6.6 3.2 2.4 1.2-1.6-3.2-2.4zM19.9 5.6 18.7 4l-3.2 2.4 1.2 1.6zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/></symbol>
+  <symbol id="i-recibo" viewBox="0 0 24 24"><path d="M19.5 3.5 18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2 4.5 3.5 3 2v20l1.5-1.5L6 22l1.5-1.5L9 22l1.5-1.5L12 22l1.5-1.5L15 22l1.5-1.5L18 22l1.5-1.5L21 22V2zM19 19.09H5V4.91h14zM6 15h12v2H6zm0-4h12v2H6zm0-4h12v2H6z"/></symbol>
+</svg>
+
+<header class="topo">
+  <div class="wrap">
+    <a class="voltar" href="./">&larr; PrestadorAki</a>
+    <h1>Manual do prestador</h1>
+    <p>Do primeiro pedido até o recibo — o que cada tela faz, na ordem em que
+       você vai usar.</p>
+  </div>
+</header>
+
+<nav class="indice">
+  <h2>O que tem aqui</h2>
+  <ol>
+    <li><a href="#comecar">Começar: virar prestador</a></li>
+    <li><a href="#perfil">Seu perfil é a sua vitrine</a></li>
+    <li><a href="#mapa">O mapa do app</a></li>
+    <li><a href="#chega">Como o trabalho chega até você</a></li>
+    <li><a href="#orcamento">Montar e enviar o orçamento</a></li>
+    <li><a href="#estados">Os estados do orçamento</a></li>
+    <li><a href="#aditivo">Aditivo: quando o serviço cresce</a></li>
+    <li><a href="#agenda">Agenda</a></li>
+    <li><a href="#servicos">Executar: a tela de Serviços</a></li>
+    <li><a href="#cobrar">Cobrar e receber</a></li>
+    <li><a href="#recibo">Recibo</a></li>
+    <li><a href="#financeiro">Financeiro</a></li>
+    <li><a href="#divulgar">Divulgar seu trabalho</a></li>
+    <li><a href="#avisos">Quando o app te avisa</a></li>
+  </ol>
+</nav>
+
+<main class="wrap">
+
+<!-- ------------------------------------------------------------------ -->
+<section id="comecar">
+  <h2>1. Começar: virar prestador</h2>
+  <p class="lead">Sua conta no PrestadorAki nasce como conta de cliente. Virar
+    prestador não cria uma conta nova — adiciona a área de prestador na que
+    você já tem.</p>
+
+  <ol class="passos">
+    <li>No <b>Perfil</b>, escolha <b>Virar prestador</b>.</li>
+    <li>Na tela <b>Assine e apareça pros clientes</b>, toque em <b>Assinar</b>.
+      O plano é mensal, com renovação automática, e você cancela quando quiser
+      pela própria loja (Play Store ou App Store).</li>
+    <li>Confirmada a assinatura, a barra de baixo muda: entram
+      <b>Conversas</b> e <b>Gerenciamento</b>.</li>
+  </ol>
+
+  <p>Se você já assinou e trocou de aparelho, use <b>Já assinei, restaurar
+    compra</b> em vez de assinar de novo.</p>
+
+  <div class="cuidado">
+    <span class="rot">Atenção</span>
+    Enquanto a assinatura não estiver ativa, <b>você some das buscas dos
+    clientes</b>. O app avisa no alto do Gerenciamento: “Sua assinatura mensal
+    não está ativa no momento — assim que ela for confirmada, você volta a
+    aparecer nas buscas dos clientes.” Seus dados, orçamentos e histórico
+    continuam todos lá; o que para é só a sua vitrine.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="perfil">
+  <h2>2. Seu perfil é a sua vitrine</h2>
+  <p class="lead">É o perfil que decide se o cliente te encontra e se ele te
+    escolhe entre os que apareceram. Vale gastar dez minutos aqui uma vez, e
+    não voltar nunca mais.</p>
+
+  <p>Em <b>Perfil &rsaquo; Editar perfil</b>:</p>
+
+  <table class="tabela">
+    <tr><th>Campo</th><th>Por que importa</th></tr>
+    <tr>
+      <td><b>Categorias de serviço</b><br><span style="color:var(--muted);font-size:12.5px">obrigatório</span></td>
+      <td>É por aqui que o cliente filtra. Pode marcar mais de uma — marque
+        todas que você realmente atende, e só essas.</td>
+    </tr>
+    <tr>
+      <td><b>UF</b> e <b>Cidade</b><br><span style="color:var(--muted);font-size:12.5px">obrigatório</span></td>
+      <td>Junto com a categoria, é o que te coloca no resultado da busca.</td>
+    </tr>
+    <tr>
+      <td><b>Onde você atende</b></td>
+      <td>As cidades vizinhas que você aceita atender. Cada cidade a mais é
+        uma busca a mais em que você aparece.</td>
+    </tr>
+    <tr>
+      <td><b>Fotos dos seus serviços</b></td>
+      <td>O que mais convence quem está escolhendo. E são elas que alimentam
+        os cards de divulgação — sem foto, dois dos cinco modelos ficam
+        travados.</td>
+    </tr>
+    <tr>
+      <td><b>Chave Pix</b></td>
+      <td>Sem ela você <b>não consegue cobrar pelo app</b>. Veja o item 10.</td>
+    </tr>
+    <tr>
+      <td><b>Descrição</b></td>
+      <td>Sua carta de apresentação. Tem os botões <b>Gerar com IA</b> e
+        <b>Melhorar com IA</b> se você travar na primeira frase.</td>
+    </tr>
+  </table>
+
+  <div class="nota">
+    <span class="rot">Fica só com você</span>
+    O bloco <b>Endereço</b> não aparece no seu perfil público — é da sua
+    conta, para os documentos. O que o cliente vê é nome, foto, categoria,
+    cidade, descrição, fotos e avaliações.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="mapa">
+  <h2>3. O mapa do app</h2>
+  <p class="lead">Como prestador, a barra de baixo tem quatro abas. Quase tudo
+    do seu trabalho fica atrás de <b>Gerenciamento</b>.</p>
+
+  <table class="tabela">
+    <tr><th>Aba</th><th>Pra que serve</th></tr>
+    <tr><td><b>Buscar</b></td><td>A mesma busca que o cliente usa. Serve pra você ver como está aparecendo — e pra achar um colega de outra área quando o serviço pede.</td></tr>
+    <tr><td><b>Conversas</b></td><td>Todas as conversas de orçamento, dos dois lados, num lugar só. É aqui que você responde o cliente.</td></tr>
+    <tr><td><b>Gerenciamento</b></td><td>Seus compromissos de hoje e os atalhos: Clientes, Agenda, Orçamentos, Serviços, Avaliações, Financeiro e Divulgar.</td></tr>
+    <tr><td><b>Perfil</b></td><td>Seus dados, sua vitrine e as configurações da conta.</td></tr>
+  </table>
+
+  <div class="telas">
+    <figure class="tela">
+      <div class="fone">
+        <div class="fone-topo">
+          <div class="t">Gerenciamento</div>
+          <div class="s">Olá, Denilson! 👋</div>
+        </div>
+        <div class="fone-corpo">
+          <div class="rotulo-secao">Compromissos de hoje</div>
+          <div class="cartao">
+            <div class="tt">09:00 · Marina Doring</div>
+            <div class="ss">Serviço · Rua Henrique Lage, 480</div>
+          </div>
+          <div class="rotulo-secao">Atalhos</div>
+          <div class="grade">
+            <div class="atalho"><svg class="ic g"><use href="#i-doc"/></svg>
+              <span class="selo">2</span>
+              <div class="tt">Orçamentos</div><div class="ss">Crie e gerencie</div></div>
+            <div class="atalho"><svg class="ic g"><use href="#i-servico"/></svg>
+              <span class="selo">3</span>
+              <div class="tt">Serviços</div><div class="ss">Em execução</div></div>
+            <div class="atalho"><svg class="ic g"><use href="#i-agenda"/></svg>
+              <div class="tt">Agenda</div><div class="ss">Visitas e serviços</div></div>
+            <div class="atalho"><svg class="ic g"><use href="#i-dinheiro"/></svg>
+              <div class="tt">Financeiro</div><div class="ss">Quanto entrou</div></div>
+            <div class="atalho"><svg class="ic g"><use href="#i-clientes"/></svg>
+              <div class="tt">Clientes</div><div class="ss">Seus clientes</div></div>
+            <div class="atalho"><svg class="ic g"><use href="#i-divulgar"/></svg>
+              <div class="tt">Divulgar</div><div class="ss">Poste seu trabalho</div></div>
+          </div>
+        </div>
+        <div class="fone-barra">
+          <div><svg class="ic"><use href="#i-buscar"/></svg>Buscar</div>
+          <div><svg class="ic"><use href="#i-conversa"/></svg>Conversas</div>
+          <div class="on"><svg class="ic"><use href="#i-painel"/></svg>Gerenciamento</div>
+          <div><svg class="ic"><use href="#i-perfil"/></svg>Perfil</div>
+        </div>
+      </div>
+      <figcaption>O selo laranja mostra o que está esperando você: pedidos sem
+        resposta e serviços em aberto.</figcaption>
+    </figure>
+
+    <figure class="tela">
+      <div class="fone">
+        <div class="fone-topo">
+          <div class="t">Orçamentos</div>
+          <div class="s">Quem precisa de você vem primeiro</div>
+        </div>
+        <div class="fone-corpo">
+          <div class="cartao">
+            <div class="tt">Marina Doring</div>
+            <div class="ss">Eletricista · pedido de hoje</div>
+            <span class="pill acao">Pendente de envio</span>
+          </div>
+          <div class="cartao">
+            <div class="tt">Jorge Bertan</div>
+            <div class="ss">R$ 1.500,00 · nº 0042</div>
+            <span class="pill acao">Aprovado — falta confirmar</span>
+          </div>
+          <div class="cartao">
+            <div class="tt">Padaria Bom Dia</div>
+            <div class="ss">R$ 860,00 · nº 0041</div>
+            <span class="pill espera">Aguardando aprovação do cliente</span>
+          </div>
+          <div class="cartao">
+            <div class="tt">Cláudia Meurer</div>
+            <div class="ss">R$ 320,00 · nº 0039</div>
+            <span class="pill ok">Aceito</span>
+          </div>
+        </div>
+        <div class="fone-barra">
+          <div><svg class="ic"><use href="#i-buscar"/></svg>Buscar</div>
+          <div><svg class="ic"><use href="#i-conversa"/></svg>Conversas</div>
+          <div class="on"><svg class="ic"><use href="#i-painel"/></svg>Gerenciamento</div>
+          <div><svg class="ic"><use href="#i-perfil"/></svg>Perfil</div>
+        </div>
+      </div>
+      <figcaption>A lista não é por data: o que depende de você sobe pro topo,
+        e o que já está resolvido desce.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="chega">
+  <h2>4. Como o trabalho chega até você</h2>
+  <p class="lead">Existem dois caminhos, e eles terminam no mesmo lugar.</p>
+
+  <h3>Pelo app</h3>
+  <p>O cliente te acha na busca, abre seu perfil e pede um orçamento. Você
+    recebe a notificação <b>“Novo pedido de orçamento”</b> e o pedido aparece
+    em <b>Orçamentos</b> como <b>Pendente de envio</b>.</p>
+
+  <h3>Fora do app</h3>
+  <p>O cliente te chamou no WhatsApp, ou é freguês antigo. Abra
+    <b>Orçamentos</b> e toque no <b>+</b>: você monta o orçamento do mesmo
+    jeito, escolhendo um cliente do seu cadastro. Esse orçamento não tem
+    estados de aprovação — é seu documento, para você mandar e cobrar.</p>
+
+  <div class="nota">
+    <span class="rot">Antes de orçar</span>
+    Toda proposta tem uma conversa junto. Use <b>Conversar pelo app</b> dentro
+    do orçamento, ou a aba <b>Conversas</b>, para tirar dúvida de medida, foto
+    do quadro, horário. Fica tudo preso ao orçamento, e você não precisa
+    caçar no WhatsApp seis meses depois.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="orcamento">
+  <h2>5. Montar e enviar o orçamento</h2>
+
+  <ol class="passos">
+    <li>Abra o pedido em <b>Orçamentos</b>.</li>
+    <li>Lance os <b>itens</b>: descrição, quantidade, unidade e valor unitário.
+      O total se calcula sozinho.</li>
+    <li>Se for dar desconto, lance em <b>Desconto</b> — ele aparece separado no
+      PDF, e desconto que o cliente vê é desconto que ele valoriza.</li>
+    <li><b>Validade da proposta</b> (opcional): quantos dias o preço vale. Em
+      branco, o PDF não mostra validade nenhuma.</li>
+    <li><b>Observações</b>: o que <i>não</i> está incluído costuma valer mais
+      que o que está. “Alvenaria e pintura de acabamento não fazem parte deste
+      orçamento” evita a discussão no fim.</li>
+    <li>Toque em <b>Visualizar</b> pra conferir o PDF antes de mandar.</li>
+    <li><b>Enviar orçamento pro cliente</b> — ou <b>Compartilhar</b>, se o
+      cliente não usa o app.</li>
+  </ol>
+
+  <p>O PDF sai com seu nome, sua logo, sua categoria e cidade, o número do
+    documento e o total em destaque. <b>Visualizar</b> e <b>Compartilhar</b>
+    ficam disponíveis em qualquer momento, inclusive depois de enviado,
+    aceito ou recusado.</p>
+
+  <div class="nota">
+    <span class="rot">O número</span>
+    Cada orçamento ganha um número seu, em sequência: 0001, 0002, 0003. Ele é
+    gravado uma vez e não muda mais — se o cliente ligar citando “o 0042”,
+    é esse que você procura. Aditivo mantém o número, porque é o mesmo
+    documento revisado.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="estados">
+  <h2>6. Os estados do orçamento</h2>
+  <p class="lead">Um orçamento que nasceu de um pedido pelo app caminha por
+    estados. Saber de quem é a bola em cada um resolve 90% das dúvidas.</p>
+
+  <div class="fluxo">
+    <div class="etapa">
+      <div class="quem">a bola é sua</div>
+      <div class="est">Pendente de envio</div>
+      <div class="desc">O cliente pediu, você ainda não mandou preço. Botão:
+        <b>Enviar orçamento pro cliente</b>. Se não for atender, <b>Recusar
+        pedido</b> — melhor recusar do que deixar o cliente esperando.</div>
+    </div>
+    <div class="seta">▼</div>
+    <div class="etapa cliente">
+      <div class="quem cliente">a bola é do cliente</div>
+      <div class="est">Aguardando aprovação do cliente</div>
+      <div class="desc">Ele recebeu e está decidindo. Você pode conversar,
+        registrar um aditivo, ou <b>Cancelar orçamento</b>.</div>
+    </div>
+    <div class="seta">▼</div>
+    <div class="etapa">
+      <div class="quem">a bola é sua</div>
+      <div class="est">Aprovado — falta confirmar</div>
+      <div class="desc">O cliente aceitou o preço. Falta você bater o martelo
+        com <b>Confirmar e agendar na agenda</b>, escolhendo dia e hora. É
+        aqui que o serviço nasce.</div>
+    </div>
+    <div class="seta">▼</div>
+    <div class="etapa">
+      <div class="quem">fechado</div>
+      <div class="est">Aceito</div>
+      <div class="desc">Vira compromisso na <b>Agenda</b> e cartão em
+        <b>Serviços</b>. Daqui pra frente o trabalho acontece lá.</div>
+    </div>
+  </div>
+
+  <p><b>Recusado</b> encerra o fluxo, e o app guarda quem recusou — você ou o
+    cliente. Orçamento recusado continua acessível: dá pra reler e reimprimir
+    o PDF a qualquer momento.</p>
+
+  <div class="cuidado">
+    <span class="rot">Quando confirmar</span>
+    <b>Confirmar e agendar</b> verifica se você já tem compromisso naquele
+    dia e hora. Se tiver, o app bloqueia e pede outro horário — por isso vale
+    manter a agenda em dia mesmo para os serviços que não vieram pelo app.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="aditivo">
+  <h2>7. Aditivo: quando o serviço cresce</h2>
+  <p class="lead">Abriu a parede e o problema era outro. O aditivo existe pra
+    isso — e é diferente de editar o orçamento.</p>
+
+  <p>Em um orçamento já enviado, use <b>Registrar aditivo (revisar
+    itens/valor)</b>. O que acontece:</p>
+
+  <ul class="corrido">
+    <li>Os itens novos <b>entram na mesma lista</b>, marcados com o selo
+      <b>Aditivo nº 1</b>. O orçamento original continua visível, item por
+      item — nada é escondido nem substituído.</li>
+    <li>O documento passa a se identificar como aditivo, com a data da
+      revisão.</li>
+    <li>O estado volta para <b>Aditivo enviado — aguardando aprovação</b>:
+      o cliente precisa aprovar o valor novo.</li>
+  </ul>
+
+  <p>Se o serviço já estava <b>Aceito</b> e agendado, o aditivo não desfaz o
+    agendamento — só atualiza itens, valor e data, e avisa o cliente.</p>
+
+  <div class="nota">
+    <span class="rot">Por que não só editar</span>
+    Porque o cliente aprovou um valor. Trocar o número por baixo do pano é o
+    tipo de coisa que destrói confiança de uma vez. O aditivo mostra o antes e
+    o depois no mesmo papel, e é isso que faz ele ser aceito sem discussão.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="agenda">
+  <h2>8. Agenda</h2>
+  <p class="lead">Vista por <b>Semana</b> ou por <b>Dia</b>, com o botão
+    <b>Hoje</b> pra voltar quando você se perder navegando.</p>
+
+  <p>Compromissos entram sozinhos quando você confirma um orçamento. Pelo
+    <b>+</b> você marca os outros: <b>Visita técnica</b>, <b>Serviço</b>,
+    <b>Retorno</b>, <b>Reunião</b>, <b>Pagamento</b> ou <b>Outro</b> — com
+    cliente vinculado ou sem.</p>
+
+  <p>Tocar num compromisso que já virou serviço abre direto o painel do
+    serviço, com os botões de andamento. Os outros abrem para edição.</p>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="servicos">
+  <h2>9. Executar: a tela de Serviços</h2>
+  <p class="lead">Um quadro com cinco colunas. Cada serviço é um cartão que
+    caminha da esquerda pra direita, e você move com um botão — não
+    arrastando.</p>
+
+  <div class="telas">
+    <figure class="tela">
+      <div class="fone">
+        <div class="fone-topo">
+          <div class="t">Serviços</div>
+          <div class="s">3 em aberto</div>
+        </div>
+        <div class="fone-corpo">
+          <div class="rotulo-secao">Novo · 1</div>
+          <div class="cartao"><div class="tt">Jorge Bertan</div>
+            <div class="ss">R$ 1.500,00 · hoje 09:00</div></div>
+          <div class="rotulo-secao">Em andamento · 1</div>
+          <div class="cartao"><div class="tt">Padaria Bom Dia</div>
+            <div class="ss">R$ 860,00</div></div>
+          <div class="rotulo-secao">Aguardando pagamento · 1</div>
+          <div class="cartao"><div class="tt">Cláudia Meurer</div>
+            <div class="ss">R$ 320,00</div></div>
+          <div class="rotulo-secao">Concluído · 12</div>
+          <div class="cartao"><div class="tt">Marina Doring</div>
+            <div class="ss">R$ 1.500,00 · recibo 0001</div></div>
+        </div>
+        <div class="fone-barra">
+          <div><svg class="ic"><use href="#i-buscar"/></svg>Buscar</div>
+          <div><svg class="ic"><use href="#i-conversa"/></svg>Conversas</div>
+          <div class="on"><svg class="ic"><use href="#i-painel"/></svg>Gerenciamento</div>
+          <div><svg class="ic"><use href="#i-perfil"/></svg>Perfil</div>
+        </div>
+      </div>
+      <figcaption>Coluna vazia não aparece — o quadro só mostra as etapas em
+        que você realmente tem serviço.</figcaption>
+    </figure>
+
+    <figure class="tela">
+      <div class="fone">
+        <div class="fone-topo">
+          <div class="t">Cláudia Meurer</div>
+          <div class="s">Aguardando pagamento</div>
+        </div>
+        <div class="fone-corpo">
+          <div class="cartao">
+            <div class="ss">Eletricista</div>
+            <div class="ss">Rua Cel. Pedro Benedet, 120</div>
+            <div class="tt" style="margin-top:4px">R$ 320,00</div>
+          </div>
+          <div class="rotulo-secao">Cobrança via Pix</div>
+          <div class="cartao" style="text-align:center">
+            <div class="qr"></div>
+            <div class="ss">O cliente também recebe pelo app</div>
+          </div>
+          <div class="botao vazio">Copiar código Pix</div>
+          <div class="botao">Confirmar pagamento e concluir</div>
+        </div>
+        <div class="fone-barra">
+          <div><svg class="ic"><use href="#i-buscar"/></svg>Buscar</div>
+          <div><svg class="ic"><use href="#i-conversa"/></svg>Conversas</div>
+          <div class="on"><svg class="ic"><use href="#i-painel"/></svg>Gerenciamento</div>
+          <div><svg class="ic"><use href="#i-perfil"/></svg>Perfil</div>
+        </div>
+      </div>
+      <figcaption>O QR continua acessível depois de concluído, pra conferência
+        — some do serviço não some do app.</figcaption>
+    </figure>
+  </div>
+
+  <table class="tabela">
+    <tr><th>Etapa</th><th>O que você faz</th></tr>
+    <tr><td><b>Novo</b></td><td><b>Iniciar atendimento</b> quando pôr a mão na massa.</td></tr>
+    <tr><td><b>Em andamento</b></td><td><b>Concluir execução e cobrar</b> gera a cobrança. Se precisar parar, <b>Interromper</b>.</td></tr>
+    <tr><td><b>Interrompido</b></td><td><b>Retomar atendimento</b> quando voltar. O cliente é avisado nas duas pontas.</td></tr>
+    <tr><td><b>Aguardando pagamento</b></td><td>QR Code Pix disponível. Quando o dinheiro cair, <b>Confirmar pagamento e concluir</b>.</td></tr>
+    <tr><td><b>Concluído</b></td><td><b>Ver recibo</b> e <b>Enviar recibo</b>. O cliente é convidado a avaliar.</td></tr>
+  </table>
+
+  <div class="nota">
+    <span class="rot">Por que botão e não arrastar</span>
+    Porque cada passagem faz alguma coisa além de mudar de coluna: gera QR,
+    marca a data do pagamento, avisa o cliente, libera a avaliação. Arrastar
+    livre deixaria escapar tudo isso.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="cobrar">
+  <h2>10. Cobrar e receber</h2>
+  <p class="lead">A cobrança sai por Pix, com QR Code montado a partir da sua
+    chave e do valor do serviço.</p>
+
+  <p>Ao tocar em <b>Concluir execução e cobrar</b>, o cliente recebe a
+    cobrança dentro do app dele, sem você precisar estar junto. Você também
+    pode <b>Copiar código Pix</b> e mandar por onde preferir.</p>
+
+  <div class="cuidado">
+    <span class="rot">Sem chave Pix, não cobra</span>
+    Se você ainda não cadastrou a chave, o app <b>não deixa</b> o serviço
+    avançar e mostra: “Antes de cobrar esse serviço, configure sua chave Pix
+    em <i>Editar perfil</i> — sem ela não dá pra gerar o QR Code de cobrança e
+    o cliente não vai conseguir pagar.” O serviço fica onde estava. Cadastre a
+    chave antes do primeiro atendimento e você nunca esbarra nisso na frente
+    do cliente.
+  </div>
+
+  <p>Recebeu? <b>Confirmar pagamento e concluir</b>. Esse toque é o que grava
+    a data do pagamento, joga o valor no <b>Financeiro</b> e libera o recibo.
+    Sem ele, o dinheiro não aparece nos seus números.</p>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="recibo">
+  <h2>11. Recibo</h2>
+  <p class="lead">No serviço <b>Concluído</b>: <b>Ver recibo</b> e <b>Enviar
+    recibo</b>.</p>
+
+  <p>Sai um documento com o valor em algarismo e por extenso, o nome de quem
+    pagou, a que se refere, a quitação e sua linha de assinatura. Cita o
+    orçamento correspondente quando ele tem número.</p>
+
+  <ul class="corrido">
+    <li><b>Numeração própria</b>, separada da dos orçamentos. Começa no 0001.</li>
+    <li>O número só é usado <b>quando você emite</b>. Serviço pago que ninguém
+      pediu recibo não abre buraco na sua sequência.</li>
+    <li><b>Reemitir devolve o mesmo número</b>, sempre. Dois papéis com números
+      diferentes pro mesmo pagamento é exatamente o que um bloco de recibo
+      existe pra evitar.</li>
+    <li>A data é a do <b>pagamento</b>, não a do dia em que você imprimiu.</li>
+  </ul>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="financeiro">
+  <h2>12. Financeiro</h2>
+  <p class="lead">Os números se montam sozinhos conforme você conclui serviços
+    e confirma pagamentos. Não existe lançamento manual.</p>
+
+  <div class="telas">
+    <figure class="tela">
+      <div class="fone">
+        <div class="fone-topo">
+          <div class="t">Financeiro</div>
+          <div class="s">Quanto entrou e quanto falta</div>
+        </div>
+        <div class="fone-corpo">
+          <div class="cartao">
+            <div class="ss">Recebido em setembro</div>
+            <div class="valor">R$ 7.480,00</div>
+            <div class="ss" style="margin-top:3px">12 serviços pagos · ticket médio R$ 623,33</div>
+          </div>
+          <div class="cartao">
+            <div class="tt">A receber hoje</div>
+            <div class="valor" style="font-size:14px">R$ 1.180,00</div>
+            <div class="ss">3 serviços · toque pra ver quem deve</div>
+          </div>
+          <div class="rotulo-secao">Faturamento por mês</div>
+          <div class="barras">
+            <i style="height:38%"></i><i style="height:55%"></i><i style="height:44%"></i>
+            <i style="height:72%"></i><i style="height:61%"></i><i class="on" style="height:88%"></i>
+          </div>
+          <div class="ss" style="font-size:8.5px;color:var(--muted);margin-top:4px">
+            Toque num mês para ver os detalhes dele</div>
+        </div>
+        <div class="fone-barra">
+          <div><svg class="ic"><use href="#i-buscar"/></svg>Buscar</div>
+          <div><svg class="ic"><use href="#i-conversa"/></svg>Conversas</div>
+          <div class="on"><svg class="ic"><use href="#i-painel"/></svg>Gerenciamento</div>
+          <div><svg class="ic"><use href="#i-perfil"/></svg>Perfil</div>
+        </div>
+      </div>
+      <figcaption>Tocar numa barra troca o mês de toda a tela — inclusive da
+        lista de quem pagou.</figcaption>
+    </figure>
+
+    <figure class="tela">
+      <div class="fone">
+        <div class="fone-topo">
+          <div class="t">Divulgar meu trabalho</div>
+          <div class="s">O que você quer postar?</div>
+        </div>
+        <div class="fone-corpo">
+          <div class="miniflow">
+            <span class="on">Serviço<br>feito</span>
+            <span>Antes e<br>depois</span>
+            <span>Avaliação</span>
+          </div>
+          <div class="miniflow" style="margin-top:5px">
+            <span>Tenho<br>vaga</span>
+            <span>Meus<br>números</span>
+            <span style="border:0;background:none"></span>
+          </div>
+          <div class="rotulo-secao">Como vai ficar</div>
+          <div class="cartao" style="background:var(--ink);color:#fff;border:0;
+              height:150px;display:flex;flex-direction:column;justify-content:space-between">
+            <div style="font-size:12px;font-weight:800;line-height:1.3">
+              Quadro novo,<br>instalado hoje.</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-end">
+              <div><div style="font-size:9.5px;font-weight:800">Denilson Rocha</div>
+                <div style="font-size:8px;opacity:.7">Eletricista · Criciúma/SC</div></div>
+              <div style="width:26px;height:26px;background:#fff"></div>
+            </div>
+          </div>
+          <div class="linha-b">
+            <div class="botao">Compartilhar</div>
+            <div class="botao vazio">Copiar legenda</div>
+          </div>
+        </div>
+        <div class="fone-barra">
+          <div><svg class="ic"><use href="#i-buscar"/></svg>Buscar</div>
+          <div><svg class="ic"><use href="#i-conversa"/></svg>Conversas</div>
+          <div class="on"><svg class="ic"><use href="#i-painel"/></svg>Gerenciamento</div>
+          <div><svg class="ic"><use href="#i-perfil"/></svg>Perfil</div>
+        </div>
+      </div>
+      <figcaption>Modelo sem material fica visível mas apagado, com a linha do
+        que falta pra liberar.</figcaption>
+    </figure>
+  </div>
+
+  <p>A tela mostra, nessa ordem: o <b>recebido do mês</b> com quantidade de
+    serviços e ticket médio; <b>A receber hoje</b>, que abre mostrando quem
+    ainda deve; o gráfico de <b>Faturamento por mês</b>; a lista de
+    <b>Recebidos no mês</b> escolhido; e <b>Por categoria</b>, que só aparece
+    quando houve mais de um tipo de serviço no mês.</p>
+
+  <div class="nota">
+    <span class="rot">Serviço arquivado</span>
+    Arquivar um serviço tira ele das contas do Financeiro. Use pra limpar a
+    tela de serviços antigos, sabendo disso.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="divulgar">
+  <h2>13. Divulgar seu trabalho</h2>
+  <p class="lead">Em <b>Gerenciamento &rsaquo; Divulgar</b>, o app monta uma
+    arte pronta pro Instagram ou pro status do WhatsApp, com seu nome, sua
+    marca e um QR Code que leva ao seu perfil.</p>
+
+  <table class="tabela">
+    <tr><th>Modelo</th><th>Serve pra</th><th>Precisa de</th></tr>
+    <tr><td><b>Serviço feito</b></td><td>Mostrar um trabalho pronto</td><td>1 foto no perfil</td></tr>
+    <tr><td><b>Antes e depois</b></td><td>O que mais para o dedo de quem rola o feed</td><td>2 fotos</td></tr>
+    <tr><td><b>Avaliação</b></td><td>Deixar o cliente falar por você</td><td>1 avaliação com comentário escrito</td></tr>
+    <tr><td><b>Tenho vaga</b></td><td>Encher um buraco na agenda desta semana</td><td>nada</td></tr>
+    <tr><td><b>Meus números</b></td><td>Tempo de estrada, serviços feitos, nota</td><td>nada</td></tr>
+  </table>
+
+  <p>São ocasiões diferentes, não aparências diferentes: poste “Tenho vaga” na
+    segunda de manhã, “Antes e depois” quando o serviço ficou bonito,
+    “Avaliação” quando chegar um elogio bom. A legenda vem pronta e tem o
+    botão <b>Trocar</b> se você não gostou.</p>
+
+  <div class="nota">
+    <span class="rot">No Instagram</span>
+    A legenda não vai junto com a imagem — copie com <b>Copiar legenda</b> e
+    cole na hora de postar. O app avisa isso na tela.
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section id="avisos">
+  <h2>14. Quando o app te avisa</h2>
+  <p class="lead">Cinco coisas geram notificação pra você. Todas ficam
+    guardadas no sino, no alto do Gerenciamento, mesmo que você não veja o
+    aviso na hora.</p>
+
+  <table class="tabela">
+    <tr><th>Aviso</th><th>Quer dizer</th></tr>
+    <tr><td><b>Novo pedido de orçamento</b></td><td>Um cliente te escolheu na busca. É o mais importante de todos — responder rápido é a maior vantagem que você tem sobre quem demora.</td></tr>
+    <tr><td><b>Orçamento aprovado</b></td><td>O cliente aceitou o preço. Falta você confirmar e agendar.</td></tr>
+    <tr><td><b>Orçamento recusado</b></td><td>O cliente desistiu.</td></tr>
+    <tr><td><b>Mensagem de [cliente]</b></td><td>Chegou mensagem na conversa de um orçamento. Responda pela aba <b>Conversas</b>.</td></tr>
+    <tr><td><b>Você recebeu uma avaliação</b></td><td>Um cliente avaliou seu serviço. Avaliação com comentário também vira card de divulgação.</td></tr>
+  </table>
+
+  <p>Do outro lado, o cliente é avisado sozinho a cada passo que você dá:
+    serviço iniciado, pausado, cobrança disponível, serviço concluído. Você
+    não precisa mandar recado de andamento — o app já manda.</p>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <div class="marca">OPOutsourcing Brasil</div>
+  <div>PrestadorAki — manual do prestador</div>
+  <div><a href="mailto:opoutsourcingbr@gmail.com">opoutsourcingbr@gmail.com</a></div>
+  <div><a href="./">Voltar para a página inicial</a></div>
+</footer>
+
+</body>
+</html>
