@@ -14,6 +14,7 @@ import '../marketplace/models/service_category.dart';
 import '../marketplace/widgets/provider_listing_card.dart' show WhatsappBadge, abrirWhatsapp;
 import 'budget_chat_screen.dart';
 import 'budget_pdf.dart';
+import 'budget_pdf_preview_screen.dart';
 import 'budgets_repository.dart';
 import 'models/budget.dart';
 import 'widgets/aditivo_badge.dart';
@@ -135,6 +136,14 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   );
   late final _observationsController = TextEditingController(text: widget.budget?.observations ?? '');
 
+  /// Validade da proposta, em dias. Vazio = o PDF não imprime validade
+  /// nenhuma — ver `Budget.validadeDias`. Vazio é o padrão de propósito:
+  /// prazo é compromisso comercial do prestador, e a versão anterior
+  /// carimbava 15 dias em todo orçamento sem perguntar.
+  late final _validadeController = TextEditingController(
+    text: widget.budget?.validadeDias?.toString() ?? '',
+  );
+
   late List<_ItemRowControllers> _itemRows;
 
   bool get _isEditing => widget.budget != null;
@@ -214,6 +223,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     _aditivoDateController.dispose();
     _discountController.dispose();
     _observationsController.dispose();
+    _validadeController.dispose();
     for (final row in _itemRows) {
       row.dispose();
     }
@@ -366,6 +376,12 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       items: items,
       discountCents: tryParseCentsFromText(_discountController.text) ?? 0,
       observations: _observationsController.text.trim(),
+      validadeDias: int.tryParse(_validadeController.text.trim()),
+      // Carrega o número já gravado pra ele sair no PDF gerado daqui —
+      // quem ATRIBUI é o BudgetsRepository, uma vez só (ver
+      // `Budget.documentNumber`). Orçamento ainda não salvo vem sem, e o
+      // PDF simplesmente omite a linha do número.
+      documentNumber: widget.budget?.documentNumber,
       // Só pra o PDF (ver _generatePdf) já mostrar "ADITIVO Nº X" durante
       // a edição, antes de salvar — o valor que realmente conta é o
       // gravado por `registerAditivo` (ver `_save`).
@@ -477,6 +493,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       _discountController.text =
           budget.discountCents > 0 ? formatCentsBRL(budget.discountCents).replaceAll('R\$ ', '') : '';
       _observationsController.text = budget.observations ?? '';
+      _validadeController.text = budget.validadeDias?.toString() ?? '';
       for (final row in _itemRows) {
         row.dispose();
       }
@@ -583,27 +600,37 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     }
   }
 
-  Future<void> _generatePdf() => _comOPdf(imprimir: false);
+  Future<void> _generatePdf() => _comOPdf(visualizar: false);
 
-  /// Manda o orçamento pra folha de impressão do sistema — imprimir de
-  /// verdade ou salvar em PDF no aparelho, que é o mesmo diálogo.
+  /// Abre o PDF na tela, pra conferir antes de mandar (ver
+  /// BudgetPdfPreviewScreen).
   ///
-  /// Existe separado do compartilhar por pedido do Franck ("preciso
-  /// reimprimir o orçamento quando eu quiser"): compartilhar é via de mão
-  /// única — mandou pro WhatsApp, acabou. Quem precisa da folha na mão,
-  /// ou de guardar o arquivo, não tinha caminho nenhum antes disso.
-  Future<void> _printPdf() => _comOPdf(imprimir: true);
+  /// Substituiu o botão de imprimir, que durou um dia: a folha de
+  /// impressão do Android, cancelada, devolvia o app numa tela da qual o
+  /// Franck precisava sair na mão. E imprimir nunca foi o pedido — "o que
+  /// falei é que precisa ter opção de visualizar o PDF a qualquer
+  /// momento". Quem quiser papel imprime pelo compartilhar.
+  Future<void> _previewPdf() => _comOPdf(visualizar: true);
 
   /// Monta o PDF a partir do formulário e entrega pra ação escolhida. Os
   /// dois caminhos passam por aqui de propósito: gerar em dois lugares é
-  /// como o documento compartilhado e o impresso acabam saindo diferentes.
-  Future<void> _comOPdf({required bool imprimir}) async {
+  /// como o documento visto na tela e o compartilhado acabam saindo
+  /// diferentes.
+  Future<void> _comOPdf({required bool visualizar}) async {
     setState(() {
       _generatingPdf = true;
       _error = null;
     });
     try {
-      final budget = await _buildBudgetFromForm();
+      // Enquanto o orçamento é editável (manual, pendente, ou durante um
+      // aditivo), o PDF sai do FORMULÁRIO — é o que deixa conferir o
+      // documento antes de salvar. Depois de enviado a tela é só resumo,
+      // e aí o PDF sai do orçamento GRAVADO: remontar do formulário num
+      // estado em que ele nem é exibido é como um "Visualizar" acaba
+      // reclamando de cliente não encontrado num orçamento que está ali,
+      // inteiro, na tela.
+      final editavel = _status == null || _status == BudgetStatus.pendente || _editingAditivo;
+      final budget = editavel ? await _buildBudgetFromForm() : widget.budget;
       if (budget == null) return;
       final auth = context.read<AuthController>();
       final profileData = await auth.fetchOwnProfileData();
@@ -619,8 +646,18 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       if (!mounted) return;
       final suffix = budget.revisionNumber > 0 ? '_aditivo${budget.revisionNumber}' : '';
       final nomeDoArquivo = 'orcamento_${budget.customerName}$suffix.pdf';
-      if (imprimir) {
-        await Printing.layoutPdf(onLayout: (_) async => bytes, name: nomeDoArquivo);
+      if (visualizar) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BudgetPdfPreviewScreen(
+              bytes: bytes,
+              fileName: nomeDoArquivo,
+              title: budget.revisionNumber > 0
+                  ? 'Orçamento — aditivo nº ${budget.revisionNumber}'
+                  : 'Orçamento',
+            ),
+          ),
+        );
       } else {
         await Printing.sharePdf(bytes: bytes, filename: nomeDoArquivo);
       }
@@ -927,6 +964,19 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                         const SizedBox(height: 12),
                         _BudgetField(
+                          icon: Icons.event_available_outlined,
+                          label: 'Validade da proposta (opcional)',
+                          child: TextField(
+                            controller: _validadeController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              hintText: 'Dias — ex.: 15',
+                              helperText: 'Em branco, o PDF não mostra validade.',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _BudgetField(
                           icon: Icons.notes_outlined,
                           label: 'Observações (opcional)',
                           child: TextField(
@@ -1011,6 +1061,47 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     );
   }
 
+  /// Visualizar e compartilhar o PDF, lado a lado.
+  ///
+  /// Entra em TODOS os estados do orçamento, de propósito. Antes esses
+  /// botões só existiam enquanto o orçamento era editável (manual ou
+  /// pendente): assim que ia pro cliente, o documento sumia do alcance do
+  /// prestador — nem conferir o que mandou ele conseguia. Era isso que o
+  /// Franck estava pedindo com "visualizar o PDF a qualquer momento"; o
+  /// botão de imprimir que eu tinha feito antes resolvia outra coisa.
+  ///
+  /// Imprimir ficou de fora: durou um dia e a folha de impressão do
+  /// Android, ao ser cancelada, deixava o app numa tela da qual era
+  /// preciso sair na mão. Quem quiser papel imprime pelo compartilhar,
+  /// que entrega o arquivo pro app de impressão do aparelho sem
+  /// sequestrar a navegação.
+  Widget _acoesDoPdf(bool busy) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextButton.icon(
+            onPressed: busy ? null : _previewPdf,
+            icon: _generatingPdf
+                ? const SizedBox(
+                    height: 15,
+                    width: 15,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.visibility_outlined, size: 17),
+            label: const Text('Visualizar'),
+          ),
+        ),
+        Expanded(
+          child: TextButton.icon(
+            onPressed: busy ? null : _generatePdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 17),
+            label: const Text('Compartilhar'),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Botões do rodapé — variam conforme o status do orçamento (ver
   /// `BudgetStatus`). Um orçamento manual (`_status == null`) ou ainda
   /// pendente de envio usa o formulário completo de itens/preço (mesmos
@@ -1051,38 +1142,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             ),
           ),
         ),
-        // Compartilhar e imprimir lado a lado, com o mesmo peso.
-        //
-        // Pedido do Franck: "preciso reimprimir o orçamento quando eu
-        // quiser". Até aqui o único caminho era o compartilhar, que é de
-        // mão única — some do app assim que vai pro WhatsApp. Imprimir
-        // abre a folha de impressão do sistema, que também é de onde se
-        // salva o PDF no aparelho; é o botão pra quem vai levar papel na
-        // visita ou guardar o arquivo.
-        Row(
-          children: [
-            Expanded(
-              child: TextButton.icon(
-                onPressed: busy ? null : _generatePdf,
-                icon: _generatingPdf
-                    ? const SizedBox(
-                        height: 15,
-                        width: 15,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.picture_as_pdf_outlined, size: 17),
-                label: const Text('Compartilhar'),
-              ),
-            ),
-            Expanded(
-              child: TextButton.icon(
-                onPressed: busy ? null : _printPdf,
-                icon: const Icon(Icons.print_outlined, size: 17),
-                label: const Text('Imprimir'),
-              ),
-            ),
-          ],
-        ),
+        _acoesDoPdf(busy),
         if (_editingAditivo)
           TextButton.icon(
             onPressed: busy ? null : _cancelAditivo,
@@ -1118,6 +1178,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
     if (status == BudgetStatus.enviado || status == BudgetStatus.aditivoEnviado) {
       return [
+        _acoesDoPdf(busy),
         SizedBox(
           width: double.infinity,
           height: 44,
@@ -1152,6 +1213,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       // como se fosse a primeira vez.
       final isReconfirmation = widget.budget?.appointmentId != null;
       return [
+        _acoesDoPdf(busy),
         SizedBox(
           width: double.infinity,
           height: 48,
@@ -1188,6 +1250,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     // aditivo" logo acima, pra quem ainda pode registrar um — ver
     // `_registrarAditivoButton`).
     return [
+      _acoesDoPdf(busy),
       _registrarAditivoButton(busy),
       TextButton(
         onPressed: () => Navigator.of(context).pop(),

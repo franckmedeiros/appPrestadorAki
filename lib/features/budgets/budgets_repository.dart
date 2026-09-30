@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -65,10 +67,12 @@ class BudgetsRepository {
 
   Future<Budget> create(Budget budget) async {
     try {
+      final numero = await _proximoNumero();
       final now = FieldValue.serverTimestamp();
       final doc = await _collection.add({
         ...budget.toMap(),
         'providerUid': _auth.currentUser!.uid,
+        if (numero != null) 'documentNumber': numero,
         'createdAt': now,
         'updatedAt': now,
       });
@@ -77,6 +81,76 @@ class BudgetsRepository {
     } on FirebaseException catch (e) {
       throw ApiException(0, e.message ?? 'Não foi possível salvar o orçamento.');
     }
+  }
+
+  /// Reserva o próximo número de orçamento deste prestador (1, 2, 3...) e
+  /// já adianta o contador.
+  ///
+  /// É o "Nº" impresso no PDF. Antes o PDF recortava o id do Firestore, o
+  /// que não é número de documento nenhum: não tem ordem, muda de cara a
+  /// cada orçamento, e nos orçamentos com id escolhido à mão (os do script
+  /// de demonstração) o recorte chegou a formar palavra — foi assim que
+  /// apareceu "manual" no lugar do número.
+  ///
+  /// Sem transação, de propósito. Transação do Firestore exige rede e
+  /// falha offline, e criar orçamento dentro de casa de cliente, sem
+  /// sinal, é caso comum aqui — o app perderia a função inteira pra
+  /// garantir uma unicidade que um prestador num aparelho só não precisa.
+  /// A leitura vem do cache (que já aplica os `increment` pendentes), e o
+  /// pior caso real é dois aparelhos criando offline ao mesmo tempo e
+  /// repetindo um número.
+  ///
+  /// `null` quando não deu pra numerar. Nunca propaga erro: numerar é
+  /// enfeite perto de gravar o orçamento, e um contador que falha (regra
+  /// do Firestore, rede caindo no meio) não pode ser o motivo de o
+  /// prestador perder um orçamento que ele acabou de digitar. Sem número,
+  /// o PDF só omite a linha.
+  Future<int?> _proximoNumero() async {
+    try {
+      final providerRef = _firestore.collection('providers').doc(_auth.currentUser!.uid);
+      final snapshot = await providerRef.get();
+      final atual = (snapshot.data()?['proximoNumeroDeOrcamento'] as num?)?.toInt() ?? 1;
+      // Incremento sem `await`: o future de uma escrita do Firestore só
+      // completa quando o SERVIDOR confirma, então esperar por ele aqui
+      // travaria a criação de orçamento offline. O cache local já aplica
+      // o incremento na hora, que é o que a próxima leitura precisa.
+      unawaited(
+        providerRef.set(
+          {'proximoNumeroDeOrcamento': FieldValue.increment(1)},
+          SetOptions(merge: true),
+        ).catchError((Object _) {}),
+      );
+      return atual;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Dá número a um orçamento que ainda não tem — os que nasceram de
+  /// pedido do cliente (criados por `BudgetRequestsRepository`, do lado
+  /// dele) e os anteriores a essa mudança.
+  ///
+  /// Chamado no envio pro cliente, não na chegada do pedido: pedido que o
+  /// prestador recusa sem responder não deve queimar número, senão a
+  /// numeração dele nasce cheia de buracos.
+  ///
+  /// Lê o número do DOCUMENTO GRAVADO, não do `Budget` recebido. O objeto
+  /// que chega aqui vem montado pelo formulário
+  /// (`BudgetFormScreen._buildBudgetFromForm`), que nasce sem campo
+  /// nenhum de numeração — confiar nele daria número novo a cada reenvio,
+  /// que é justamente o que um número de documento não pode fazer.
+  Future<int?> _numerarSePreciso(String budgetId) async {
+    if (budgetId.isEmpty) return null;
+    try {
+      final atual = await _collection.doc(budgetId).get();
+      final gravado = (atual.data()?['documentNumber'] as num?)?.toInt();
+      if (gravado != null) return gravado;
+    } catch (_) {
+      // Mesma razão de `_proximoNumero`: não dá pra derrubar o envio do
+      // orçamento pro cliente por causa da leitura do número.
+      return null;
+    }
+    return _proximoNumero();
   }
 
   Future<void> update(Budget budget) async {
@@ -140,10 +214,12 @@ class BudgetsRepository {
   /// preenchidos (mesmo objeto montado pelo formulário de edição).
   Future<void> sendToClient(Budget budget) async {
     try {
+      final numero = await _numerarSePreciso(budget.id);
       await _collection.doc(budget.id).set({
         ...budget.toMap(),
         'providerUid': _auth.currentUser!.uid,
         'status': BudgetStatus.enviado.wireValue,
+        if (numero != null) 'documentNumber': numero,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } on FirebaseException catch (e) {

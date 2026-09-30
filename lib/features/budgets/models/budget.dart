@@ -156,6 +156,8 @@ class Budget {
     this.archivedByClient = false,
     this.archivedByProvider = false,
     this.revisionNumber = 0,
+    this.documentNumber,
+    this.validadeDias,
     this.naoLidasCliente = 0,
     this.naoLidasPrestador = 0,
     this.ultimaMensagemEm,
@@ -197,6 +199,8 @@ class Budget {
       archivedByClient: data['archivedByClient'] as bool? ?? false,
       archivedByProvider: data['archivedByProvider'] as bool? ?? false,
       revisionNumber: (data['revisionNumber'] as num?)?.toInt() ?? 0,
+      documentNumber: (data['documentNumber'] as num?)?.toInt(),
+      validadeDias: (data['validadeDias'] as num?)?.toInt(),
       naoLidasCliente: (data['naoLidasCliente'] as num?)?.toInt() ?? 0,
       naoLidasPrestador: (data['naoLidasPrestador'] as num?)?.toInt() ?? 0,
       ultimaMensagemEm: (data['ultimaMensagemEm'] as Timestamp?)?.toDate(),
@@ -346,6 +350,35 @@ class Budget {
   /// original (essa fica só em `createdAt`, que nunca muda).
   final int revisionNumber;
 
+  /// Número do orçamento como documento — 1, 2, 3... por prestador, na
+  /// ordem em que ele criou/enviou. É o "Nº" impresso no PDF.
+  ///
+  /// Gravado uma única vez (ver `BudgetsRepository._numerarSePreciso`) e
+  /// nunca recalculado: aditivo é revisão do MESMO documento, então mantém
+  /// o mesmo número. Contador em `providers/{uid}.proximoNumeroDeOrcamento`.
+  ///
+  /// A primeira versão disso não tinha campo nenhum: o PDF imprimia os 6
+  /// últimos caracteres do id do Firestore. Um id de banco não é número de
+  /// documento — sai diferente a cada orçamento sem nenhuma ordem, e em
+  /// orçamento com id escolhido à mão (os do script de demonstração) o
+  /// recorte ainda formava palavra, que foi como o Franck viu "manual"
+  /// impresso no lugar do número.
+  ///
+  /// `null` em orçamento criado antes dessa mudança — aí o PDF sai sem a
+  /// linha do número, em vez de inventar um que brigaria com a numeração
+  /// nova.
+  final int? documentNumber;
+
+  /// Quantos dias a proposta vale, contados da data do orçamento. `null`
+  /// (o padrão) = o PDF não imprime linha de validade nenhuma.
+  ///
+  /// Nasceu como constante fixa de 15 dias, aplicada a todo orçamento.
+  /// Estava errado: prazo de validade é compromisso comercial do
+  /// prestador, e o app não tem como assumir isso por ele — "retirar a
+  /// questão da validade ou ter a opção do prestador colocar" (Franck).
+  /// Agora é campo do formulário, vazio por padrão.
+  final int? validadeDias;
+
   /// Se veio de um pedido de cliente pelo marketplace (em vez de criado
   /// manualmente pelo prestador).
   bool get isFromClientRequest => clientUid != null;
@@ -381,6 +414,13 @@ class Budget {
           'serviceDurationMinutes': serviceDurationMinutes,
         if (appointmentId != null) 'appointmentId': appointmentId,
         'revisionNumber': revisionNumber,
+        if (validadeDias != null) 'validadeDias': validadeDias,
+        // `documentNumber` NÃO entra aqui de propósito, igual aos campos de
+        // pagamento acima: quem grava é `BudgetsRepository`, uma vez só. Se
+        // entrasse, todo `set(..., merge: true)` feito a partir de um Budget
+        // montado na tela (que nasce sem o número — ver
+        // BudgetFormScreen._buildBudgetFromForm) teria a chance de apagar ou
+        // reescrever o número já atribuído.
       };
 
   Budget copyWith({
@@ -423,5 +463,7 @@ class Budget {
         archivedByClient: archivedByClient,
         archivedByProvider: archivedByProvider,
         revisionNumber: revisionNumber,
+        documentNumber: documentNumber,
+        validadeDias: validadeDias,
       );
 }

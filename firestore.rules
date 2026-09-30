@@ -44,10 +44,13 @@ service cloud.firestore {
 
       // Orçamentos (módulo formal, ligado a Clientes — ver
       // lib/features/budgets/): versão simples implementada em
-      // 2026-08, direto do app (BudgetsRepository), sem numeração
-      // sequencial/versionamento/job automático (o desenho mais
-      // ambicioso com Cloud Functions/`jobs` em functions/src/budgets.ts
-      // nunca chegou a ser ligado ao app — fica como código morto).
+      // 2026-08, direto do app (BudgetsRepository), sem job automático
+      // (o desenho mais ambicioso com Cloud Functions/`jobs` em
+      // functions/src/budgets.ts nunca chegou a ser ligado ao app — fica
+      // como código morto). A numeração sequencial passou a existir em
+      // 2026-09 (ver `Budget.documentNumber`), do lado do app: o contador
+      // mora em `providers/{uid}.proximoNumeroDeOrcamento`, coberto pelo
+      // `allow update: if isOwner(providerId)` logo acima.
       //
       // Desde então (pedido do Franck) um orçamento também pode nascer de
       // um pedido de cliente pelo marketplace (ver `Budget.clientUid`/

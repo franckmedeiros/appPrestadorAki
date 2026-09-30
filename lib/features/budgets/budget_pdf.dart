@@ -66,14 +66,6 @@ const _logoVazia = PdfColor.fromInt(0xFFDCD9D6);
 const String kNomeDoApp = 'PrestadorAki';
 const String kSiteDoApp = 'prestadoraki.web.app';
 
-/// Quantos dias o orçamento vale, contados da data dele.
-///
-/// Não é campo do formulário (ainda): é o prazo padrão de mercado, posto
-/// aqui num lugar só pra virar campo depois sem caçar número solto. Serve
-/// ao prestador — sem validade escrita, o cliente reaparece em março
-/// cobrando o preço de setembro.
-const int kValidadePadraoEmDias = 15;
-
 /// Gera o PDF do orçamento.
 ///
 /// Layout revisado com o Franck (set/2026), partindo da crítica dele de
@@ -94,11 +86,7 @@ const int kValidadePadraoEmDias = 15;
 ///  - O cabeçalho da tabela agora repete em toda página (`repeat: true`).
 ///    Orçamento com aditivo passa de uma folha, e a segunda folha vinha
 ///    com colunas de números sem legenda.
-Future<Uint8List> buildBudgetPdf(
-  Budget budget,
-  BudgetPdfProvider provider, {
-  int validadeDias = kValidadePadraoEmDias,
-}) async {
+Future<Uint8List> buildBudgetPdf(Budget budget, BudgetPdfProvider provider) async {
   pw.MemoryImage? logoImage;
   final logoUrl = provider.logoUrl;
   if (logoUrl != null && logoUrl.isNotEmpty) {
@@ -130,7 +118,7 @@ Future<Uint8List> buildBudgetPdf(
         pw.SizedBox(height: 12),
         pw.Container(height: 2, color: _laranja),
         pw.SizedBox(height: 16),
-        _clienteECondicoes(budget, provider, validadeDias),
+        _clienteECondicoes(budget, provider),
         pw.SizedBox(height: 18),
         _tabelaDeItens(budget),
         pw.SizedBox(height: 10),
@@ -161,7 +149,7 @@ Future<Uint8List> buildBudgetPdf(
 
 pw.Widget _cabecalho(Budget budget, BudgetPdfProvider provider, pw.MemoryImage? logo) {
   final subtitle = provider.subtitle;
-  final numero = _numeroDoDocumento(budget.id);
+  final numero = _numeroDoDocumento(budget.documentNumber);
   return pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -281,35 +269,37 @@ String _iniciais(String nome) {
   return (partes.first.substring(0, 1) + partes.last.substring(0, 1)).toUpperCase();
 }
 
-/// Número do documento: os 6 últimos caracteres do id do orçamento, em
-/// maiúsculas.
+/// Número do documento, com quatro dígitos: 0001, 0042, 1337.
 ///
-/// Não é uma sequência (0001, 0002...) porque não existe contador em
-/// lugar nenhum, e inventar um exigiria uma transação por orçamento só
-/// pra ter um número bonito. O que importa é ser IMPRESSO e RASTREÁVEL:
-/// o cliente liga citando "7F3A9C" e o prestador acha o orçamento. Um id
-/// do Firestore inteiro (20 caracteres) ninguém lê no telefone.
-/// `null` num orçamento que ainda não foi salvo (`_buildBudgetFromForm`
-/// devolve id vazio nesse caso) — aí a linha inteira sai do cabeçalho, em
-/// vez de imprimir um traço que parece campo com defeito.
-String? _numeroDoDocumento(String id) {
-  final limpo = id.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
-  if (limpo.isEmpty) return null;
-  final trecho = limpo.length <= 6 ? limpo : limpo.substring(limpo.length - 6);
-  return trecho.toUpperCase();
+/// Vem de `Budget.documentNumber`, um contador por prestador. A primeira
+/// versão disto recortava os 6 últimos caracteres do id do Firestore —
+/// id de banco não é número de documento: não tem ordem, muda de cara a
+/// cada orçamento e, quando o id foi escolhido à mão, o recorte formava
+/// palavra (foi assim que saiu "manual" impresso no lugar do número).
+///
+/// `null` em orçamento ainda não salvo e nos criados antes do contador
+/// existir — aí a linha inteira sai do cabeçalho, em vez de imprimir um
+/// traço que parece campo com defeito.
+String? _numeroDoDocumento(int? numero) {
+  if (numero == null || numero <= 0) return null;
+  return numero.toString().padLeft(4, '0');
 }
 
 // ---------------------------------------------------------------------------
 // Cliente + condições
 // ---------------------------------------------------------------------------
 
-pw.Widget _clienteECondicoes(Budget budget, BudgetPdfProvider provider, int validadeDias) {
-  final validoAte = DateTime(
-    budget.date.year,
-    budget.date.month,
-    budget.date.day + validadeDias,
-  );
+pw.Widget _clienteECondicoes(Budget budget, BudgetPdfProvider provider) {
+  // Validade só sai impressa quando o prestador escreveu um prazo. A
+  // versão anterior carimbava 15 dias em todo orçamento: prazo de
+  // validade é compromisso comercial dele, e assumir isso por ele é o
+  // tipo de "ajuda" que vira problema na hora que o cliente cobra.
+  final dias = budget.validadeDias;
+  final validoAte = dias == null
+      ? null
+      : DateTime(budget.date.year, budget.date.month, budget.date.day + dias);
   final temPix = provider.pixKey != null && provider.pixKey!.isNotEmpty;
+  final temCondicoes = validoAte != null || temPix;
 
   return pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -332,21 +322,24 @@ pw.Widget _clienteECondicoes(Budget budget, BudgetPdfProvider provider, int vali
           ],
         ),
       ),
-      pw.SizedBox(width: 24),
-      pw.Expanded(
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            _rotulo('Condições'),
-            pw.SizedBox(height: 4),
-            _condicao('Validade da proposta:', _dataCurta(validoAte), destaque: true),
-            if (temPix) ...[
-              pw.SizedBox(height: 2),
-              _condicao('Forma de pagamento:', 'Pix'),
+      if (temCondicoes) ...[
+        pw.SizedBox(width: 24),
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              _rotulo('Condições'),
+              pw.SizedBox(height: 4),
+              if (validoAte != null)
+                _condicao('Validade da proposta:', _dataCurta(validoAte), destaque: true),
+              if (temPix) ...[
+                if (validoAte != null) pw.SizedBox(height: 2),
+                _condicao('Forma de pagamento:', 'Pix'),
+              ],
             ],
-          ],
+          ),
         ),
-      ),
+      ],
     ],
   );
 }
