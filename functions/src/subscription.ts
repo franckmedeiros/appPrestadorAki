@@ -344,7 +344,9 @@ export async function aplicarEstadoNormalizado(
           ...(reivindicada?.ratingCount != null ? { ratingCount: reivindicada.ratingCount } : {}),
           claimed: true,
           providerUid: uid,
-          visible: true,
+          // Bloqueado pelo HUB (ver hub.ts) continua escondido mesmo
+          // quando a loja renova a assinatura.
+          visible: directorySnap.data()?.ocultoPeloHub !== true,
           updatedAt: now,
           ...(directorySnap.exists ? {} : { createdAt: now }),
         },
