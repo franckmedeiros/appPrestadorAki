@@ -94,6 +94,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   bool? _biometricAvailable;
   bool _dismissedBiometricOffer = false;
 
+  /// Recolhe a busca por nome e os filtros de categoria/cidade pra dar
+  /// mais espaço à lista de profissionais (botão na linha de resultados).
+  bool _filtrosRecolhidos = false;
+
   @override
   void initState() {
     super.initState();
@@ -395,6 +399,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               ),
               child: Column(
                 children: [
+                if (!_filtrosRecolhidos) ...[
                 // Busca por nome — pedido do Franck. Fica em PRIMEIRO
                 // lugar de propósito: quem já sabe o nome do profissional
                 // não deveria precisar passar por categoria e cidade
@@ -470,6 +475,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                ],
                 _linhaDeResultados(),
               ],
             ),
@@ -524,6 +530,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              tooltip: _filtrosRecolhidos ? 'Mostrar filtros' : 'Recolher filtros',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                _filtrosRecolhidos ? Icons.tune : Icons.unfold_less,
+                color: AppColors.ink,
+              ),
+              onPressed: () =>
+                  setState(() => _filtrosRecolhidos = !_filtrosRecolhidos),
             ),
             PopupMenuButton<OrdemDaBusca>(
               initialValue: _ordem,
