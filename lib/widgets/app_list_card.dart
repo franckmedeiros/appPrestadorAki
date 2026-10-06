@@ -20,7 +20,7 @@ class AppListCardStat {
 class AppListCard extends StatelessWidget {
   const AppListCard({
     super.key,
-    required this.leading,
+    this.leading,
     required this.title,
     this.subtitle,
     this.trailing,
@@ -29,7 +29,10 @@ class AppListCard extends StatelessWidget {
     this.onTap,
   });
 
-  final Widget leading;
+  /// O bloco da esquerda (ícone, avatar, a hora de um compromisso).
+  /// Null quando a lista não tem nada pra pôr ali — e aí o nome começa
+  /// na margem do cartão, em vez de ficar com um recuo sem motivo.
+  final Widget? leading;
   final String title;
   final String? subtitle;
   final Widget? trailing;
@@ -41,22 +44,24 @@ class AppListCard extends StatelessWidget {
   final List<AppListCardStat> stats;
   final VoidCallback? onTap;
 
-  /// Avatar padrão: quadrado arredondado com o gradiente da marca — usado
-  /// quando não faz sentido um avatar de iniciais (perfil de prestador,
-  /// pedido do marketplace, categoria de serviço...).
+  /// Avatar padrão: quadrado arredondado em laranja claro com o ícone na
+  /// cor da marca — usado quando não faz sentido um avatar de iniciais
+  /// (perfil de prestador, pedido do marketplace, categoria de
+  /// serviço...).
   static Widget iconAvatar(IconData icon) {
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryDark],
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Icon(icon, color: Colors.white, size: 26),
+    // Era um quadrado laranja chapado com o ícone branco. Numa lista de
+    // dez itens isso vira uma coluna de dez blocos de cor gritando — a
+    // cor passa a marcar "lista", não "este item". No desenho novo não
+    // tem quadrado nenhum: o ícone é desenhado direto no cartão, só ele
+    // na cor da marca.
+    //
+    // A caixa de largura fixa fica, mesmo sem fundo: é ela que alinha o
+    // começo dos nomes de uma linha pra outra, por mais estreito que
+    // seja o ícone da vez.
+    return SizedBox(
+      width: 40,
+      height: 44,
+      child: Icon(icon, color: AppColors.primary, size: 26),
     );
   }
 
@@ -74,8 +79,10 @@ class AppListCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  leading,
-                  const SizedBox(width: 14),
+                  if (leading != null) ...[
+                    leading!,
+                    const SizedBox(width: 14),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

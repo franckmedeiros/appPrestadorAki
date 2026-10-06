@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_theme.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Contato para denúncias e assuntos dos Termos. É o mesmo endereço que
 /// aparece no texto — deixado numa constante pra nunca divergir entre o
@@ -50,7 +51,14 @@ class TermsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Termos de Uso')),
+      appBar: barraDeTela(
+        context,
+        titulo: 'Termos de uso',
+        area: AreaDoApp.cliente,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
         children: [

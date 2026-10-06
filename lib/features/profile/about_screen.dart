@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_theme.dart';
 import '../auth/terms_screen.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// "Sobre o app" — pedido do Franck: "seria interessante ter em algum
 /// lugar no app os dados da empresa responsável pelo produto e o
@@ -51,7 +52,15 @@ class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sobre o app')),
+      backgroundColor: AppColors.background,
+      appBar: barraDeTela(
+        context,
+        titulo: 'Sobre o app',
+        area: AreaDoApp.cliente,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
         children: [

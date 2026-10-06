@@ -7,7 +7,7 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../widgets/app_list_card.dart';
 import '../../widgets/biometric_offer_card.dart';
-import '../../widgets/decorative_header.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 import '../../widgets/notification_bell.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
@@ -138,98 +138,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DecorativeHeader(
-              height: 150,
-              padding: const EdgeInsets.fromLTRB(20, 8, 16, 22),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // A saudação VOLTOU, junto do título (mockup aprovado
-                  // pelo Franck). Ela já tinha sido tirada uma vez, a
-                  // pedido dele — mas naquela época era um CARTÃO branco
-                  // separado, flutuando sobre a borda do cabeçalho e
-                  // ocupando uma faixa inteira da tela. Aqui ela é só
-                  // duas linhas de texto dentro do próprio cabeçalho, sem
-                  // roubar altura de nada.
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Gerenciamento',
-                          style: TextStyle(
-                              fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
-                        Text(
-                          'Olá, ${auth.displayName.split(' ').first}! 👋',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Aqui você organiza seus serviços e acompanha seu dia a dia.',
-                          style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.3),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconTheme.merge(
-                    data: const IconThemeData(color: Colors.white),
-                    child: const NotificationBell(),
-                  ),
-                ],
+            // O cabeçalho em faixa laranja saiu. A saudação continua —
+            // ela é do Franck e faz diferença pra quem abre o app todo
+            // dia — mas agora é texto no corpo da tela, logo abaixo do
+            // título, em vez de duas linhas espremidas dentro de uma
+            // barra colorida.
+            const SafeArea(
+              bottom: false,
+              child: CabecalhoDeTela(
+                titulo: 'Gerenciamento',
+                area: AreaDoApp.prestador,
+                acao: NotificationBell(),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              padding: const EdgeInsets.fromLTRB(
+                AppMetrics.margemLateral,
+                0,
+                AppMetrics.margemLateral,
+                24,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                    Text(
+                      'Olá, ${auth.displayName.split(' ').first}! 👋',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        height: 1.15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Aqui você organiza seus serviços e acompanha seu dia a dia.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.45,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     FutureBuilder<Map<String, dynamic>?>(
                       future: _listingStatusFuture,
                       builder: (context, snapshot) {
                         if (snapshot.data?['listingStatus'] != 'pending') return const SizedBox.shrink();
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: Card(
-                            color: const Color(0xFFFFF4E5),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Text(
-                                '⏳ Sua assinatura mensal não está ativa no momento — assim que ela '
-                                'for confirmada, você volta a aparecer nas buscas dos clientes.',
-                                style: const TextStyle(fontSize: 12.5),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.warningSuave,
+                              borderRadius: BorderRadius.circular(
+                                AppMetrics.raioDeCartao,
+                              ),
+                            ),
+                            child: const Text(
+                              '⏳ Sua assinatura mensal não está ativa no momento — assim que ela '
+                              'for confirmada, você volta a aparecer nas buscas dos clientes.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                height: 1.45,
+                                color: AppColors.warning,
                               ),
                             ),
                           ),
                         );
                       },
                     ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Compromissos de hoje',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        InkWell(
-                          onTap: () => context.push('/agenda'),
-                          borderRadius: BorderRadius.circular(8),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('Ver agenda', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
-                                Icon(Icons.chevron_right, color: AppColors.primary, size: 18),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                    TituloDeBloco(
+                      'Compromissos de hoje',
+                      rotuloDaAcao: 'Ver agenda',
+                      aoTocarNaAcao: () => context.push('/agenda'),
                     ),
                     const SizedBox(height: 12),
                     StreamBuilder<List<Appointment>>(
@@ -289,16 +270,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         );
                       },
                     ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Atalhos',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink),
-                    ),
-                    const Text(
-                      'Acesse rapidamente as principais funções.',
-                      style: TextStyle(fontSize: 12.5, color: AppColors.muted),
-                    ),
+                    const SizedBox(height: 28),
+                    // Sem a linha "Acesse rapidamente as principais
+                    // funções" que ficava embaixo: ela explicava o que os
+                    // seis cartões logo abaixo já explicam sozinhos.
+                    const TituloDeBloco('Atalhos'),
                     const SizedBox(height: 12),
                     GridView.count(
                       crossAxisCount: 2,
@@ -312,14 +288,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           icon: Icons.people_outline,
                           label: 'Clientes',
                           subtitle: 'Gerencie seus clientes',
-                          color: AppColors.primary,
                           onTap: () => context.push('/clientes'),
                         ),
                         _ShortcutCard(
                           icon: Icons.calendar_month_outlined,
                           label: 'Agenda',
                           subtitle: 'Veja visitas e serviços',
-                          color: const Color(0xFF3B82F6),
                           onTap: () => context.push('/agenda'),
                         ),
                         StreamBuilder<int>(
@@ -327,8 +301,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           builder: (context, snapshot) => _ShortcutCard(
                             icon: Icons.description_outlined,
                             label: 'Orçamentos',
-                            subtitle: 'Crie e gerencie seus orçamentos',
-                            color: const Color(0xFF16A34A),
+                            subtitle: 'Crie e gerencie',
                             onTap: () => context.push('/orcamentos'),
                             badgeCount: snapshot.data,
                           ),
@@ -338,8 +311,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           builder: (context, snapshot) => _ShortcutCard(
                             icon: Icons.build_outlined,
                             label: 'Serviços',
-                            subtitle: 'Acompanhe os serviços em execução',
-                            color: const Color(0xFFEA580C),
+                            subtitle: 'Em execução',
                             onTap: () => context.push('/servicos'),
                             badgeCount: snapshot.data,
                           ),
@@ -354,8 +326,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         _ShortcutCard(
                           icon: Icons.star_outline_rounded,
                           label: 'Avaliações',
-                          subtitle: 'Veja o que seus clientes dizem',
-                          color: const Color(0xFFCA8A04),
+                          subtitle: 'O que dizem de você',
                           onTap: () => context.push('/prestador/${auth.providerId}'),
                         ),
                         // Financeiro não tem tela de lançamento: os
@@ -364,8 +335,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         _ShortcutCard(
                           icon: Icons.bar_chart_rounded,
                           label: 'Financeiro',
-                          subtitle: 'Quanto entrou e quanto falta',
-                          color: const Color(0xFF15803D),
+                          subtitle: 'Quanto entrou',
                           onTap: () => context.push('/financeiro'),
                         ),
                         // Monta uma imagem pronta pra ele postar no
@@ -377,8 +347,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         _ShortcutCard(
                           icon: Icons.campaign_outlined,
                           label: 'Divulgar',
-                          subtitle: 'Poste seu trabalho nas redes',
-                          color: const Color(0xFF7C3AED),
+                          subtitle: 'Poste seu trabalho',
                           onTap: () => context.push('/divulgar'),
                         ),
                       ],
@@ -482,25 +451,51 @@ class _TodayAppointmentTile extends StatelessWidget {
     final date = appointment.scheduledAt;
     final timeLabel = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     final job = this.job;
+    final endereco = appointment.addressText?.trim();
     return AppListCard(
+      // A hora num bloco laranja CLARO com o número em laranja — era um
+      // bloco laranja chapado com a hora em branco. Numa lista de dez
+      // compromissos, dez blocos chapados competiam entre si e com o
+      // nome do cliente, que é o que a pessoa procura ao bater o olho.
       leading: Container(
-        width: 52,
+        width: 72,
         height: 52,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.primary, AppColors.primaryDark],
-          ),
-          borderRadius: BorderRadius.circular(16),
+          color: AppColors.primarySuave,
+          borderRadius: BorderRadius.circular(AppMetrics.raioDeControle),
         ),
         alignment: Alignment.center,
-        child: Text(timeLabel,
-            style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w700)),
+        child: Text(
+          timeLabel,
+          style: const TextStyle(
+            fontSize: 15,
+            color: AppColors.primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
       title: appointment.customerName ?? appointment.type.label,
       subtitle: appointment.type.label,
-      footer: job != null ? Align(alignment: Alignment.centerLeft, child: JobStatusChip(status: job.status)) : null,
+      footer: (job != null || (endereco != null && endereco.isNotEmpty))
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (job != null) JobStatusChip(status: job.status),
+                if (endereco != null && endereco.isNotEmpty) ...[
+                  if (job != null) const SizedBox(height: 8),
+                  Text(
+                    endereco,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.muted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            )
+          : null,
       trailing: const Icon(Icons.chevron_right, color: AppColors.muted, size: 20),
       // Com serviço (Kanban) ligado, o toque abre o painel de ações do
       // Job (comportamento de sempre). Sem Job — compromisso "solto" da
@@ -538,8 +533,8 @@ class _DicaDoDia extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 6, 14),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.primarySuave,
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -594,7 +589,6 @@ class _ShortcutCard extends StatelessWidget {
     required this.label,
     required this.subtitle,
     required this.onTap,
-    this.color = AppColors.primary,
     this.badgeCount,
   });
 
@@ -603,77 +597,81 @@ class _ShortcutCard extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
-  /// Cor do quadradinho do ícone. Uma por atalho (mockup aprovado pelo
-  /// Franck) — com todos os cartões iguais em laranja, o olho não
-  /// distingue um do outro e a pessoa acaba relendo o texto de todos toda
-  /// vez que entra. A cor vira o atalho do reconhecimento.
-  final Color color;
-
-  /// Número mostrado num selo no canto do card — hoje só usado no atalho
-  /// "Orçamentos" (pedidos pendentes, ver _watchPendingRequests). `null` ou
-  /// zero não mostra selo nenhum.
+  /// Número mostrado num selo no canto do card — usado nos atalhos
+  /// "Orçamentos" (pedidos pendentes) e "Serviços" (em execução). `null`
+  /// ou zero não mostra selo nenhum.
   final int? badgeCount;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Card(
-          margin: EdgeInsets.zero,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+    // Cada atalho tinha uma cor própria no quadradinho do ícone — azul
+    // pra Agenda, verde pro Financeiro, roxo pro Divulgar. Seis cores
+    // numa tela só é o que mais dava ar de protótipo aqui: virava um
+    // mosaico, e nenhuma delas queria dizer nada (verde não é "dinheiro"
+    // em lugar nenhum do app). No desenho novo o ícone é desenhado
+    // direto no cartão, sem quadrado atrás, todos no laranja da marca —
+    // quem separa um atalho do outro é o nome, que é o que a pessoa lê
+    // de qualquer jeito.
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+        child: Padding(
+          padding: const EdgeInsets.all(AppMetrics.paddingDeCartao),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(icon, color: color, size: 22),
+                  Icon(icon, color: AppColors.primary, size: 24),
+                  const Spacer(),
+                  if (badgeCount != null && badgeCount! > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
                       ),
-                      const Spacer(),
-                      const Icon(Icons.chevron_right, color: AppColors.muted, size: 20),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(color: AppColors.muted, fontSize: 12, height: 1.25),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySuave,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '$badgeCount',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                 ],
               ),
-            ),
+              const SizedBox(height: 14),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  height: 1.2,
+                  color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
-        if (badgeCount != null && badgeCount! > 0)
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.danger,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$badgeCount',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 }
@@ -741,7 +739,8 @@ class _TodayEmptyStateState extends State<_TodayEmptyState> {
       padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+        border: Border.all(color: AppColors.borda),
       ),
       child: Column(
         children: [

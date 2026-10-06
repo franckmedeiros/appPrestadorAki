@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
-import '../../widgets/decorative_header.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 import '../../core/auth_controller.dart';
 import '../../core/text_normalize.dart';
 import '../../widgets/biometric_offer_card.dart';
@@ -346,35 +346,28 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       // que ainda tinha uma AppBar comum.
       body: Column(
         children: [
-          DecorativeHeader(
-            height: 150,
-            padding: const EdgeInsets.fromLTRB(20, 4, 12, 40),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Encontre um profissional',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          height: 1.15,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Serviços de qualidade, perto de você.',
-                        style: TextStyle(fontSize: 13, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-                const NotificationBell(),
-              ],
+          const SafeArea(
+            bottom: false,
+            child: CabecalhoDeTela(
+              titulo: 'Encontre um profissional',
+              area: AreaDoApp.cliente,
+              acao: NotificationBell(),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppMetrics.margemLateral,
+              0,
+              AppMetrics.margemLateral,
+              16,
+            ),
+            child: Text(
+              'Serviços de qualidade, perto de você.',
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.45,
+                color: AppColors.muted,
+              ),
             ),
           ),
           if (showBiometricOffer)
@@ -388,10 +381,18 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           // O deslocamento negativo é o que faz o campo de busca invadir
           // o gradiente. Só vale quando o convite de biometria não está
           // na frente — com ele no meio, o campo já não encosta no topo.
+          // O deslocamento negativo existia pra o campo de busca invadir
+          // o gradiente do cabeçalho. Sem gradiente, ele só deixaria o
+          // campo colado no título.
           Transform.translate(
-            offset: Offset(0, showBiometricOffer ? 0 : -28),
+            offset: Offset.zero,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppMetrics.margemLateral,
+                0,
+                AppMetrics.margemLateral,
+                0,
+              ),
               child: Column(
                 children: [
                 // Busca por nome — pedido do Franck. Fica em PRIMEIRO
@@ -403,11 +404,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 // que "flutua" sobre o gradiente. Sem rótulo fixo, só o
                 // texto de exemplo — o ícone de lupa já diz o que é, e o
                 // rótulo roubava uma linha inteira do topo.
+                // Era um cartão com sombra, pra flutuar sobre o
+                // gradiente. Sem o gradiente, a sombra sobre o creme só
+                // suja — virou um campo comum, com a borda do app.
                 Material(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  elevation: 3,
-                  shadowColor: Colors.black26,
+                  borderRadius: BorderRadius.circular(AppMetrics.raioDeControle),
+                  elevation: 0,
                   child: TextField(
                     controller: _nameController,
                     textInputAction: TextInputAction.search,

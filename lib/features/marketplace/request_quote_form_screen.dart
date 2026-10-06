@@ -6,12 +6,14 @@ import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
+import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import 'budget_requests_repository.dart';
 import 'client_auth_gate.dart';
 import 'models/provider_listing.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Formulário de "solicitar orçamento" — o primeiro contato do cliente com
 /// um prestador do diretório. Recebe o `ProviderListing` já carregado via
@@ -265,7 +267,15 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
   Widget build(BuildContext context) {
     if (_sent) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Solicitação enviada')),
+        backgroundColor: AppColors.background,
+        appBar: barraDeTela(
+          context,
+          titulo: 'Pedido enviado',
+          area: AreaDoApp.cliente,
+          aoVoltar: Navigator.of(context).canPop()
+              ? () => Navigator.of(context).maybePop()
+              : null,
+        ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -314,7 +324,15 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Orçamento com ${widget.listing.name}')),
+      backgroundColor: AppColors.background,
+      appBar: barraDeTela(
+        context,
+        titulo: 'Solicitar orçamento',
+        area: AreaDoApp.cliente,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(

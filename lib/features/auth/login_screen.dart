@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
-import '../../core/validators.dart';
 import '../../core/biometric_service.dart';
-import '../../widgets/decorative_header.dart';
-import '../../widgets/gradient_pill_button.dart';
+import '../../core/validators.dart';
+import '../../widgets/botao_com_seta.dart';
 import '../../widgets/labeled_text_field.dart';
+import '../../widgets/marca_app.dart';
 
-/// Layout reestilizado igual ao app Resenha (cabeçalho em gradiente +
-/// cartão branco arredondado por cima, ver widgets/decorative_header.dart)
-/// — a lógica de login/biometria continua exatamente a mesma de antes,
-/// só a aparência mudou.
+/// Entrar na conta.
+///
+/// Redesenhada a partir da entrega do Figma (out/2026). Antes era um
+/// cabeçalho laranja com um cartão branco subindo por cima dele — o
+/// desenho que veio do app Resenha. Saiu por dois motivos: o cartão
+/// branco sobre fundo branco não separava nada (era enfeite com custo de
+/// 24px de deslocamento vertical), e o cabeçalho colorido empurrava os
+/// campos pra baixo justo numa tela em que a pessoa já sabe o que vai
+/// fazer e só quer digitar.
+///
+/// A lógica de login e biometria é a mesma de sempre — só a aparência
+/// mudou.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -26,11 +35,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
-  // Igual ao app Resenha: um botão de biometria de verdade (não só um
-  // indicador passivo) fica sempre visível aqui na tela de login — toca
-  // pra tentar destravar direto, sem precisar digitar e-mail/senha. Fica
-  // desabilitado (cinza, com o motivo escrito embaixo) quando o aparelho
-  // não suporta ou ainda não tem sessão salva pra destravar.
+  // Um botão de biometria de verdade (não só um indicador passivo) fica
+  // sempre visível aqui — toca pra destravar direto, sem digitar
+  // e-mail/senha. Fica apagado, com o motivo escrito embaixo, quando o
+  // aparelho não suporta ou ainda não há sessão salva pra destravar.
   bool? _biometricAvailable;
   bool _unlockingBiometrics = false;
 
@@ -51,10 +59,12 @@ class _LoginScreenState extends State<LoginScreen> {
     final result = await auth.unlockWithBiometrics();
     if (!mounted) return;
     setState(() => _unlockingBiometrics = false);
-    // Sucesso navega sozinho (redirect do go_router reage à mudança de
+    // Sucesso navega sozinho (o redirect do go_router reage à mudança de
     // status); só precisa avisar quando NÃO deu certo.
     if (result != BiometricResult.success) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message)));
     }
   }
 
@@ -67,7 +77,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submit(AuthController auth) async {
     if (!_formKey.currentState!.validate()) return;
-    final ok = await auth.login(_emailController.text.trim(), _passwordController.text);
+    final ok = await auth.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+    );
     // Deu errado: a mensagem já aparece no corpo da tela
     // (`auth.errorMessage` no build).
     if (!ok || !mounted) return;
@@ -80,13 +93,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /// Esta tela é usada por dois caminhos: a rota de topo '/login' (tela
-  /// cheia, cobrindo o app) e a sub-rota '/perfil/entrar' (dentro da aba
-  /// "Perfil", com a barra de navegação embaixo — ver app_router.dart).
-  /// Os links daqui pra "Cadastre-se"/"Esqueci minha senha" precisam
-  /// seguir o mesmo caminho de quem abriu esta tela, senão a pessoa que
-  /// entrou pela aba seria jogada pra fora da casca do app no meio do
-  /// fluxo. Descobre isso pela própria rota atual em vez de exigir um
-  /// parâmetro de quem constrói a tela.
+  /// cheia) e a sub-rota '/perfil/entrar' (dentro da aba "Perfil", com a
+  /// barra de navegação embaixo — ver app_router.dart). Os links daqui
+  /// pra "Cadastre-se"/"Esqueci minha senha" precisam seguir o mesmo
+  /// caminho de quem abriu esta tela, senão quem entrou pela aba seria
+  /// jogado pra fora da casca do app no meio do fluxo.
   bool get _dentroDaAbaPerfil =>
       GoRouterState.of(context).matchedLocation.startsWith('/perfil');
 
@@ -98,196 +109,221 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DecorativeHeader(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (canPop) ...[
-                    GestureDetector(
-                      onTap: () => context.pop(),
-                      child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-                    ),
-                    const SizedBox(height: 14),
-                  ] else
-                    const SizedBox(height: 8),
-                  const Text(
-                    'Bem-vindo de volta!',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppMetrics.margemLateral,
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 12),
+                TopoDeEntrada(
+                  etiqueta: 'LOGIN',
+                  aoVoltar: canPop ? () => context.pop() : null,
+                ),
+                const SizedBox(height: 20),
+                const Center(child: MedalhaoDaMarca(diametro: 180)),
+                const SizedBox(height: 28),
+                const TituloDeEntrada('Bem-vindo de volta'),
+                const SizedBox(height: 10),
+                const Text(
+                  'Entre para continuar gerenciando seus atendimentos',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.45,
+                    color: AppColors.muted,
                   ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Entre para continuar gerenciando seus atendimentos',
-                    style: TextStyle(fontSize: 13.5, color: Colors.white70),
+                ),
+                const SizedBox(height: 24),
+                const Divider(color: AppColors.borda, height: 1),
+                const SizedBox(height: 24),
+                LabeledTextField(
+                  label: 'E-mail',
+                  controller: _emailController,
+                  hintText: 'seuemail@exemplo.com',
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  validator: validateEmail,
+                  suffixIcon: const Icon(
+                    Icons.mail_outline,
+                    color: AppColors.muted,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                LabeledTextField(
+                  label: 'Senha',
+                  controller: _passwordController,
+                  hintText: '••••••••',
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  validator: validateLoginPassword,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      color: AppColors.muted,
+                      size: 20,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                    tooltip: _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Centralizado, e não encostado na direita como antes:
+                // no desenho novo ele é a única coisa entre o campo e o
+                // botão, e alinhado à direita ficava órfão.
+                Center(
+                  child: TextButton(
+                    onPressed: () => context.push(
+                      naAba ? '/perfil/esqueci-senha' : '/esqueci-senha',
+                    ),
+                    child: const Text('Esqueci minha senha'),
+                  ),
+                ),
+                if (auth.errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    auth.errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.danger),
                   ),
                 ],
-              ),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -24),
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                const SizedBox(height: 12),
+                BotaoComSeta(
+                  rotulo: 'Entrar',
+                  carregando: auth.isBusy,
+                  aoTocar: auth.isBusy ? null : () => _submit(auth),
                 ),
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      LabeledTextField(
-                        label: 'E-mail',
-                        controller: _emailController,
-                        hintText: 'seuemail@exemplo.com',
-                        keyboardType: TextInputType.emailAddress,
-                        prefixIcon: Icons.mail_outline,
-                        textInputAction: TextInputAction.next,
-                        validator: (value) =>
-                            validateEmail(value),
-                      ),
-                      const SizedBox(height: 18),
-                      LabeledTextField(
-                        label: 'Senha',
-                        controller: _passwordController,
-                        hintText: '••••••••',
-                        obscureText: _obscurePassword,
-                        prefixIcon: Icons.lock_outline,
-                        textInputAction: TextInputAction.done,
-                        validator: validateLoginPassword,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: AppColors.muted,
-                            size: 20,
-                          ),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                const SizedBox(height: 24),
+                _SecaoDeBiometria(
+                  disponivel: _biometricAvailable,
+                  pronta:
+                      _biometricAvailable == true &&
+                      auth.biometricEnabled &&
+                      auth.hasCachedSession,
+                  carregando: _unlockingBiometrics,
+                  aoTocar: () => _unlockWithBiometrics(auth),
+                ),
+                const SizedBox(height: 28),
+                Center(
+                  child: GestureDetector(
+                    onTap: () => context.push(
+                      naAba ? '/perfil/criar-conta' : '/register',
+                    ),
+                    behavior: HitTestBehavior.opaque,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Text(
+                        'Não tem conta? Cadastre-se',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
                         ),
                       ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () =>
-                              context.push(naAba ? '/perfil/esqueci-senha' : '/esqueci-senha'),
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                          child: const Text(
-                            'Esqueci minha senha',
-                            style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 13),
-                          ),
-                        ),
-                      ),
-                      if (auth.errorMessage != null) ...[
-                        const SizedBox(height: 12),
-                        Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
-                      ],
-                      const SizedBox(height: 24),
-                      GradientPillButton(
-                        label: 'Entrar',
-                        isLoading: auth.isBusy,
-                        onPressed: auth.isBusy ? null : () => _submit(auth),
-                      ),
-                      const SizedBox(height: 28),
-                      _BiometricSection(
-                        available: _biometricAvailable,
-                        ready: _biometricAvailable == true && auth.biometricEnabled && auth.hasCachedSession,
-                        loading: _unlockingBiometrics,
-                        onTap: () => _unlockWithBiometrics(auth),
-                      ),
-                      const SizedBox(height: 32),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('Não tem conta? ', style: TextStyle(color: AppColors.muted)),
-                          GestureDetector(
-                            onTap: () =>
-                                context.push(naAba ? '/perfil/criar-conta' : '/register'),
-                            child: const Text(
-                              'Cadastre-se',
-                              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 16),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Divisor "ou entre com biometria" + círculo tocável — mesmo desenho do
-/// app Resenha, adaptado pra reagir ao estado real de biometria do
-/// PrestadorAki (aparelho suporta / já foi ativada / tem sessão salva).
-class _BiometricSection extends StatelessWidget {
-  const _BiometricSection({
-    required this.available,
-    required this.ready,
-    required this.loading,
-    required this.onTap,
+/// O separador "ou" e o botão de biometria.
+///
+/// O botão é um quadrado arredondado, não um círculo: no desenho novo
+/// todo alvo de toque do app tem o mesmo canto de 8, e um círculo solto
+/// no meio da tela puxava o olho mais do que ele merece — biometria é
+/// atalho, não a ação principal.
+class _SecaoDeBiometria extends StatelessWidget {
+  const _SecaoDeBiometria({
+    required this.disponivel,
+    required this.pronta,
+    required this.carregando,
+    required this.aoTocar,
   });
 
-  final bool? available;
-  final bool ready;
-  final bool loading;
-  final VoidCallback onTap;
+  final bool? disponivel;
+  final bool pronta;
+  final bool carregando;
+  final VoidCallback aoTocar;
 
-  String get _helperText {
-    if (available == null) return '';
-    if (available == false) return 'Biometria indisponível neste aparelho';
-    if (!ready) return 'Faça login uma vez para ativar a biometria';
+  String get _legenda {
+    if (disponivel == null) return '';
+    if (disponivel == false) return 'Biometria indisponível neste aparelho';
+    if (!pronta) return 'Faça login uma vez para ativar a biometria';
     return 'Digital ou reconhecimento facial';
   }
 
   @override
   Widget build(BuildContext context) {
-    if (available == null) return const SizedBox.shrink();
+    if (disponivel == null) return const SizedBox.shrink();
 
     return Column(
       children: [
         const Row(
           children: [
-            Expanded(child: Divider(color: Color(0xFFE4DAD6))),
+            Expanded(child: Divider(color: AppColors.borda, height: 1)),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text('ou entre com biometria', style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+              child: Text(
+                'ou',
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
             ),
-            Expanded(child: Divider(color: Color(0xFFE4DAD6))),
+            Expanded(child: Divider(color: AppColors.borda, height: 1)),
           ],
         ),
-        const SizedBox(height: 20),
-        GestureDetector(
-          onTap: (loading || !ready) ? null : onTap,
-          child: Opacity(
-            opacity: ready ? 1 : 0.4,
-            child: Column(
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+        const SizedBox(height: 18),
+        Opacity(
+          opacity: pronta ? 1 : 0.45,
+          child: Column(
+            children: [
+              Material(
+                color: AppColors.primarySuave,
+                borderRadius: BorderRadius.circular(AppMetrics.raioDeControle),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(
+                    AppMetrics.raioDeControle,
                   ),
-                  child: loading
-                      ? const Padding(
-                          padding: EdgeInsets.all(18),
-                          child: CircularProgressIndicator(strokeWidth: 2.4, color: AppColors.primary),
-                        )
-                      : const Icon(Icons.fingerprint, color: AppColors.primary, size: 34),
+                  onTap: (carregando || !pronta) ? null : aoTocar,
+                  child: SizedBox(
+                    width: AppMetrics.alturaDeControle,
+                    height: AppMetrics.alturaDeControle,
+                    child: carregando
+                        ? const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: AppColors.primary,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.fingerprint,
+                            color: AppColors.primary,
+                            size: 28,
+                          ),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Text(_helperText, style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
-              ],
-            ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _legenda,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: AppColors.muted),
+              ),
+            ],
           ),
         ),
       ],

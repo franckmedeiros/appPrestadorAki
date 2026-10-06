@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
 import 'blocked_users_controller.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Lista de quem a conta logada bloqueou, com a opção de desbloquear.
 ///
@@ -65,7 +66,14 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Usuários bloqueados')),
+      appBar: barraDeTela(
+        context,
+        titulo: 'Bloqueados',
+        area: AreaDoApp.cliente,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: bloqueados.isEmpty
           ? ListView(
               children: const [

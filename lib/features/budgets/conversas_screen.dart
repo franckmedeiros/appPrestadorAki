@@ -7,6 +7,7 @@ import '../marketplace/budget_requests_repository.dart';
 import 'budget_chat_screen.dart';
 import 'budgets_repository.dart';
 import 'models/budget.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Caixa de entrada das conversas — a aba "Conversas".
 ///
@@ -79,7 +80,14 @@ class _ConversasScreenState extends State<ConversasScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Conversas')),
+      appBar: barraDeTela(
+        context,
+        titulo: 'Conversas',
+        area: AreaDoApp.prestador,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: auth.status != AuthStatus.authenticated
           ? const _Aviso(
               icone: Icons.chat_bubble_outline,

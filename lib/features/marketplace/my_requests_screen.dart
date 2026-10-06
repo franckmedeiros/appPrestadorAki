@@ -19,6 +19,7 @@ import '../jobs/models/job.dart';
 import 'budget_requests_repository.dart';
 import 'client_auth_gate.dart';
 import 'models/service_category.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// "Meus orçamentos" — pedidos de orçamento que o cliente fez pelo
 /// marketplace, em qualquer prestador (ver
@@ -283,19 +284,32 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        // "Solicitações" pra bater com o rótulo da aba (ver UnifiedShell):
-        // tocar em "Solicitações" e cair numa tela chamada "Meus
-        // orçamentos" faz a pessoa duvidar se chegou no lugar certo.
-        title: const Text('Solicitações'),
-        actions: [
-          if (isClient)
-            IconButton(
-              tooltip: _showArchived ? 'Ver pedidos ativos' : 'Ver arquivados',
-              icon: Icon(_showArchived ? Icons.inbox_outlined : Icons.archive_outlined),
-              onPressed: () => setState(() => _showArchived = !_showArchived),
-            ),
-        ],
+      backgroundColor: AppColors.background,
+      // "Solicitações" pra bater com o rótulo da aba (ver UnifiedShell):
+      // tocar em "Solicitações" e cair numa tela chamada "Meus
+      // orçamentos" faz a pessoa duvidar se chegou no lugar certo.
+      appBar: barraDeTela(
+        context,
+        titulo: _showArchived ? 'Arquivados' : 'Solicitações',
+        area: AreaDoApp.cliente,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+        acao: isClient
+            ? IconButton(
+                tooltip: _showArchived ? 'Ver pedidos ativos' : 'Ver arquivados',
+                icon: Icon(
+                  _showArchived
+                      ? Icons.inbox_outlined
+                      : Icons.archive_outlined,
+                  size: 22,
+                ),
+                color: AppColors.primary,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                onPressed: () => setState(() => _showArchived = !_showArchived),
+              )
+            : null,
       ),
       body: !isClient
           ? const ClientSignInPrompt(

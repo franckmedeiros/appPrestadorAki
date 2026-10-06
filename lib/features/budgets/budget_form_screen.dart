@@ -7,7 +7,9 @@ import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 import '../../widgets/mask_text_input_formatter.dart';
+import '../../widgets/selo_de_estado.dart';
 import '../customers/customers_repository.dart';
 import '../customers/models/customer.dart';
 import '../marketplace/models/service_category.dart';
@@ -814,37 +816,34 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        toolbarHeight: 64,
-        title: Text(_editingAditivo ? 'Aditivo de orçamento' : (_isEditing ? 'Editar orçamento' : 'Novo orçamento')),
-        titleTextStyle: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(22),
-          child: Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 7),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                _isEditing
-                    ? 'Atualize os dados e os itens do orçamento'
-                    : 'Preencha os dados e adicione os itens do orçamento',
-                style: const TextStyle(color: Colors.white, fontSize: 11),
-              ),
-            ),
-          ),
-        ),
-      ),
       body: Column(
         children: [
+          SafeArea(
+            bottom: false,
+            child: CabecalhoDeTela(
+              titulo: _editingAditivo
+                  ? 'Aditivo'
+                  : (_isEditing ? 'Editar orçamento' : 'Novo orçamento'),
+              area: AreaDoApp.prestador,
+              // `Navigator`, e não `context.pop()` do go_router: esta
+              // tela não importa o go_router (ela abre tanto por rota
+              // quanto empilhada à mão, ver BudgetChatScreen logo
+              // abaixo), e o Navigator atende os dois casos.
+              aoVoltar: Navigator.of(context).canPop()
+                  ? () => Navigator.of(context).maybePop()
+                  : null,
+            ),
+          ),
           Expanded(
             child: _isReadOnlyStatus && !_editingAditivo
                 ? _buildReadOnlySummary(widget.budget!)
                 : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+              padding: const EdgeInsets.fromLTRB(
+                AppMetrics.margemLateral,
+                0,
+                AppMetrics.margemLateral,
+                18,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -867,7 +866,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                                 customers.any((c) => c.id == _selectedCustomerId);
 
                             return _BudgetField(
-                              icon: Icons.person_outline_rounded,
                               label: 'Cliente',
                               helperText: 'Não achou o cliente? Cadastre primeiro na aba Clientes.',
                               child: DropdownButtonFormField<String>(
@@ -895,7 +893,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                         const SizedBox(height: 12),
                         _BudgetField(
-                          icon: Icons.location_on_outlined,
                           label: 'Endereço (opcional, aparece no PDF)',
                           child: TextField(
                             controller: _addressController,
@@ -906,7 +903,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                         const SizedBox(height: 12),
                         _BudgetField(
-                          icon: Icons.calendar_month_outlined,
                           label: _editingAditivo ? 'Data do aditivo' : 'Data',
                           child: TextField(
                             controller: _activeDateController,
@@ -949,7 +945,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                     child: Column(
                       children: [
                         _BudgetField(
-                          icon: Icons.percent_rounded,
                           label: 'Desconto (opcional, em R\$)',
                           child: TextField(
                             controller: _discountController,
@@ -964,7 +959,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                         const SizedBox(height: 12),
                         _BudgetField(
-                          icon: Icons.event_available_outlined,
                           label: 'Validade da proposta (opcional)',
                           child: TextField(
                             controller: _validadeController,
@@ -977,7 +971,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                         ),
                         const SizedBox(height: 12),
                         _BudgetField(
-                          icon: Icons.notes_outlined,
                           label: 'Observações (opcional)',
                           child: TextField(
                             controller: _observationsController,
@@ -1041,14 +1034,20 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             top: false,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: AppColors.muted.withValues(alpha: 0.10),
-                  ),
-                ),
+              padding: const EdgeInsets.fromLTRB(
+                AppMetrics.margemLateral,
+                10,
+                AppMetrics.margemLateral,
+                10,
+              ),
+              // Era uma laje BRANCA colada no pé da tela. Sobre o creme
+              // do corpo ela virava um segundo plano de fundo, e os
+              // cartões brancos do formulário pareciam continuar nela. Em
+              // creme, com um fio em cima, ela some como superfície e
+              // sobra só o que importa: os botões.
+              decoration: const BoxDecoration(
+                color: AppColors.background,
+                border: Border(top: BorderSide(color: AppColors.borda)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1115,7 +1114,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
       return [
         SizedBox(
           width: double.infinity,
-          height: 48,
+          height: AppMetrics.alturaDeControle,
           child: ElevatedButton.icon(
             onPressed: busy ? null : _save,
             icon: _saving
@@ -1216,7 +1215,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
         _acoesDoPdf(busy),
         SizedBox(
           width: double.infinity,
-          height: 48,
+          height: AppMetrics.alturaDeControle,
           child: ElevatedButton.icon(
             onPressed: busy ? null : _acceptFinal,
             icon: _saving
@@ -1285,44 +1284,87 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     );
   }
 
+  /// Uma linha de totais. `bold` marca a linha do TOTAL, que no desenho
+  /// novo não é só um texto maior: é um cartão branco com o valor em
+  /// corpo 28. Faz diferença — o total é o número que o prestador
+  /// confere antes de apertar "enviar", e antes ele tinha praticamente o
+  /// mesmo peso visual do subtotal logo acima.
   Widget _totalsRow(String label, String value, {bool bold = false}) {
-    final style = TextStyle(
-      fontSize: bold ? 18 : 14,
-      fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-      color: bold ? AppColors.primary : AppColors.ink,
-    );
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: style),
-        Text(value, style: style),
-      ],
+    if (!bold) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(fontSize: 14, color: AppColors.muted),
+            ),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+        border: Border.all(color: AppColors.borda),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
+          ),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 28,
+                  height: 1.1,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Color _statusColor(BudgetStatus status) => switch (status) {
-        BudgetStatus.pendente => AppColors.primary,
-        BudgetStatus.enviado => Colors.orange,
-        BudgetStatus.aprovado => Colors.blue,
-        BudgetStatus.aceito => Colors.green,
-        BudgetStatus.aditivoEnviado => Colors.deepPurple,
-        BudgetStatus.recusado => AppColors.danger,
+  /// Mesma divisão em tons da lista de orçamentos (ver
+  /// `BudgetsScreen._tomDoStatus`): o que precisa de você, o que espera o
+  /// cliente, e o que já acabou.
+  TomDoSelo _tomDoStatus(BudgetStatus status) => switch (status) {
+        BudgetStatus.pendente => TomDoSelo.marca,
+        BudgetStatus.aprovado => TomDoSelo.marca,
+        BudgetStatus.enviado => TomDoSelo.espera,
+        BudgetStatus.aditivoEnviado => TomDoSelo.espera,
+        BudgetStatus.aceito => TomDoSelo.positivo,
+        BudgetStatus.recusado => TomDoSelo.negativo,
       };
 
-  Widget _statusChip(BudgetStatus status) {
-    final color = _statusColor(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status.label,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
-      ),
-    );
-  }
+  Widget _statusChip(BudgetStatus status) =>
+      SeloDeEstado(status.label, tom: _tomDoStatus(status));
 
   /// Banner mostrado no topo do formulário completo (itens editáveis)
   /// quando o orçamento ainda está `pendente` — resume o pedido que o
@@ -1537,7 +1579,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             child: Column(
               children: [
                 _BudgetField(
-                  icon: Icons.person_outline_rounded,
                   label: 'Cliente',
                   child: Text(budget.customerName, style: const TextStyle(fontSize: 14)),
                 ),
@@ -1556,7 +1597,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 if ((budget.clientPhone ?? '').trim().isNotEmpty) ...[
                   const SizedBox(height: 12),
                   _BudgetField(
-                    icon: Icons.chat_outlined,
                     label: 'WhatsApp do cliente',
                     // Ressalva honesta na própria tela: esse número vem do
                     // cadastro do cliente e NINGUÉM confirmou que ele
@@ -1599,7 +1639,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 if ((budget.addressText ?? '').isNotEmpty) ...[
                   const SizedBox(height: 12),
                   _BudgetField(
-                    icon: Icons.location_on_outlined,
                     label: 'Endereço',
                     child: Text(budget.addressText!, style: const TextStyle(fontSize: 14)),
                   ),
@@ -1607,7 +1646,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 if (status == BudgetStatus.aprovado) ...[
                   const SizedBox(height: 12),
                   _BudgetField(
-                    icon: Icons.calendar_month_outlined,
                     label: 'Data do serviço',
                     child: TextField(
                       controller: _dateController,
@@ -1624,7 +1662,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                   ),
                   const SizedBox(height: 12),
                   _BudgetField(
-                    icon: Icons.access_time_rounded,
                     label: 'Horário do serviço',
                     helperText: 'Verificamos conflito de horário na agenda ao confirmar.',
                     child: OutlinedButton(
@@ -1635,7 +1672,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 ] else ...[
                   const SizedBox(height: 12),
                   _BudgetField(
-                    icon: Icons.calendar_month_outlined,
                     label: 'Data',
                     child: Text(formatDateDdMmYyyy(budget.date), style: const TextStyle(fontSize: 14)),
                   ),
@@ -1707,7 +1743,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             const SizedBox(height: 14),
             _SectionCard(
               child: _BudgetField(
-                icon: Icons.notes_outlined,
                 label: 'Observações',
                 child: Text(budget.observations!, style: const TextStyle(fontSize: 14)),
               ),
@@ -1735,13 +1770,11 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppMetrics.paddingDeCartao),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.muted.withValues(alpha: 0.10),
-        ),
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+        border: Border.all(color: AppColors.borda),
       ),
       child: child,
     );
@@ -1750,13 +1783,11 @@ class _SectionCard extends StatelessWidget {
 
 class _BudgetField extends StatelessWidget {
   const _BudgetField({
-    required this.icon,
     required this.label,
     required this.child,
     this.helperText,
   });
 
-  final IconData icon;
   final String label;
   final Widget child;
   final String? helperText;
@@ -1766,23 +1797,21 @@ class _BudgetField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 16, color: AppColors.primary),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                  color: AppColors.ink,
-                ),
-              ),
-            ),
-          ],
+        // O rótulo tinha um iconezinho laranja na frente. Numa tela com
+        // sete campos eram sete respingos de cor marcando coisas que o
+        // texto já dizia — e nenhum deles ajudava a achar nada, porque a
+        // pessoa lê "Endereço", não reconhece o alfinete. No desenho novo
+        // o rótulo é só texto.
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            height: 1.45,
+            color: AppColors.ink,
+          ),
         ),
-        const SizedBox(height: 7),
+        const SizedBox(height: 8),
         child,
         if (helperText != null) ...[
           const SizedBox(height: 5),
@@ -1790,7 +1819,8 @@ class _BudgetField extends StatelessWidget {
             helperText!,
             style: const TextStyle(
               color: AppColors.muted,
-              fontSize: 10,
+              fontSize: 12,
+              height: 1.35,
             ),
           ),
         ],
@@ -1828,12 +1858,13 @@ class _CompactMiniField extends StatelessWidget {
   }
 }
 
-/// Botão "Adicionar item" com borda pontilhada, igual ao mockup. O
-/// Flutter não tem uma borda tracejada pronta sem depender de outro
-/// pacote só pra isso — em vez de adicionar uma dependência nova pra um
-/// detalhe puramente decorativo, a borda vira uma linha tracejada
-/// desenhada à mão com CustomPainter (mais barato que trazer um pacote
-/// inteiro pra um traço).
+/// Botão "Adicionar item".
+///
+/// Tinha uma borda tracejada desenhada à mão com CustomPainter — ela veio
+/// de um mockup antigo e saiu agora. Borda tracejada é a convenção de
+/// "solte um arquivo aqui"; aqui não se solta nada, se toca. E no meio de
+/// uma pilha de cartões de borda inteira, o tracejado parecia um cartão
+/// quebrado. No desenho novo é o que sempre foi: um texto tocável.
 class _DottedActionButton extends StatelessWidget {
   const _DottedActionButton({required this.onTap, required this.label});
 
@@ -1842,56 +1873,14 @@ class _DottedActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: CustomPaint(
-        painter: _DashedBorderPainter(color: AppColors.primary, radius: 14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.add, color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(label, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
-            ],
-          ),
-        ),
+    return TextButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.add, size: 20),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.primary,
+        minimumSize: const Size.fromHeight(AppMetrics.alturaDeAcaoTextual),
       ),
     );
   }
-}
-
-class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({required this.color, required this.radius});
-
-  final Color color;
-  final double radius;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    final rrect = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius));
-    final path = Path()..addRRect(rrect);
-    const dashWidth = 6.0;
-    const dashSpace = 4.0;
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final next = distance + dashWidth;
-        canvas.drawPath(metric.extractPath(distance, next.clamp(0, metric.length)), paint);
-        distance = next + dashSpace;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.radius != radius;
 }

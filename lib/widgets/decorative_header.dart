@@ -15,7 +15,7 @@ class DecorativeHeader extends StatelessWidget {
     super.key,
     required this.child,
     this.height = 230,
-    this.borderRadius = 32,
+    this.borderRadius = 16,
     this.padding = const EdgeInsets.fromLTRB(24, 12, 24, 32),
   });
 
@@ -34,7 +34,7 @@ class DecorativeHeader extends StatelessWidget {
       child: Container(
         constraints: BoxConstraints(minHeight: height),
         width: double.infinity,
-        decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
+        decoration: const BoxDecoration(gradient: AppColors.headerGradient),
         // Os três círculos brancos translúcidos que ficavam soltos aqui
         // atrás foram removidos a pedido do Franck ("retire essas bolas")
         // — o mesmo enfeite saiu do BrandGradientBackground (splash e

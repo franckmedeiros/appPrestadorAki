@@ -13,6 +13,7 @@ import '../../core/links_do_app.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/provider_rating.dart';
 import '../marketplace/provider_directory_repository.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Endereço pra onde o QR Code do card aponta.
 ///
@@ -310,7 +311,14 @@ class _CardDivulgacaoScreenState extends State<CardDivulgacaoScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Divulgar meu trabalho')),
+      appBar: barraDeTela(
+        context,
+        titulo: 'Divulgar',
+        area: AreaDoApp.prestador,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: _carregando
           ? const Center(child: CircularProgressIndicator())
           : _erro != null

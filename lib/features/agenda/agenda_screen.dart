@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
+import '../../widgets/cabecalho_de_tela.dart';
+import '../../widgets/selo_de_estado.dart';
 import 'appointments_repository.dart';
 import 'models/appointment.dart';
 
@@ -70,6 +72,31 @@ DateTime _somarDias(DateTime d, int dias) => DateTime(d.year, d.month, d.day + d
 String _doisDigitos(int v) => v.toString().padLeft(2, '0');
 
 String _horaMinuto(DateTime d) => '${_doisDigitos(d.hour)}:${_doisDigitos(d.minute)}';
+
+/// A cor de cada TIPO de compromisso — a tarja da esquerda e a hora no
+/// card, e as mesmas cores do bloco na grade da semana.
+///
+/// Aqui a cor por categoria se justifica (diferente dos atalhos do
+/// Gerenciamento, onde ela saiu): numa agenda cheia, saber de relance
+/// que a tarde é toda visita técnica e a manhã é serviço é exatamente o
+/// que a pessoa quer ler, e o nome do tipo está em letra pequena.
+Color _corDoTipo(AppointmentType tipo) => switch (tipo) {
+      AppointmentType.servico => AppColors.primary,
+      AppointmentType.visitaTecnica => AppColors.warning,
+      AppointmentType.retorno => AppColors.success,
+      AppointmentType.pagamento => AppColors.success,
+      AppointmentType.reuniao => AppColors.muted,
+      AppointmentType.outro => AppColors.muted,
+    };
+
+/// O tom do selo de status. Só aparece quando o compromisso saiu do
+/// normal — ver `_CartaoDoCompromisso`.
+TomDoSelo _tomDoStatus(AppointmentStatus status) => switch (status) {
+      AppointmentStatus.concluido => TomDoSelo.positivo,
+      AppointmentStatus.cancelado => TomDoSelo.negativo,
+      AppointmentStatus.confirmado => TomDoSelo.marca,
+      AppointmentStatus.agendado => TomDoSelo.neutro,
+    };
 
 Color _corDoStatus(AppointmentStatus status) => switch (status) {
       AppointmentStatus.concluido => AppColors.success,
@@ -211,28 +238,27 @@ class _AgendaScreenState extends State<AgendaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agenda'),
-        actions: [
-          if (!_mostrandoSemanaAtual)
-            TextButton(
-              onPressed: _hoje,
-              child: const Text('Hoje'),
-            ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _abrirCompromisso(null),
-        child: const Icon(Icons.add),
-      ),
+      backgroundColor: AppColors.background,
       body: Column(
         children: [
+          SafeArea(
+            bottom: false,
+            child: CabecalhoDeTela(
+              titulo: 'Agenda',
+              area: AreaDoApp.prestador,
+              aoVoltar: Navigator.of(context).canPop()
+                  ? () => Navigator.of(context).maybePop()
+                  : null,
+            ),
+          ),
           _BarraDeNavegacao(
             rotulo: _rotuloDaSemana,
             modo: _modo,
+            mostrarHoje: !_mostrandoSemanaAtual,
             onAnterior: () => _irParaSemana(_somarDias(_semana, -7)),
             onProxima: () => _irParaSemana(_somarDias(_semana, 7)),
             onModo: (m) => setState(() => _modo = m),
+            onHoje: _hoje,
           ),
           Expanded(
             child: StreamBuilder<List<Appointment>>(
@@ -273,103 +299,207 @@ class _AgendaScreenState extends State<AgendaScreen> {
               },
             ),
           ),
+          // Era o círculo flutuante do Material, por cima do conteúdo.
+          // Numa agenda ele tapava justamente o último compromisso do
+          // dia. Agora é uma barra no pé, contornada em laranja: ela
+          // CHAMA (é a única coisa colorida ali embaixo) sem pintar de
+          // laranja uma faixa inteira da tela.
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppMetrics.margemLateral,
+                8,
+                AppMetrics.margemLateral,
+                10,
+              ),
+              child: OutlinedButton(
+                onPressed: () => _abrirCompromisso(null),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  backgroundColor: AppColors.surface,
+                  side: const BorderSide(color: AppColors.primary),
+                ),
+                child: const Row(
+                  children: [
+                    Expanded(child: Text('Novo compromisso')),
+                    Icon(Icons.add, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// Cabeçalho com as setas de semana e o alternador Semana/Dia.
+/// Cabeçalho com as setas de semana e o alternador Semana/Dia/Hoje.
 class _BarraDeNavegacao extends StatelessWidget {
   const _BarraDeNavegacao({
     required this.rotulo,
     required this.modo,
+    required this.mostrarHoje,
     required this.onAnterior,
     required this.onProxima,
     required this.onModo,
+    required this.onHoje,
   });
 
   final String rotulo;
   final _ModoDaAgenda modo;
+
+  /// "Hoje" só aparece quando a pessoa NÃO está na semana atual — na
+  /// semana de hoje o botão não levaria a lugar nenhum.
+  final bool mostrarHoje;
+
   final VoidCallback onAnterior;
   final VoidCallback onProxima;
   final ValueChanged<_ModoDaAgenda> onModo;
+  final VoidCallback onHoje;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.fromLTRB(4, 8, 12, 8),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onAnterior,
-            icon: const Icon(Icons.chevron_left),
-            tooltip: 'Semana anterior',
-          ),
-          Expanded(
-            child: Text(
-              rotulo,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+    // Era uma faixa branca de ponta a ponta, encostada no cabeçalho, com
+    // o alternador espremido no canto direito. Virou um cartão: as setas
+    // de semana e os modos são o painel de controle da agenda, e num
+    // cartão eles se leem como um bloco só, separado dos compromissos.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppMetrics.margemLateral,
+        0,
+        AppMetrics.margemLateral,
+        16,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+          border: Border.all(color: AppColors.borda),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: onAnterior,
+                  icon: const Icon(Icons.chevron_left),
+                  color: AppColors.muted,
+                  tooltip: 'Semana anterior',
+                ),
+                Expanded(
+                  child: Text(
+                    rotulo,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: onProxima,
+                  icon: const Icon(Icons.chevron_right),
+                  color: AppColors.muted,
+                  tooltip: 'Próxima semana',
+                ),
+              ],
             ),
-          ),
-          IconButton(
-            onPressed: onProxima,
-            icon: const Icon(Icons.chevron_right),
-            tooltip: 'Próxima semana',
-          ),
-          const SizedBox(width: 4),
-          _Alternador(modo: modo, onModo: onModo),
-        ],
+            const SizedBox(height: 4),
+            _Alternador(
+              modo: modo,
+              onModo: onModo,
+              mostrarHoje: mostrarHoje,
+              onHoje: onHoje,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
+/// Semana / Dia / Hoje, lado a lado e do mesmo tamanho.
+///
+/// Eram duas cápsulas miúdas de 12px espremidas no canto da barra. Agora
+/// ocupam a largura do cartão: são a troca que a pessoa mais faz nesta
+/// tela, e alvo de toque pequeno em botão muito usado é o tipo de
+/// detalhe que irrita todo dia sem ninguém saber dizer por quê.
+///
+/// "Hoje" fica no mesmo grupo mesmo não sendo um modo — é um atalho, e
+/// por isso vem no laranja claro em vez do laranja cheio do modo ativo.
 class _Alternador extends StatelessWidget {
-  const _Alternador({required this.modo, required this.onModo});
+  const _Alternador({
+    required this.modo,
+    required this.onModo,
+    required this.mostrarHoje,
+    required this.onHoje,
+  });
 
   final _ModoDaAgenda modo;
   final ValueChanged<_ModoDaAgenda> onModo;
+  final bool mostrarHoje;
+  final VoidCallback onHoje;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _botao('Semana', _ModoDaAgenda.semana),
-          _botao('Dia', _ModoDaAgenda.dia),
+    return Row(
+      children: [
+        Expanded(child: _botao('Semana', _ModoDaAgenda.semana)),
+        const SizedBox(width: 8),
+        Expanded(child: _botao('Dia', _ModoDaAgenda.dia)),
+        if (mostrarHoje) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: _caixa(
+              texto: 'Hoje',
+              fundo: AppColors.primarySuave,
+              corDoTexto: AppColors.primary,
+              aoTocar: onHoje,
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 
   Widget _botao(String texto, _ModoDaAgenda valor) {
     final ativo = modo == valor;
-    return GestureDetector(
-      onTap: () => onModo(valor),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: ativo ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          texto,
-          style: TextStyle(
-            color: ativo ? Colors.white : AppColors.muted,
-            fontWeight: FontWeight.w600,
-            fontSize: 12.5,
+    return _caixa(
+      texto: texto,
+      fundo: ativo ? AppColors.primary : AppColors.background,
+      corDoTexto: ativo ? Colors.white : AppColors.muted,
+      aoTocar: () => onModo(valor),
+    );
+  }
+
+  Widget _caixa({
+    required String texto,
+    required Color fundo,
+    required Color corDoTexto,
+    required VoidCallback aoTocar,
+  }) {
+    return Material(
+      color: fundo,
+      borderRadius: BorderRadius.circular(AppMetrics.raioDeControle),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeControle),
+        onTap: aoTocar,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          child: Text(
+            texto,
+            style: TextStyle(
+              color: corDoTexto,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
           ),
         ),
       ),
@@ -932,7 +1062,12 @@ class _VisaoDoDia extends StatelessWidget {
                   ],
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppMetrics.margemLateral,
+                    4,
+                    AppMetrics.margemLateral,
+                    8,
+                  ),
                   itemCount: doDia.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
@@ -973,41 +1108,94 @@ class _CartaoDoCompromisso extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inicio = appointment.scheduledAt;
-    final fim = inicio.add(Duration(minutes: appointment.durationMinutes));
+    final cor = _corDoTipo(appointment.type);
+    final endereco = appointment.addressText?.trim();
+    // O selo de status só aparece quando o compromisso saiu do normal.
+    // "Agendado" escrito em todos os cards de uma agenda é o mesmo que
+    // não escrever nada — e ocupava o lugar onde a seta deveria estar.
+    final mostrarStatus = appointment.status != AppointmentStatus.agendado;
 
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        child: IntrinsicHeight(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Column(
-                children: [
-                  Text(_horaMinuto(inicio), style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text(_horaMinuto(fim),
-                      style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                ],
-              ),
-              const SizedBox(width: 16),
+              // A tarja na cor do tipo, colada na borda esquerda. É ela
+              // que deixa ler a semana inteira sem passar os olhos pelo
+              // texto: três laranjas seguidos são três serviços.
+              Container(width: 4, color: cor),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      appointment.customerName ?? appointment.type.label,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(appointment.type.label,
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                    if (appointment.addressText != null && appointment.addressText!.isNotEmpty)
-                      Text(appointment.addressText!, style: const TextStyle(fontSize: 12)),
-                  ],
+                child: Padding(
+                  padding: const EdgeInsets.all(AppMetrics.paddingDeCartao),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 62,
+                        child: Text(
+                          _horaMinuto(inicio),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: cor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              appointment.customerName ?? appointment.type.label,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                color: AppColors.ink,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              appointment.type.label,
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 14,
+                              ),
+                            ),
+                            if (endereco != null && endereco.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                endereco,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.muted,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            if (mostrarStatus) ...[
+                              const SizedBox(height: 8),
+                              _StatusChip(status: appointment.status),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: AppColors.muted,
+                        size: 22,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              _StatusChip(status: appointment.status),
             ],
           ),
         ),
@@ -1022,18 +1210,8 @@ class _StatusChip extends StatelessWidget {
   final AppointmentStatus status;
 
   @override
-  Widget build(BuildContext context) {
-    final color = _corDoStatus(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(status.label,
-          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
-    );
-  }
+  Widget build(BuildContext context) =>
+      SeloDeEstado(status.label, tom: _tomDoStatus(status));
 }
 
 class _EstadoDeErro extends StatelessWidget {
@@ -1045,9 +1223,12 @@ class _EstadoDeErro extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppMetrics.margemLateral,
+      ),
       children: [
-        const SizedBox(height: 80),
-        const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+        const SizedBox(height: 60),
+        const Icon(Icons.error_outline, size: 40, color: AppColors.danger),
         const SizedBox(height: 12),
         Text(message, textAlign: TextAlign.center),
         const SizedBox(height: 12),

@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../widgets/app_list_card.dart';
+import '../../widgets/botao_com_seta.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 import 'customers_repository.dart';
 import 'models/customer.dart';
 
@@ -63,20 +65,34 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Clientes')),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _novoCliente,
-        child: const Icon(Icons.add),
-      ),
+      backgroundColor: AppColors.background,
       body: Column(
         children: [
+          SafeArea(
+            bottom: false,
+            child: CabecalhoDeTela(
+              titulo: 'Clientes',
+              area: AreaDoApp.prestador,
+              aoVoltar: Navigator.of(context).canPop()
+                  ? () => Navigator.of(context).maybePop()
+                  : null,
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(
+              AppMetrics.margemLateral,
+              0,
+              AppMetrics.margemLateral,
+              16,
+            ),
             child: TextField(
               controller: _searchController,
               decoration: const InputDecoration(
                 hintText: 'Buscar por nome ou telefone',
-                prefixIcon: Icon(Icons.search),
+                // A lupa passou pra DIREITA. À esquerda ela empurrava o
+                // texto pra dentro e desalinhava o campo das listas logo
+                // abaixo, onde o nome começa na margem.
+                suffixIcon: Icon(Icons.search, color: AppColors.muted),
               ),
               onChanged: (value) => setState(() => _query = value.trim()),
             ),
@@ -97,9 +113,12 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                   final customers = _filter(snapshot.data ?? []);
                   if (customers.isEmpty) {
                     return ListView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppMetrics.margemLateral,
+                      ),
                       children: const [
-                        SizedBox(height: 80),
-                        Icon(Icons.people_outline, size: 48, color: AppColors.muted),
+                        SizedBox(height: 60),
+                        Icon(Icons.people_outline, size: 40, color: AppColors.muted),
                         SizedBox(height: 12),
                         Text(
                           'Nenhum cliente cadastrado ainda.',
@@ -110,40 +129,73 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                     );
                   }
                   return ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppMetrics.margemLateral,
+                      0,
+                      AppMetrics.margemLateral,
+                      8,
+                    ),
                     itemCount: customers.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 8),
+                    separatorBuilder: (context, index) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final customer = customers[index];
                       return AppListCard(
                         onTap: () => _abrirCliente(customer),
+                        // Era um quadrado laranja chapado com a inicial
+                        // em branco. Numa agenda de cinquenta clientes
+                        // isso vira uma coluna de blocos de cor que não
+                        // distingue ninguém de ninguém. Agora é um disco
+                        // laranja claro com a inicial em laranja — a mesma
+                        // informação, sem a mancha.
                         leading: Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [AppColors.primary, AppColors.primaryDark],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primarySuave,
+                            shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            customer.name.isNotEmpty ? customer.name[0].toUpperCase() : '?',
+                            customer.name.isNotEmpty
+                                ? customer.name[0].toUpperCase()
+                                : '?',
                             style: const TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20),
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
                           ),
                         ),
                         title: customer.name,
                         subtitle: [customer.phone, customer.locationLabel]
                             .where((value) => value != null && value.isNotEmpty)
                             .join(' · '),
-                        trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
+                        trailing: const Icon(
+                          Icons.chevron_right,
+                          color: AppColors.muted,
+                          size: 22,
+                        ),
                       );
                     },
                   );
                 },
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppMetrics.margemLateral,
+                8,
+                AppMetrics.margemLateral,
+                10,
+              ),
+              child: BotaoComSeta(
+                rotulo: 'Novo cliente',
+                icone: Icons.add,
+                comCaixa: false,
+                aoTocar: _novoCliente,
+              ),
             ),
           ),
         ],
@@ -161,9 +213,12 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppMetrics.margemLateral,
+      ),
       children: [
-        const SizedBox(height: 80),
-        const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+        const SizedBox(height: 60),
+        const Icon(Icons.error_outline, size: 40, color: AppColors.danger),
         const SizedBox(height: 12),
         Text(message, textAlign: TextAlign.center),
         const SizedBox(height: 12),

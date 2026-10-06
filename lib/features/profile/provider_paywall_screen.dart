@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/subscription_service.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Tela de venda da assinatura mensal — único jeito de virar prestador
 /// (aparecer na busca "Encontre um profissional"). Decisão combinada com
@@ -147,7 +148,15 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Virar prestador')),
+      backgroundColor: AppColors.background,
+      appBar: barraDeTela(
+        context,
+        titulo: 'Virar prestador',
+        area: AreaDoApp.prestador,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(

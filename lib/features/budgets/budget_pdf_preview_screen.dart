@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import '../../core/app_theme.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Mostra o PDF do orçamento na tela, com zoom e rolagem, e um botão de
 /// compartilhar.
@@ -34,7 +35,15 @@ class BudgetPdfPreviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      backgroundColor: AppColors.background,
+      appBar: barraDeTela(
+        context,
+        titulo: title,
+        area: AreaDoApp.prestador,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: PdfPreview(
         // Os bytes já vêm prontos de quem abriu a tela: gerar de novo aqui
         // significaria ler o perfil e baixar a logo outra vez, e correr o

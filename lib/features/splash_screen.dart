@@ -1,51 +1,51 @@
 import 'package:flutter/material.dart';
-import '../widgets/brand_gradient_background.dart';
-import '../widgets/prestadoraki_mark.dart';
+
+import '../core/app_theme.dart';
+import '../widgets/marca_app.dart';
 
 /// Mostrada só durante o AuthController.bootstrap() (leitura do secure
 /// storage, com duração mínima garantida — ver bootstrap()). O redirect
 /// do go_router tira o usuário daqui assim que o status deixa de ser
 /// AuthStatus.unknown.
 ///
-/// O fundo é o mesmo widget da tela de boas-vindas
-/// (BrandGradientBackground), a pedido do Franck: antes eram dois
-/// gradientes diferentes (aqui, duas paradas e sem os círculos), e dava
-/// pra ver o fundo mudando na passagem de uma tela pra outra.
+/// Usa o MESMO medalhão e o mesmo fundo creme da tela de boas-vindas, a
+/// pedido do Franck lá atrás: antes eram dois fundos diferentes e dava
+/// pra ver o fundo mudando na passagem de uma tela pra outra. Agora o
+/// medalhão fica parado no mesmo lugar e só o resto da tela aparece em
+/// volta dele — a troca some.
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: BrandGradientBackground(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              PrestadorAkiMark(size: 140),
-              SizedBox(height: 24),
-              Text(
-                'PrestadorAki',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.2,
-                ),
+      backgroundColor: AppColors.background,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MedalhaoDaMarca(),
+            SizedBox(height: 32),
+            MarcaEscrita(fontSize: 26),
+            SizedBox(height: 10),
+            Text(
+              'Encontre. Contrate. Acompanhe.',
+              style: TextStyle(
+                color: AppColors.muted,
+                fontSize: 14,
+                height: 1.45,
               ),
-              SizedBox(height: 8),
-              Text(
-                'Encontre. Contrate. Acompanhe.',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            SizedBox(height: 40),
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                color: AppColors.primary,
+                strokeWidth: 2.6,
               ),
-              SizedBox(height: 40),
-              SizedBox(
-                width: 26,
-                height: 26,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -136,6 +136,12 @@ flutter:
     # na tela "Sobre o app" (ver lib/features/profile/about_screen.dart),
     # pedido do Franck.
     - assets/brand/logo_opoutsourcing.jpg
+    # A marca do PrestadorAki em PNG com fundo transparente — usada no
+    # medalhão das telas de entrada (ver widgets/marca_app.dart). É a
+    # mesma arte do ícone do app, recortada; vive aqui, e não em
+    # assets/icon/, porque aquela pasta é insumo de build (o
+    # flutter_launcher_icons lê de lá) e não vai pro pacote do app.
+    - assets/brand/marca_prestadoraki.png
 
 # Configuração do flutter_launcher_icons — corrige o ícone do Android
 # aparecer pequeno e apertado dentro de um círculo branco (o Franck
@@ -155,7 +161,18 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png"
-  adaptive_icon_background: "#E7502E"
+  # Arte mestra do ícone (1024, logo cobre sobre o carvão da marca).
+  # Antes isso apontava pro PNG DENTRO do appiconset do iOS — que é
+  # justamente um dos arquivos que o flutter_launcher_icons REESCREVE.
+  # Fonte e resultado no mesmo lugar: bastava rodar o comando uma vez
+  # com a arte errada pra perder a original. Agora a mestra mora em
+  # assets/icon/ e nada a sobrescreve.
+  image_path: "assets/icon/app_icon.png"
+  # Fundo do ícone adaptativo do Android — o laranja da arte que o
+  # Franck enviou. Tem que ser EXATAMENTE a mesma cor do fundo de
+  # `app_icon.png`: o Android compõe o ícone com essa cor chapada e o
+  # iOS usa o PNG inteiro, então qualquer diferença aqui aparece como
+  # dois laranjas distintos entre um aparelho e outro.
+  adaptive_icon_background: "#B74612"
   adaptive_icon_foreground: "assets/icon/ic_launcher_foreground.png"
   min_sdk_android: 21

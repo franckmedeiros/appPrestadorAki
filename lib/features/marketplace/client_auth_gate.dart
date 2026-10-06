@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/validators.dart';
-import '../../widgets/decorative_header.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/labeled_text_field.dart';
 import '../../widgets/mask_text_input_formatter.dart';
@@ -174,9 +173,8 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
           MediaQuery.removePadding(
             context: context,
             removeTop: true,
-            child: DecorativeHeader(
-              height: 120,
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -185,9 +183,13 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
                     child: Container(
                       width: 40,
                       height: 4,
-                      margin: const EdgeInsets.only(bottom: 14),
+                      margin: const EdgeInsets.only(bottom: 18),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.55),
+                        // A alcinha de "arraste pra fechar" era branca
+                        // sobre o laranja do cabeçalho. Sem o cabeçalho
+                        // colorido ela vira cinza da borda — branca, numa
+                        // folha branca, ninguém veria.
+                        color: AppColors.borda,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -196,14 +198,19 @@ class _ClientAuthGateSheetState extends State<_ClientAuthGateSheet> {
                     criando ? 'Crie uma conta grátis' : 'Bem-vindo de volta!',
                     style: const TextStyle(
                       fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      height: 1.1,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   const Text(
                     'Só pro prestador saber com quem está falando.',
-                    style: TextStyle(fontSize: 13, color: Colors.white70),
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.45,
+                      color: AppColors.muted,
+                    ),
                   ),
                 ],
               ),

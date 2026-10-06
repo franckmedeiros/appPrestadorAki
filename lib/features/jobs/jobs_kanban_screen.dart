@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/currency_text_utils.dart';
 import '../../widgets/app_list_card.dart';
+import '../../widgets/cabecalho_de_tela.dart';
+import 'job_status_chip.dart';
 import 'job_details_sheet.dart';
 import 'jobs_repository.dart';
 import 'models/job.dart';
@@ -93,17 +95,44 @@ class _JobsKanbanScreenState extends State<JobsKanbanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_mostrandoArquivados ? 'Serviços arquivados' : 'Serviços'),
-        actions: [
-          IconButton(
-            tooltip: _mostrandoArquivados ? 'Ver serviços ativos' : 'Ver arquivados',
-            icon: Icon(_mostrandoArquivados ? Icons.inbox_outlined : Icons.archive_outlined),
-            onPressed: () => setState(() => _mostrandoArquivados = !_mostrandoArquivados),
+      backgroundColor: AppColors.background,
+      body: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: CabecalhoDeTela(
+              titulo: _mostrandoArquivados ? 'Arquivados' : 'Serviços',
+              area: AreaDoApp.prestador,
+              aoVoltar: Navigator.of(context).canPop()
+                  ? () => Navigator.of(context).maybePop()
+                  : null,
+              acao: IconButton(
+                tooltip: _mostrandoArquivados
+                    ? 'Ver serviços ativos'
+                    : 'Ver arquivados',
+                icon: Icon(
+                  _mostrandoArquivados
+                      ? Icons.inbox_outlined
+                      : Icons.archive_outlined,
+                  size: 22,
+                ),
+                color: AppColors.primary,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                onPressed: () => setState(
+                  () => _mostrandoArquivados = !_mostrandoArquivados,
+                ),
+              ),
+            ),
           ),
+          Expanded(child: _lista()),
         ],
       ),
-      body: StreamBuilder<List<Job>>(
+    );
+  }
+
+  Widget _lista() {
+    return StreamBuilder<List<Job>>(
         stream: _stream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -129,7 +158,12 @@ class _JobsKanbanScreenState extends State<JobsKanbanScreen> {
             return _mostrandoArquivados ? const _ArquivadosVazio() : const _EmptyState();
           }
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(
+              AppMetrics.margemLateral,
+              0,
+              AppMetrics.margemLateral,
+              16,
+            ),
             children: [
               for (final status in _sections)
                 if (jobs.any((job) => job.status == status))
@@ -145,18 +179,16 @@ class _JobsKanbanScreenState extends State<JobsKanbanScreen> {
             ],
           );
         },
-      ),
     );
   }
 }
 
-/// Uma etapa do Kanban (ex.: "Em andamento") como seção da lista: um
-/// cabeçalho colorido (bolinha + nome + contagem, tingido a 12% de
-/// opacidade — mesma paleta de `JobStatus.color`) seguido dos cards
-/// dessa etapa. Etapas sem nenhum serviço não aparecem (ver o `if` na
-/// tela) — não faz sentido mostrar uma seção vazia numa lista vertical
-/// (diferente do Kanban antigo, onde as colunas ficavam todas visíveis
-/// lado a lado mesmo vazias, pra dar noção do fluxo completo).
+/// Uma etapa do Kanban (ex.: "Em andamento") como seção da lista: o nome
+/// da etapa com a contagem, seguido dos cards dessa etapa. Etapas sem
+/// nenhum serviço não aparecem (ver o `if` na tela) — não faz sentido
+/// mostrar uma seção vazia numa lista vertical (diferente do Kanban
+/// antigo, onde as colunas ficavam todas visíveis lado a lado mesmo
+/// vazias, pra dar noção do fluxo completo).
 class _StatusSection extends StatelessWidget {
   const _StatusSection({
     required this.status,
@@ -181,49 +213,35 @@ class _StatusSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = status.color;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    status.label,
-                    style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 13),
-                  ),
-                ),
-                Text(
-                  '${jobs.length}',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 12),
-                ),
-              ],
+          // Era uma faixa colorida com uma bolinha e a contagem no canto
+          // direito — uma por etapa, cada uma de uma cor. Cinco faixas
+          // coloridas dividindo a tela faziam o cabeçalho pesar mais que
+          // os serviços que ele estava separando. Agora é só o nome da
+          // etapa e quantos tem ("Em andamento · 1"), que é a informação
+          // inteira que a faixa carregava.
+          Text(
+            '${status.label} · ${jobs.length}',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           for (final job in jobs)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              // Concluído fica em opacidade reduzida — já não precisa de
-              // ação, então some um pouco pra não competir visualmente
-              // com o que ainda está em aberto (mesma ideia do rascunho).
-              child: Opacity(
-                opacity: status == JobStatus.concluido ? 0.75 : 1,
-                child: podeDeslizar(job)
+              padding: const EdgeInsets.only(bottom: 12),
+              // O card de concluído era desenhado com opacidade 0.75 pra
+              // "sumir um pouco". Sobre o creme do fundo isso só deixava
+              // o texto lavado e mais difícil de ler — e quem separa o
+              // concluído do resto já é o cabeçalho da seção e o selo
+              // verde.
+              child: podeDeslizar(job)
                     ? Dismissible(
                         key: ValueKey(job.id),
                         direction: DismissDirection.endToStart,
@@ -232,9 +250,12 @@ class _StatusSection extends StatelessWidget {
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           decoration: BoxDecoration(
-                            color: (arquivando ? AppColors.muted : AppColors.primary)
-                                .withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(12),
+                            color: arquivando
+                                ? AppColors.borda
+                                : AppColors.primarySuave,
+                            borderRadius: BorderRadius.circular(
+                              AppMetrics.raioDeCartao,
+                            ),
                           ),
                           child: Icon(
                             arquivando ? Icons.archive_outlined : Icons.unarchive_outlined,
@@ -244,7 +265,6 @@ class _StatusSection extends StatelessWidget {
                         child: _JobCard(job: job, aoArquivar: aoDeslizar),
                       )
                     : _JobCard(job: job, aoArquivar: null),
-              ),
             ),
         ],
       ),
@@ -261,19 +281,37 @@ class _JobCard extends StatelessWidget {
   /// aberto) — aí o menu nem aparece, em vez de aparecer desabilitado.
   final void Function(Job job, bool arquivar)? aoArquivar;
 
-  IconData get _icon => switch (job.status) {
-        JobStatus.aguardandoPagamento => Icons.qr_code,
-        JobStatus.concluido => Icons.check_circle_outline,
-        _ => Icons.build_outlined,
-      };
+  /// A linha de apoio embaixo do nome: o valor e, quando existe, o dado
+  /// que a pessoa procura NAQUELA etapa — a hora marcada num serviço que
+  /// ainda não começou, o número do recibo num já concluído.
+  ///
+  /// Antes aqui vinha a categoria ("Eletricista") ou o endereço, e o
+  /// valor ficava sozinho no rodapé. Mas numa lista dos SEUS serviços a
+  /// categoria é sempre a mesma — é a sua profissão —, então a linha não
+  /// distinguia um card do outro.
+  String get _linhaDeApoio {
+    final partes = <String>[formatCentsBRL(job.totalCents)];
+    final recibo = job.reciboNumber;
+    if (job.status == JobStatus.concluido && recibo != null && recibo > 0) {
+      partes.add('recibo ${recibo.toString().padLeft(4, '0')}');
+    } else {
+      final endereco = job.addressText?.trim();
+      if (endereco != null && endereco.isNotEmpty) partes.add(endereco);
+    }
+    return partes.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
     final arquivar = aoArquivar;
     return AppListCard(
-      leading: AppListCard.iconAvatar(_icon),
+      // Sem o ícone da esquerda. Ele mudava conforme a etapa (chave
+      // inglesa, QR Code, visto) — mais uma marca pra dizer o que o
+      // cabeçalho da seção e o selo já dizem duas vezes. E, sem ele, o
+      // nome do cliente começa na margem do cartão, alinhado com o
+      // título da etapa logo acima.
       title: job.customerName,
-      subtitle: job.category ?? job.addressText,
+      subtitle: _linhaDeApoio,
       // Menu de arquivar ao lado da seta, convivendo com o deslize
       // (decisão do Franck de manter os dois caminhos): deslizar é rápido
       // pra quem já sabe, mas é invisível — ninguém descobre sozinho. A
@@ -296,10 +334,7 @@ class _JobCard extends StatelessWidget {
           const Icon(Icons.chevron_right, color: AppColors.muted, size: 20),
         ],
       ),
-      footer: Text(
-        formatCentsBRL(job.totalCents),
-        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.ink),
-      ),
+      footer: JobStatusChip(status: job.status),
       onTap: () => showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -356,10 +391,14 @@ class _EmptyState extends StatelessWidget {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+                color: AppColors.primarySuave,
+                borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
               ),
-              child: const Icon(Icons.build_outlined, color: AppColors.primary, size: 30),
+              child: const Icon(
+                Icons.build_outlined,
+                color: AppColors.primary,
+                size: 28,
+              ),
             ),
             const SizedBox(height: 16),
             const Text('Nenhum serviço ainda', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),

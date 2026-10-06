@@ -4,9 +4,9 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/validators.dart';
-import '../../widgets/decorative_header.dart';
-import '../../widgets/gradient_pill_button.dart';
+import '../../widgets/botao_com_seta.dart';
 import '../../widgets/labeled_text_field.dart';
+import '../../widgets/marca_app.dart';
 import '../../widgets/password_requirements_hint.dart';
 import 'terms_acceptance_checkbox.dart';
 import '../../widgets/mask_text_input_formatter.dart';
@@ -19,9 +19,10 @@ import '../../widgets/mask_text_input_formatter.dart';
 /// Quem quiser virar prestador faz isso depois, em "Meu perfil" → "Também
 /// quero oferecer serviços" (ver UserProfileScreen/ProviderPaywallScreen).
 ///
-/// Layout reestilizado igual ao app Resenha (mesmo cabeçalho em gradiente
-/// + cartão branco da LoginScreen) — só a aparência mudou, os campos
-/// continuam os mesmos de sempre (nome, e-mail, senha, biometria).
+/// Visual refeito a partir da entrega do Figma (out/2026), igual ao da
+/// tela de Login: fundo creme, sem o cabeçalho em faixa e sem o cartão
+/// branco que subia por cima dele. Os campos são os mesmos de sempre
+/// (nome, e-mail, telefone, senha, biometria).
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -111,50 +112,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DecorativeHeader(
-              height: 150,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).maybePop(),
-                    child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-                  ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'Criar conta',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Leva menos de um minuto',
-                    style: TextStyle(fontSize: 13.5, color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -24),
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                ),
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
-                child: Form(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppMetrics.margemLateral,
+          ),
+          child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      const SizedBox(height: 12),
+                      TopoDeEntrada(
+                        etiqueta: 'CRIAR CONTA',
+                        aoVoltar: () => Navigator.of(context).maybePop(),
+                      ),
+                      const SizedBox(height: 16),
+                      const Center(child: MedalhaoDaMarca(diametro: 150)),
+                      const SizedBox(height: 24),
+                      const TituloDeEntrada('Criar conta'),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Leva menos de um minuto',
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.45,
+                          color: AppColors.muted,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Divider(color: AppColors.borda, height: 1),
+                      const SizedBox(height: 24),
                       LabeledTextField(
                         label: 'Nome completo',
                         controller: _nameController,
                         hintText: 'Digite seu nome completo',
-                        prefixIcon: Icons.person_outline,
+                        suffixIcon: const Icon(Icons.person_outline,
+                            color: AppColors.muted, size: 20),
                         textInputAction: TextInputAction.next,
                         validator: (value) =>
                             (value == null || value.trim().isEmpty) ? 'Informe seu nome' : null,
@@ -165,7 +159,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _emailController,
                         hintText: 'seuemail@exemplo.com',
                         keyboardType: TextInputType.emailAddress,
-                        prefixIcon: Icons.mail_outline,
+                        suffixIcon: const Icon(Icons.mail_outline,
+                            color: AppColors.muted, size: 20),
                         textInputAction: TextInputAction.next,
                         validator: (value) =>
                             validateEmail(value),
@@ -182,7 +177,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _phoneController,
                         hintText: '(00) 00000-0000',
                         keyboardType: TextInputType.phone,
-                        prefixIcon: Icons.phone_outlined,
+                        suffixIcon: const Icon(Icons.phone_outlined,
+                            color: AppColors.muted, size: 20),
                         textInputAction: TextInputAction.next,
                         inputFormatters: [_phoneMask],
                         validator: (value) {
@@ -196,7 +192,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _passwordController,
                         hintText: 'Senha forte',
                         obscureText: _obscurePassword,
-                        prefixIcon: Icons.lock_outline,
                         textInputAction: TextInputAction.done,
                         validator: validateStrongPassword,
                         suffixIcon: IconButton(
@@ -226,28 +221,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Text(auth.errorMessage!, style: const TextStyle(color: AppColors.danger)),
                       ],
                       const SizedBox(height: 24),
-                      GradientPillButton(
-                        label: 'Criar conta',
-                        isLoading: auth.isBusy,
-                        onPressed: (auth.isBusy || !_aceitouOsTermos) ? null : () => _submit(auth),
+                      BotaoComSeta(
+                        rotulo: 'Criar conta',
+                        carregando: auth.isBusy,
+                        aoTocar: (auth.isBusy || !_aceitouOsTermos)
+                            ? null
+                            : () => _submit(auth),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       Center(
                         child: GestureDetector(
                           onTap: () => Navigator.of(context).maybePop(),
-                          child: const Text(
-                            'Já tenho conta, entrar',
-                            style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
+                          behavior: HitTestBehavior.opaque,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Text(
+                              'Já tenho conta, entrar',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         ),
                       ),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
-              ),
-            ),
-          ],
-        ),
+          ),
       ),
     );
   }
@@ -265,14 +268,16 @@ class _BiometricCheckbox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
       onTap: () => onChanged(!value),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primary.withValues(alpha: value ? 0.4 : 0.12)),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+          border: Border.all(
+            color: value ? AppColors.primary : AppColors.borda,
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

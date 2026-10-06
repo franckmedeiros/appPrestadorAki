@@ -1,18 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/app_theme.dart';
-import '../../widgets/brand_gradient_background.dart';
-import '../../widgets/prestadoraki_mark.dart';
+import '../../widgets/botao_com_seta.dart';
+import '../../widgets/marca_app.dart';
 
 /// Tela de boas-vindas antes do login — primeira coisa que um prestador
-/// sem sessão salva vê. Layout inspirado numa referência visual que o
-/// Franck gostou (fundo em gradiente com formas suaves, logo central,
-/// dois botões em pílula), adaptado para as cores da marca OP OutSourcing.
+/// sem sessão salva vê.
+///
+/// Redesenhada a partir da entrega do Figma (out/2026). O que mudou em
+/// relação ao desenho antigo, e por quê:
+///
+///  - O fundo deixou de ser um gradiente laranja de tela cheia. Uma cor
+///    forte ocupando tudo não deixa nada se destacar — os dois botões
+///    tinham que virar branco e contorno branco pra aparecer, e aí os
+///    dois pareciam igualmente importantes. No creme, o "Entrar" laranja
+///    é a única coisa colorida da tela, e a hierarquia se resolve sozinha.
+///  - O nome do app saiu do meio (abaixo do logo, em caixa alta e branco)
+///    e foi pro canto superior esquerdo, pequeno. Quem abre o app sabe
+///    qual app abriu; o meio da tela é melhor gasto com a frase que
+///    explica pra que ele serve.
 ///
 /// Também é o que a aba "Perfil" mostra pra quem ainda não tem conta (ver
-/// UserProfileScreen) — antes ali aparecia um formulário de login
-/// embutido (GuestProfilePanel); o Franck preferiu esta tela, com o
-/// "Entrar" levando pra LoginScreen de verdade.
+/// UserProfileScreen) — ali o "Entrar" leva pras sub-rotas do próprio
+/// branch, pra tela abrir DENTRO da casca do app, com a barra de
+/// navegação embaixo (pedido do Franck: "precisa ficar dentro do espaço
+/// e não fora assim").
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({
     super.key,
@@ -20,95 +33,79 @@ class WelcomeScreen extends StatelessWidget {
     this.rotaCriarConta = '/register',
   });
 
-  /// Pra onde os dois botões levam. O padrão são as rotas de topo (tela
-  /// cheia, cobrindo o app inteiro) — é o certo quando esta tela também
-  /// está em tela cheia, como na rota '/welcome'. Já quando ela aparece
-  /// DENTRO da aba "Perfil" (ver UserProfileScreen), quem usa passa as
-  /// sub-rotas do próprio branch ('/perfil/entrar', '/perfil/criar-conta'),
-  /// pra tela de login/cadastro abrir dentro da casca do app, com a barra
-  /// de navegação embaixo — pedido do Franck: "precisa ficar dentro do
-  /// espaço e não fora assim".
   final String rotaEntrar;
   final String rotaCriarConta;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // O fundo (gradiente + círculos) é o mesmo widget usado pela
-      // SplashScreen — ver BrandGradientBackground.
-      body: BrandGradientBackground(
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Column(
-              children: [
-                const Spacer(flex: 3),
-                // Marca oficial do app (mesmo desenho vetorial usado na
-                // splash screen — ver PrestadorAkiMark) no lugar do ícone
-                // genérico de chave/martelo que tinha antes aqui.
-                const PrestadorAkiMark(size: 100),
-                const SizedBox(height: 24),
-                const Text(
-                  'PrestadorAki',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, limites) {
+            return SingleChildScrollView(
+              // Em tela baixa o conteúdo rola; em tela normal ele se
+              // espalha pela altura toda (é o `minHeight` + o `Spacer`
+              // lá embaixo que fazem isso). Sem isso, ou a tela estoura
+              // nos aparelhos pequenos, ou fica tudo amontoado no topo
+              // nos grandes.
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: limites.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppMetrics.margemLateral,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 12),
+                      const TopoDeEntrada(etiqueta: 'Bem-vindo!'),
+                      const SizedBox(height: 28),
+                      const Center(child: MedalhaoDaMarca()),
+                      const SizedBox(height: 36),
+                      const TituloDeEntrada('Tudo em um só lugar'),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Do primeiro orçamento até você chegar à porta do '
+                        'cliente — tudo em um só lugar.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.45,
+                          color: AppColors.muted,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      const Divider(color: AppColors.borda, height: 1),
+                      const Spacer(),
+                      const SizedBox(height: 28),
+                      BotaoComSeta(
+                        rotulo: 'Entrar',
+                        aoTocar: () => context.push(rotaEntrar),
+                      ),
+                      const SizedBox(height: 12),
+                      BotaoComSeta(
+                        rotulo: 'Criar conta',
+                        preenchido: false,
+                        aoTocar: () => context.push(rotaCriarConta),
+                      ),
+                      const SizedBox(height: 10),
+                      // Buscar prestador nunca exige conta — quem chegou
+                      // aqui sem querer volta direto pra busca.
+                      TextButton.icon(
+                        onPressed: () => context.go('/buscar'),
+                        icon: const Icon(Icons.search, size: 18),
+                        label: const Text('Só quero buscar um prestador'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'Do primeiro orçamento até você chegar à porta do cliente — tudo em um só lugar.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 15,
-                    height: 1.4,
-                  ),
-                ),
-                const Spacer(flex: 4),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white, width: 1.4),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
-                    onPressed: () => context.push(rotaEntrar),
-                    child: const Text('Entrar', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.ink,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
-                    onPressed: () => context.push(rotaCriarConta),
-                    child: const Text('Criar conta', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Essa tela agora é só a porta de entrada do prestador
-                // (buscar prestador nunca exige conta) — quem chegou aqui
-                // sem querer volta direto pra busca.
-                TextButton(
-                  onPressed: () => context.go('/buscar'),
-                  child: Text(
-                    'Só quero buscar um prestador',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.85)),
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

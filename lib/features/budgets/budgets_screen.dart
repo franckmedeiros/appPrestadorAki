@@ -8,6 +8,9 @@ import '../../core/app_theme.dart';
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/app_list_card.dart';
+import '../../widgets/botao_com_seta.dart';
+import '../../widgets/cabecalho_de_tela.dart';
+import '../../widgets/selo_de_estado.dart';
 import '../jobs/job_status_chip.dart';
 import '../jobs/models/job.dart';
 import 'budget_form_screen.dart' show BudgetAcceptedResult;
@@ -180,15 +183,34 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   /// arquivar (onde faz sentido). Null quando não há nem um nem outro —
   /// o AppListCard omite o rodapé inteiro nesse caso.
   Widget? _rodape(Budget budget) {
+    final status = budget.status;
     final servico = _rodapeDoServico(budget);
     // Mesma regra do deslize (`_canArchive`), mais a lista de arquivados,
     // onde sempre dá pra devolver.
     final podeArquivar = _showArchived || _canArchive(budget);
-    if (servico == null && !podeArquivar) return null;
-    return Row(
+    if (status == null && servico == null && !podeArquivar) return null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (servico != null) Expanded(child: servico) else const Spacer(),
-        if (podeArquivar) _menuArquivar(budget),
+        Row(
+          children: [
+            // O selo de estado desceu do canto direito pro rodapé do
+            // card. Lá em cima ele disputava largura com o nome do
+            // cliente — tanto que precisava de um `ConstrainedBox` de
+            // 128px, e mesmo assim rótulos como "Aditivo enviado —
+            // aguardando aprovação" quebravam em duas linhas de letra
+            // miúda. Aqui embaixo ele tem a largura do card inteiro e
+            // pode ser escrito por extenso.
+            if (status != null)
+              Flexible(
+                child: SeloDeEstado(status.label, tom: _tomDoStatus(status)),
+              )
+            else
+              const Spacer(),
+            if (podeArquivar) _menuArquivar(budget),
+          ],
+        ),
+        if (servico != null) ...[const SizedBox(height: 10), servico],
       ],
     );
   }
@@ -219,35 +241,96 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     );
   }
 
-  Color _statusColor(BudgetStatus status) => switch (status) {
-        BudgetStatus.pendente => AppColors.primary,
-        BudgetStatus.enviado => Colors.orange,
-        BudgetStatus.aprovado => Colors.blue,
-        BudgetStatus.aceito => Colors.green,
-        BudgetStatus.aditivoEnviado => Colors.deepPurple,
-        BudgetStatus.recusado => AppColors.danger,
+  /// O tom do selo de cada estado.
+  ///
+  /// Antes cada estado tinha uma cor solta do Material (laranja, azul,
+  /// verde, roxo). Seis cores sem parentesco nenhum entre si, e nenhuma
+  /// delas dizendo o que importa: se a bola está com VOCÊ ou com o
+  /// cliente. Agora são três grupos — o que precisa de você (marca), o
+  /// que espera o cliente (espera) e o que já acabou (positivo ou
+  /// negativo) — que é a mesma divisão que a lista usa pra ordenar.
+  TomDoSelo _tomDoStatus(BudgetStatus status) => switch (status) {
+        BudgetStatus.pendente => TomDoSelo.marca,
+        BudgetStatus.aprovado => TomDoSelo.marca,
+        BudgetStatus.enviado => TomDoSelo.espera,
+        BudgetStatus.aditivoEnviado => TomDoSelo.espera,
+        BudgetStatus.aceito => TomDoSelo.positivo,
+        BudgetStatus.recusado => TomDoSelo.negativo,
       };
+
+  /// A linha de apoio embaixo do nome do cliente: o número do documento
+  /// e o valor ("Nº 0042 · R$ 1.500,00").
+  ///
+  /// Num orçamento ainda pendente não existe nem número nem valor — ele
+  /// é um PEDIDO que chegou e ainda não foi preenchido. Aí a linha mostra
+  /// o que o cliente escreveu, que é a única coisa que há pra ler.
+  String _linhaDeApoio(Budget budget) {
+    if (budget.status == BudgetStatus.pendente) {
+      final pedido = (budget.requestDescription ?? '').trim();
+      if (pedido.isNotEmpty) return pedido;
+      return formatDateLong(budget.date);
+    }
+    final partes = <String>[];
+    final numero = budget.documentNumber;
+    if (numero != null && numero > 0) {
+      partes.add('Nº ${numero.toString().padLeft(4, '0')}');
+    }
+    if (budget.totalCents > 0) partes.add(formatCentsBRL(budget.totalCents));
+    if (partes.isEmpty) return formatDateLong(budget.date);
+    return partes.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_showArchived ? 'Orçamentos arquivados' : 'Orçamentos'),
-        actions: [
-          IconButton(
-            tooltip: _showArchived ? 'Ver orçamentos ativos' : 'Ver arquivados',
-            icon: Icon(_showArchived ? Icons.inbox_outlined : Icons.archive_outlined),
-            onPressed: () => setState(() => _showArchived = !_showArchived),
+      backgroundColor: AppColors.background,
+      body: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: CabecalhoDeTela(
+              titulo: _showArchived ? 'Arquivados' : 'Orçamentos',
+              area: AreaDoApp.prestador,
+              aoVoltar: context.canPop() ? () => context.pop() : null,
+              acao: IconButton(
+                tooltip: _showArchived ? 'Ver orçamentos ativos' : 'Ver arquivados',
+                icon: Icon(
+                  _showArchived ? Icons.inbox_outlined : Icons.archive_outlined,
+                  size: 22,
+                ),
+                color: AppColors.primary,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                onPressed: () => setState(() => _showArchived = !_showArchived),
+              ),
+            ),
           ),
+          Expanded(child: _lista()),
+          // O botão deixou de ser o círculo flutuante do Material e virou
+          // uma barra fixa no pé da tela, como no desenho. O "+" sozinho
+          // num canto não dizia o que ia criar; aqui está escrito.
+          if (!_showArchived)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppMetrics.margemLateral,
+                8,
+                AppMetrics.margemLateral,
+                12,
+              ),
+              child: BotaoComSeta(
+                rotulo: 'Novo orçamento',
+                icone: Icons.add,
+                comCaixa: false,
+                aoTocar: () => _openBudget(null),
+              ),
+            ),
         ],
       ),
-      floatingActionButton: _showArchived
-          ? null
-          : FloatingActionButton(
-              onPressed: () => _openBudget(null),
-              child: const Icon(Icons.add),
-            ),
-      body: StreamBuilder<List<Budget>>(
+    );
+  }
+
+  Widget _lista() {
+    return StreamBuilder<List<Budget>>(
         stream: _stream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -255,9 +338,12 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           }
           if (snapshot.hasError) {
             return ListView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppMetrics.margemLateral,
+              ),
               children: [
-                const SizedBox(height: 80),
-                const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+                const SizedBox(height: 60),
+                const Icon(Icons.error_outline, size: 40, color: AppColors.danger),
                 const SizedBox(height: 12),
                 const Text('Não foi possível carregar os orçamentos.', textAlign: TextAlign.center),
                 const SizedBox(height: 12),
@@ -272,18 +358,21 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               .toList();
           if (budgets.isEmpty) {
             return ListView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppMetrics.margemLateral,
+              ),
               children: [
-                const SizedBox(height: 80),
+                const SizedBox(height: 60),
                 Icon(
                   _showArchived ? Icons.archive_outlined : Icons.description_outlined,
-                  size: 48,
+                  size: 40,
                   color: AppColors.muted,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   _showArchived
                       ? 'Nenhum orçamento arquivado.'
-                      : 'Nenhum orçamento ainda. Toque no + pra criar o primeiro.',
+                      : 'Nenhum orçamento ainda. Use o botão abaixo pra criar o primeiro.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.muted),
                 ),
@@ -298,9 +387,14 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             return b.date.compareTo(a.date);
           });
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(
+              AppMetrics.margemLateral,
+              0,
+              AppMetrics.margemLateral,
+              8,
+            ),
             itemCount: budgets.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final budget = budgets[index];
               final status = budget.status;
@@ -311,57 +405,17 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                       : Icons.description_outlined,
                 ),
                 title: budget.customerName,
-                subtitle: status == BudgetStatus.pendente && (budget.requestDescription ?? '').isNotEmpty
-                    ? budget.requestDescription
-                    : formatDateLong(budget.date),
-                trailing: status == null
-                    ? Text(
-                        formatCentsBRL(budget.totalCents),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      )
-                    // `ConstrainedBox` aqui é o que impede um `status.label`
-                    // comprido (ex.: "Aditivo enviado — aguardando
-                    // aprovação", ou "Aprovado — falta confirmar") de pedir
-                    // largura ilimitada pro selo — sem isso, o Row deste
-                    // card sobrava quase nenhum espaço pro nome/data do
-                    // cliente (Expanded do AppListCard), que aparecia
-                    // espremido/quebrado letra por letra. Com a largura
-                    // travada, o texto do selo quebra em até 2 linhas em
-                    // vez de estourar a largura do card.
-                    : ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 128),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: _statusColor(status).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                status.label,
-                                textAlign: TextAlign.right,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: _statusColor(status),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ),
-                            if (status != BudgetStatus.pendente && budget.totalCents > 0) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                formatCentsBRL(budget.totalCents),
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
+                // Número e valor numa linha só embaixo do nome ("Nº 0042
+                // · R$ 1.500,00"). Antes o valor ficava do lado direito,
+                // empilhado embaixo do selo, e a data vinha aqui — mas
+                // quem procura um orçamento numa lista procura pelo
+                // cliente e pelo número, não pela data.
+                subtitle: _linhaDeApoio(budget),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.muted,
+                  size: 22,
+                ),
                 onTap: () => _openBudget(budget),
                 footer: _rodape(budget),
               );
@@ -380,8 +434,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
-                    color: (archiving ? AppColors.muted : AppColors.primary).withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(12),
+                    color: archiving ? AppColors.borda : AppColors.primarySuave,
+                    borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
                   ),
                   child: Icon(
                     archiving ? Icons.archive_outlined : Icons.unarchive_outlined,
@@ -393,7 +447,6 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             },
           );
         },
-      ),
     );
   }
 }

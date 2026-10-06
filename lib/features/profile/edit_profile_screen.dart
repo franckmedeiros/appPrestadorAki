@@ -19,6 +19,7 @@ import '../../widgets/service_category_field.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
 import '../marketplace/provider_directory_repository.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Formulário de edição dos dados do próprio usuário — igual ao pedido
 /// do Franck ("no meu perfil, deveria ficar assim", com referência ao
@@ -513,7 +514,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final isProvider = _isProvider;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Editar perfil')),
+      backgroundColor: AppColors.background,
+      appBar: barraDeTela(
+        context,
+        titulo: 'Editar perfil',
+        area: AreaDoApp.prestador,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),

@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
 import '../../core/validators.dart';
-import '../../widgets/decorative_header.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 import '../../widgets/gradient_pill_button.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/password_requirements_hint.dart';
@@ -89,21 +89,23 @@ class _GuestProfilePanelState extends State<GuestProfilePanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const DecorativeHeader(
-              height: 150,
-              child: Text(
-                'Meu perfil',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+            const SafeArea(
+              bottom: false,
+              child: CabecalhoDeTela(
+                titulo: 'Meu perfil',
+                area: AreaDoApp.cliente,
               ),
             ),
             Transform.translate(
-              offset: const Offset(0, -24),
+              offset: Offset.zero,
               child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                decoration: const BoxDecoration(color: AppColors.background),
+                padding: const EdgeInsets.fromLTRB(
+                  AppMetrics.margemLateral,
+                  0,
+                  AppMetrics.margemLateral,
+                  24,
                 ),
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
                 child: Form(
                   key: _formKey,
                   child: Column(

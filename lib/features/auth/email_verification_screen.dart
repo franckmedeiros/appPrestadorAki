@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
-import '../../widgets/decorative_header.dart';
+import '../../widgets/marca_app.dart';
 import '../../widgets/gradient_pill_button.dart';
 
 /// Tranca de e-mail confirmado.
@@ -130,32 +130,47 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const DecorativeHeader(
-              height: 170,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppMetrics.margemLateral,
+                12,
+                AppMetrics.margemLateral,
+                0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(height: 8),
-                  Text(
-                    'Confirme seu e-mail',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
+                  const TopoDeEntrada(etiqueta: 'CONFIRMAÇÃO'),
+                  const SizedBox(height: 24),
+                  const TituloDeEntrada('Confirme seu e-mail'),
+                  const SizedBox(height: 10),
+                  const Text(
                     'Falta só um passo pra liberar sua conta',
-                    style: TextStyle(fontSize: 13.5, color: Colors.white70),
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.45,
+                      color: AppColors.muted,
+                    ),
                   ),
+                  const SizedBox(height: 24),
+                  const Divider(color: AppColors.borda, height: 1),
                 ],
               ),
             ),
+            // O cartão branco que subia 24px por cima do cabeçalho saiu:
+            // branco sobre branco não separava nada, e o deslocamento
+            // vertical era só custo. O corpo agora é o próprio fundo
+            // creme da tela.
             Transform.translate(
-              offset: const Offset(0, -24),
+              offset: Offset.zero,
               child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                decoration: const BoxDecoration(color: AppColors.background),
+                padding: const EdgeInsets.fromLTRB(
+                  AppMetrics.margemLateral,
+                  8,
+                  AppMetrics.margemLateral,
+                  24,
                 ),
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

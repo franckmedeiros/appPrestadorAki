@@ -8,7 +8,7 @@ import '../../core/testing_flags.dart';
 import '../auth/change_password_screen.dart';
 import '../moderation/blocked_users_screen.dart';
 import '../welcome/welcome_screen.dart';
-import '../../widgets/decorative_header.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 import '../../widgets/prestadoraki_mark.dart';
 import '../marketplace/models/provider_listing.dart';
 import '../marketplace/models/service_category.dart';
@@ -307,33 +307,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const DecorativeHeader(
-              // Mesmo tratamento visual da tela de boas-vindas (que o
-              // Franck gostou) — logo do app + título, sobre o gradiente
-              // com bolhas do DecorativeHeader (que já usa as mesmas
-              // cores da marca). Altura maior que antes (150) pra caber
-              // a marca sem apertar o título.
-              height: 210,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  PrestadorAkiMark(size: 56),
-                  SizedBox(height: 12),
-                  Text(
-                    'Meu perfil',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                ],
+            const SafeArea(
+              bottom: false,
+              child: CabecalhoDeTela(
+                titulo: 'Meu perfil',
+                area: AreaDoApp.prestador,
               ),
             ),
             Transform.translate(
-              offset: const Offset(0, -24),
+              offset: Offset.zero,
               child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                decoration: const BoxDecoration(color: AppColors.background),
+                padding: const EdgeInsets.fromLTRB(
+                  AppMetrics.margemLateral,
+                  0,
+                  AppMetrics.margemLateral,
+                  24,
                 ),
-                padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
                 child: Column(
                   children: [
                     // Avatar sobreposto à borda do cabeçalho (anel branco +

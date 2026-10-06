@@ -40,9 +40,17 @@ class LabeledTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.muted),
+          // Rótulo de campo do guia do Figma: 12, peso 700, na cor do
+          // texto — e não cinza. Cinza faz o rótulo parecer uma dica
+          // apagada; ele é a pergunta, tem que ler como texto firme.
+          style: const TextStyle(
+            fontSize: 12,
+            height: 1.45,
+            fontWeight: FontWeight.w700,
+            color: AppColors.ink,
+          ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
@@ -50,7 +58,7 @@ class LabeledTextField extends StatelessWidget {
           validator: validator,
           inputFormatters: inputFormatters,
           textInputAction: textInputAction,
-          style: const TextStyle(fontSize: 15, color: AppColors.ink),
+          style: const TextStyle(fontSize: 14, color: AppColors.ink),
           decoration: InputDecoration(
             hintText: hintText,
             prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: AppColors.muted, size: 21) : null,

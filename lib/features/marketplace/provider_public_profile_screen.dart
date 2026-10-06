@@ -14,6 +14,7 @@ import 'budget_requests_repository.dart';
 import 'provider_directory_repository.dart';
 import '../moderation/blocked_users_controller.dart';
 import '../moderation/review_moderation_menu.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// Perfil público de um prestador do marketplace — visto pelo cliente,
 /// seja um perfil "reivindicado" (com conta no PrestadorAki) ou "não
@@ -174,9 +175,13 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Perfil do profissional'),
-        elevation: 0,
+      appBar: barraDeTela(
+        context,
+        titulo: 'Perfil do profissional',
+        area: AreaDoApp.cliente,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
       ),
       body: FutureBuilder<ProviderListing?>(
         future: _future,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 import '../../core/currency_text_utils.dart';
 import '../jobs/jobs_repository.dart';
 import '../jobs/models/job.dart';
@@ -107,8 +108,26 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Financeiro')),
-      body: StreamBuilder<List<Job>>(
+      body: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: CabecalhoDeTela(
+              titulo: 'Financeiro',
+              area: AreaDoApp.prestador,
+              aoVoltar: Navigator.of(context).canPop()
+                  ? () => Navigator.of(context).maybePop()
+                  : null,
+            ),
+          ),
+          Expanded(child: _corpo()),
+        ],
+      ),
+    );
+  }
+
+  Widget _corpo() {
+    return StreamBuilder<List<Job>>(
         stream: _servicos,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -158,7 +177,12 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
           final categorias = doMes.map((j) => (j.category ?? '').trim()).toSet();
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            padding: const EdgeInsets.fromLTRB(
+              AppMetrics.margemLateral,
+              0,
+              AppMetrics.margemLateral,
+              32,
+            ),
             children: [
               _CartaoDoMes(mes: mes, ticketCents: ticketCents),
               const SizedBox(height: 12),
@@ -178,7 +202,6 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
             ],
           );
         },
-      ),
     );
   }
 }
@@ -192,35 +215,46 @@ class _CartaoDoMes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Era um cartão LARANJA CHEIO com texto branco. Chamava muito a
+    // atenção — e aí a tela inteira passava a girar em torno dele, com
+    // os outros blocos parecendo rodapé. Num cartão branco o número
+    // continua sendo o maior da tela (é ele que está em corpo 40), só
+    // que agora os outros números também existem.
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryDark],
-        ),
-        borderRadius: BorderRadius.circular(18),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+        border: Border.all(color: AppColors.borda),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Recebido em ${mes.rotuloLongo}',
-            style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+            style: const TextStyle(color: AppColors.muted, fontSize: 14),
           ),
-          const SizedBox(height: 6),
-          Text(
-            formatCentsBRL(mes.recebidoCents),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              fontWeight: FontWeight.w800,
-              height: 1.1,
+          const SizedBox(height: 8),
+          // `FittedBox` porque valor de seis dígitos ("R\$ 128.500,00")
+          // não cabe em corpo 40 num aparelho estreito — em vez de
+          // quebrar a linha ou cortar, o número encolhe só o necessário.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              formatCentsBRL(mes.recebidoCents),
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontSize: 40,
+                fontWeight: FontWeight.w800,
+                height: 1.1,
+              ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
+          const Divider(height: 1, color: AppColors.borda),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -229,14 +263,10 @@ class _CartaoDoMes extends StatelessWidget {
                   valor: '${mes.servicos}',
                 ),
               ),
-              Container(width: 1, height: 30, color: Colors.white24),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 14),
-                  child: _MiniDado(
-                    rotulo: 'Ticket médio',
-                    valor: mes.servicos == 0 ? '—' : formatCentsBRL(ticketCents),
-                  ),
+                child: _MiniDado(
+                  rotulo: 'Ticket médio',
+                  valor: mes.servicos == 0 ? '—' : formatCentsBRL(ticketCents),
                 ),
               ),
             ],
@@ -258,11 +288,22 @@ class _MiniDado extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(rotulo, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-        const SizedBox(height: 2),
         Text(
-          valor,
-          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+          rotulo,
+          style: const TextStyle(color: AppColors.muted, fontSize: 13),
+        ),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            valor,
+            style: const TextStyle(
+              color: AppColors.ink,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
       ],
     );
@@ -297,64 +338,63 @@ class _CartaoAReceberState extends State<_CartaoAReceber> {
     // número, sem uma seta que não leva a lugar nenhum.
     final podeAbrir = quantidade > 0;
 
+    // O quadradinho do relógio saiu: ele carregava a mesma cor de
+    // alerta que a contagem de serviços já carrega, e o rótulo "A
+    // receber hoje" não precisa de ícone pra ser entendido. Sobrou o
+    // que o desenho pede — a frase à esquerda, o valor à direita.
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cor.withValues(alpha: 0.25)),
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+        border: Border.all(color: AppColors.borda),
       ),
       child: Column(
         children: [
           InkWell(
             onTap: podeAbrir ? () => setState(() => _aberto = !_aberto) : null,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppMetrics.paddingDeCartao),
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: cor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.schedule, color: cor, size: 20),
-                  ),
-                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           'A receber hoje',
-                          style: TextStyle(fontSize: 12.5, color: AppColors.muted),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.ink,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          formatCentsBRL(cents),
-                          style: const TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.ink,
-                          ),
+                          quantidade == 0
+                              ? 'nada parado'
+                              : '$quantidade serviço${quantidade == 1 ? '' : 's'}',
+                          style: TextStyle(fontSize: 13, color: cor),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
-                    quantidade == 0
-                        ? 'nada parado'
-                        : '$quantidade serviço${quantidade == 1 ? '' : 's'}',
-                    style: TextStyle(fontSize: 12, color: cor, fontWeight: FontWeight.w600),
+                    formatCentsBRL(cents),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                    ),
                   ),
                   if (podeAbrir)
                     Padding(
-                      padding: const EdgeInsets.only(left: 4),
+                      padding: const EdgeInsets.only(left: 6),
                       child: Icon(
                         _aberto ? Icons.expand_less : Icons.expand_more,
                         size: 20,
-                        color: cor,
+                        color: AppColors.muted,
                       ),
                     ),
                 ],
@@ -363,7 +403,7 @@ class _CartaoAReceberState extends State<_CartaoAReceber> {
           ),
           if (_aberto)
             for (final job in widget.servicos) ...[
-              Divider(height: 1, color: AppColors.muted.withValues(alpha: 0.12)),
+              const Divider(height: 1, color: AppColors.borda),
               _LinhaDeServico(
                 nome: job.customerName,
                 detalhe: job.addressText,
@@ -403,8 +443,8 @@ class _GraficoDeFaturamento extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.muted.withValues(alpha: 0.12)),
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+        border: Border.all(color: AppColors.borda),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -503,10 +543,14 @@ class _Barra extends StatelessWidget {
               curve: Curves.easeOut,
               height: altura,
               decoration: BoxDecoration(
-                color: selecionada
-                    ? AppColors.primary
-                    : AppColors.primary.withValues(alpha: 0.28),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                // Mês escolhido no laranja cheio, os outros no laranja
+                // claro da paleta — e não no mesmo laranja a 28% de
+                // opacidade, que sobre o branco do cartão dava um rosa
+                // fora da paleta.
+                color: selecionada ? AppColors.primary : AppColors.primarySuave,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(4),
+                ),
               ),
             ),
           ),
@@ -514,9 +558,9 @@ class _Barra extends StatelessWidget {
           Text(
             mes.rotuloCurto,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: selecionada ? FontWeight.w700 : FontWeight.w400,
-              color: selecionada ? AppColors.ink : AppColors.muted,
+              color: selecionada ? AppColors.primary : AppColors.muted,
             ),
           ),
         ],
@@ -548,8 +592,8 @@ class _RecebidosNoMes extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.muted.withValues(alpha: 0.12)),
+          borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+          border: Border.all(color: AppColors.borda),
         ),
         child: Text(
           'Nenhum serviço pago em ${mes.rotuloLongo}.',
@@ -587,14 +631,14 @@ class _RecebidosNoMes extends StatelessWidget {
         Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.muted.withValues(alpha: 0.12)),
+            borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+            border: Border.all(color: AppColors.borda),
           ),
           child: Column(
             children: [
               for (var i = 0; i < ordenados.length; i++) ...[
                 if (i > 0)
-                  Divider(height: 1, color: AppColors.muted.withValues(alpha: 0.12)),
+                  const Divider(height: 1, color: AppColors.borda),
                 _LinhaDeServico(
                   nome: ordenados[i].customerName.isEmpty
                       ? 'Sem cliente'
@@ -705,14 +749,14 @@ class _PorCategoria extends StatelessWidget {
         Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.muted.withValues(alpha: 0.12)),
+            borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+            border: Border.all(color: AppColors.borda),
           ),
           child: Column(
             children: [
               for (var i = 0; i < linhas.length; i++) ...[
                 if (i > 0)
-                  Divider(height: 1, color: AppColors.muted.withValues(alpha: 0.12)),
+                  const Divider(height: 1, color: AppColors.borda),
                 _LinhaDeCategoria(
                   rotulo: linhas[i].key.isEmpty
                       ? 'Sem categoria'

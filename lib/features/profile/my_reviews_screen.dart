@@ -8,6 +8,7 @@ import '../marketplace/provider_directory_repository.dart';
 import '../marketplace/widgets/star_rating_bar.dart';
 import '../moderation/blocked_users_controller.dart';
 import '../moderation/review_moderation_menu.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 /// "Minhas avaliações" — pedido do Franck: "ter a opção no app do
 /// prestador ver as suas avaliações". Antes só existia o lado do cliente
@@ -51,7 +52,15 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
   Widget build(BuildContext context) {
     final bloqueios = context.watch<BlockedUsersController>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Minhas avaliações')),
+      backgroundColor: AppColors.background,
+      appBar: barraDeTela(
+        context,
+        titulo: 'Avaliações',
+        area: AreaDoApp.prestador,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: StreamBuilder<List<ProviderRating>>(
         stream: _avaliacoes,
         builder: (context, snapshot) {

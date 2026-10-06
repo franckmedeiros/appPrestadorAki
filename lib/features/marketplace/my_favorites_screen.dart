@@ -9,6 +9,7 @@ import 'favorites_controller.dart';
 import 'favorites_repository.dart';
 import 'models/provider_listing.dart';
 import 'widgets/provider_listing_card.dart';
+import '../../widgets/cabecalho_de_tela.dart';
 
 class MyFavoritesScreen extends StatefulWidget {
   const MyFavoritesScreen({super.key});
@@ -76,7 +77,15 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
     if (!isClient) _future = null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Meus favoritos')),
+      backgroundColor: AppColors.background,
+      appBar: barraDeTela(
+        context,
+        titulo: 'Favoritos',
+        area: AreaDoApp.cliente,
+        aoVoltar: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
+      ),
       body: !isClient
           ? const ClientSignInPrompt(
               icon: Icons.favorite_border,

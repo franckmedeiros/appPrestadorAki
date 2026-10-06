@@ -12,6 +12,7 @@ import '../budgets/budget_pdf.dart' show BudgetPdfProvider;
 import '../budgets/budget_pdf_preview_screen.dart';
 import '../budgets/budgets_repository.dart';
 import '../marketplace/models/service_category.dart';
+import 'job_status_chip.dart';
 import 'jobs_repository.dart';
 import 'models/job.dart';
 import 'recibo_pdf.dart';
@@ -117,18 +118,51 @@ class _JobDetailsSheetState extends State<JobDetailsSheet> {
               child: Container(
                 width: 40,
                 height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: AppColors.muted.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)),
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: AppColors.borda,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-            Text(job.customerName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-            const SizedBox(height: 4),
-            Text(job.status.label, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-            const SizedBox(height: 16),
-            if (job.category != null) _DetailRow(icon: Icons.category_outlined, text: job.category!),
+            // O nome do cliente é o título desta folha, então ganha o
+            // mesmo corpo dos títulos de tela. Antes era 18, do tamanho
+            // de um subtítulo qualquer.
+            Text(
+              job.customerName,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 26,
+                height: 1.1,
+                color: AppColors.ink,
+              ),
+            ),
+            const SizedBox(height: 14),
+            // A etapa era uma linha de texto cinza, igual a todas as
+            // outras. Virou selo: é o estado do serviço, a única coisa
+            // aqui que muda a cada toque nos botões abaixo.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: JobStatusChip(status: job.status),
+            ),
+            const SizedBox(height: 14),
+            if (job.category != null)
+              _DetailRow(icon: Icons.category_outlined, text: job.category!),
             if (job.addressText != null && job.addressText!.isNotEmpty)
               _DetailRow(icon: Icons.place_outlined, text: job.addressText!),
-            _DetailRow(icon: Icons.payments_outlined, text: formatCentsBRL(job.totalCents)),
+            const SizedBox(height: 10),
+            // O valor saía como mais uma linha de ícone + texto de 13,5,
+            // do lado da categoria e do endereço. É o número que o
+            // prestador confere antes de confirmar o pagamento.
+            Text(
+              formatCentsBRL(job.totalCents),
+              style: const TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                height: 1.1,
+                color: AppColors.ink,
+              ),
+            ),
             const SizedBox(height: 20),
             // Pedido do Franck: "ter a opção de reenviar o pagamento e
             // ficar disponível sempre que o cliente/prestador precisar
@@ -337,9 +371,14 @@ class _DetailRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.muted),
+          Icon(icon, size: 18, color: AppColors.primary),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 13.5))),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 14, color: AppColors.ink),
+            ),
+          ),
         ],
       ),
     );
@@ -369,7 +408,10 @@ class _PaymentQrCode extends StatelessWidget {
         if (pixKey == null || pixKey.trim().isEmpty) {
           return Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFFFF4E5), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: AppColors.warningSuave,
+              borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+            ),
             child: const Text(
               'Cadastre uma chave Pix em "Editar perfil" pra gerar o QR Code de cobrança.',
               style: TextStyle(fontSize: 12.5),
@@ -383,38 +425,93 @@ class _PaymentQrCode extends StatelessWidget {
           merchantName: merchantName,
           referenceLabel: job.id,
         );
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.muted.withValues(alpha: 0.15)),
-          ),
-          child: Column(
-            children: [
-              Text(
-                job.status == JobStatus.concluido ? 'Pagamento confirmado — Pix pra conferência' : 'Cobrança via Pix',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              job.status == JobStatus.concluido
+                  ? 'Pagamento confirmado — Pix pra conferência'
+                  : 'Cobrança via PIX',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: AppColors.ink,
               ),
-              const SizedBox(height: 12),
-              QrImageView(data: payload, size: 180, backgroundColor: Colors.white),
-              const SizedBox(height: 12),
-              Text(
-                formatCentsBRL(job.totalCents),
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.primary),
+            ),
+            const SizedBox(height: 12),
+            // O QR num cartão BRANCO, e não no creme do fundo: leitor de
+            // QR Code espera preto sobre branco, e fundo creme reduz o
+            // contraste que o aparelho do cliente precisa pra ler.
+            Container(
+              padding: const EdgeInsets.all(AppMetrics.paddingDeCartao),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+                border: Border.all(color: AppColors.borda),
               ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () {
+              child: Column(
+                children: [
+                  QrImageView(
+                    data: payload,
+                    size: 190,
+                    backgroundColor: Colors.white,
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Escaneie com o app do seu banco ou copie o código abaixo.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.45,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Copiar virou uma linha de cartão, não um botão contornado:
+            // ela tem a mesma largura e o mesmo canto dos cartões acima,
+            // e deixa de competir com o botão de confirmar logo abaixo,
+            // que é a ação de verdade desta tela.
+            Material(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+                onTap: () {
                   Clipboard.setData(ClipboardData(text: payload));
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('Código Pix copiado!')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Código Pix copiado!')),
+                  );
                 },
-                icon: const Icon(Icons.copy),
-                label: const Text('Copiar código Pix'),
+                child: Container(
+                  height: AppMetrics.alturaDeControle,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(
+                      AppMetrics.raioDeCartao,
+                    ),
+                    border: Border.all(color: AppColors.borda),
+                  ),
+                  child: const Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Copiar código PIX',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.copy, size: 20, color: AppColors.primary),
+                    ],
+                  ),
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );

@@ -29,22 +29,22 @@ class GradientPillButton extends StatelessWidget {
     return Opacity(
       opacity: onPressed == null ? 0.6 : 1,
       child: Container(
-        height: 54,
+        height: AppMetrics.alturaDeControle,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(27),
+          borderRadius: BorderRadius.circular(AppMetrics.raioDeControle),
           gradient: AppColors.primaryGradient,
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
+              color: AppColors.primary.withValues(alpha: 0.22),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(27),
+            borderRadius: BorderRadius.circular(AppMetrics.raioDeControle),
             onTap: isLoading ? null : onPressed,
             child: Center(
               child: isLoading
@@ -63,8 +63,9 @@ class GradientPillButton extends StatelessWidget {
                           label,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            height: 1.3,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                         if (icon != null) ...[

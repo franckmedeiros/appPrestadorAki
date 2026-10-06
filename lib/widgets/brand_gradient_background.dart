@@ -31,7 +31,7 @@ class BrandGradientBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
+      decoration: const BoxDecoration(gradient: AppColors.headerGradient),
       child: SizedBox.expand(child: child),
     );
   }
