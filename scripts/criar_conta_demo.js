@@ -5,6 +5,17 @@
  *
  *   demo@prestadoraki.app          prestador (Denilson) — e também cliente
  *   demo.cliente@prestadoraki.app  cliente (Marina)
+ *   demo2@prestadoraki.app         cliente SEM assinatura (Rafael)
+ *
+ * A TERCEIRA conta existe por um pedido específico da revisão da Apple:
+ * ver a TELA DE ASSINATURA. A conta do Denilson nunca mostra essa tela,
+ * justamente porque ela já é prestadora — o paywall só aparece pra quem
+ * NÃO tem `providers/{uid}`. Por isso a demo2 é de propósito uma conta de
+ * cliente comum, sem nada de prestador: o revisor entra nela, vai em
+ * Perfil > Virar prestador e cai no ProviderPaywallScreen.
+ *
+ * NÃO dê dados de prestador pra ela. No instante em que `providers/{uid}`
+ * existir, ela para de servir pro que foi feita.
  *
  * Duas contas, e não uma, porque a Apple pediu "todos os tipos de conta" —
  * e porque solicitação de orçamento e avaliação SÓ EXISTEM tendo um
@@ -104,6 +115,19 @@ const CLIENTE = {
   email: 'demo.cliente@prestadoraki.app',
   nome: 'Marina Doring',
   whatsapp: '(48) 98888-0001',
+  cidade: 'Criciúma',
+  uf: 'SC',
+};
+
+/**
+ * Conta que a Apple usa pra ver a tela de assinatura. É cliente e só isso:
+ * sem `providers/{uid}`, sem vitrine, sem favorito, sem orçamento. Nome de
+ * pessoa comum porque ela aparece na tela de perfil como qualquer usuário.
+ */
+const ASSINATURA = {
+  email: 'demo2@prestadoraki.app',
+  nome: 'Rafael Minatto',
+  whatsapp: '(48) 98888-0009',
   cidade: 'Criciúma',
   uf: 'SC',
 };
@@ -386,8 +410,10 @@ async function main() {
 
   const prestador = await garantirConta(auth, PRESTADOR);
   const cliente = await garantirConta(auth, CLIENTE);
-  console.log(`prestador: ${PRESTADOR.email}  ${prestador.novo ? '(será criada)' : `(já existe — uid ${prestador.uid})`}`);
-  console.log(`cliente:   ${CLIENTE.email}  ${cliente.novo ? '(será criada)' : `(já existe — uid ${cliente.uid})`}`);
+  const assinatura = await garantirConta(auth, ASSINATURA);
+  console.log(`prestador:  ${PRESTADOR.email}  ${prestador.novo ? '(será criada)' : `(já existe — uid ${prestador.uid})`}`);
+  console.log(`cliente:    ${CLIENTE.email}  ${cliente.novo ? '(será criada)' : `(já existe — uid ${cliente.uid})`}`);
+  console.log(`assinatura: ${ASSINATURA.email}  ${assinatura.novo ? '(será criada)' : `(já existe — uid ${assinatura.uid})`}`);
 
   const uid = prestador.uid;
   const providerRef = db.collection('providers').doc(uid);
@@ -460,7 +486,7 @@ async function main() {
   // TermsAcceptanceCheckbox). Sem isso, as contas de demonstração seriam
   // justamente as únicas do app sem registro de aceite — e são as que a
   // Apple vai abrir.
-  for (const [conta, dados] of [[prestador, PRESTADOR], [cliente, CLIENTE]]) {
+  for (const [conta, dados] of [[prestador, PRESTADOR], [cliente, CLIENTE], [assinatura, ASSINATURA]]) {
     await db.collection('clients').doc(conta.uid).set({
       name: dados.nome,
       email: dados.email,
@@ -664,6 +690,9 @@ async function main() {
   console.log('\n✅ pronto.\n');
   console.log(`   prestador:  ${PRESTADOR.email} / ${SENHA}   (uid ${prestador.uid})`);
   console.log(`   cliente:    ${CLIENTE.email} / ${SENHA}   (uid ${cliente.uid})`);
+  console.log(`   assinatura: ${ASSINATURA.email} / ${SENHA}   (uid ${assinatura.uid})`);
+  console.log('               ^ conta SEM assinatura, pra Apple ver o paywall:');
+  console.log('                 Perfil > Virar prestador. Não vire prestador com ela.');
   console.log('\nSe alguma delas já estava aberta em algum aparelho, saia e entre de');
   console.log('novo: o `isProvider` fica em cache na sessão (ver');
   console.log('AuthController.bootstrap) e só é relido ao entrar.');

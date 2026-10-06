@@ -76,7 +76,13 @@ workflows:
     publishing:
       google_play:
         credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
+        # TESTE FECHADO, nao interno. A exigencia do Google de 12
+        # testadores por 14 dias conta SO quem entrou pelo link do teste
+        # FECHADO - testador do teste interno fica de fora da conta, e o
+        # relogio nem comeca. Dali se promove pra producao no Console.
+        # (Se a sua faixa fechada tiver nome proprio, troque "alpha" pelo
+        # nome dela.)
+        track: alpha
       email:
         recipients:
           - franck.medeiros.silva@gmail.com

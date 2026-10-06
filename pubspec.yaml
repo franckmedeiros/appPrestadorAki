@@ -17,7 +17,7 @@ publish_to: "none"
 # iOS NÃO usa este número: o workflow ios-release pergunta ao TestFlight
 # qual foi o último build e soma 1, pra não depender de alguém lembrar de
 # editar o arquivo.
-version: 0.2.0+25
+version: 1.0.0+26
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
