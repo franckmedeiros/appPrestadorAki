@@ -1,3 +1,94 @@
+workflows:
+  android-debug:
+    name: Android - build debug
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      vars:
+        PACKAGE_NAME: "com.opoutsourcing.prestadoraki"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Instalar dependências
+        script: flutter pub get
+      - name: Build APK (debug)
+        script: flutter build apk --debug
+    artifacts:
+      - build/app/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - franck.medeiros.silva@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  android-release:
+    name: Android - build assinado e publicar (Play Console, teste interno)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    # Não roda sozinho a cada push (mesmo motivo do ios-release acima) —
+    # esse workflow ASSINA de verdade (chave de upload real, não a de
+    # debug) e ENVIA pro Google Play, então só deve rodar quando você
+    # mandar manualmente (Codemagic > Start new build > escolher
+    # "android-release").
+    #
+    # Duas coisas precisam existir ANTES do primeiro build deste
+    # workflow, nenhuma das duas fica neste arquivo (são segredos):
+    #  1. Team settings > codemagic.yaml settings > Code signing
+    #     identities > Android keystores > subir o
+    #     `android/upload-keystore.jks` gerado localmente, com o mesmo
+    #     alias/senhas de `android/key.properties` (ambos os arquivos
+    #     nunca são commitados — ver .gitignore) e dar a ele o nome de
+    #     referência EXATO usado abaixo em `android_signing`.
+    #  2. Uma variável de ambiente SECRETA
+    #     `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS` com o conteúdo
+    #     inteiro do JSON da conta de serviço do Google Cloud (criada com
+    #     acesso "Release apps to testing tracks" em Play Console > Users
+    #     and permissions), num grupo de variáveis (ex.: chamado
+    #     `google_play_credentials`, referenciado abaixo).
+    #
+    # IMPORTANTE: o Google Play não aceita a PRIMEIRA versão de um app
+    # via API — o primeiro upload (mesmo pra teste interno) precisa ser
+    # manual, direto no Play Console. Depois desse primeiro upload
+    # manual, os próximos podem vir daqui.
+    environment:
+      flutter: stable
+      android_signing:
+        - prestadoraki_upload
+      groups:
+        - google_play_credentials
+      vars:
+        PACKAGE_NAME: "com.opoutsourcing.prestadoraki"
+    scripts:
+      - name: Instalar dependências
+        script: flutter pub get
+      - name: Build AAB assinado (release)
+        script: flutter build appbundle --release
+    artifacts:
+      - build/app/outputs/**/*.aab
+      - build/app/outputs/**/mapping.txt
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        # TESTE FECHADO, nao interno. A exigencia do Google de 12
+        # testadores por 14 dias conta SO quem entrou pelo link do teste
+        # FECHADO - testador do teste interno fica de fora da conta, e o
+        # relogio nem comeca. Dali se promove pra producao no Console.
+        # (Se a sua faixa fechada tiver nome proprio, troque "alpha" pelo
+        # nome dela.)
+        track: alpha
+      email:
+        recipients:
+          - franck.medeiros.silva@gmail.com
+        notify:
+          success: true
+          failure: true
   # Gera o .aab ASSINADO e para por aí — nada vai pro Google Play.
   #
   # No `android-release`, se a credencial do Play falha, o build inteiro
@@ -23,6 +114,139 @@
     artifacts:
       - build/app/outputs/**/*.aab
       - build/app/outputs/**/mapping.txt
+    publishing:
+      email:
+        recipients:
+          - franck.medeiros.silva@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  ios-release:
+    name: iOS - build assinado e publicar (TestFlight)
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    # Não roda sozinho a cada push (ver ios-simulator/android-debug acima)
+    # — esse workflow ASSINA e ENVIA pro App Store Connect de verdade,
+    # então só deve rodar quando você mandar manualmente (Codemagic >
+    # Start new build > escolher "ios-release").
+    integrations:
+      # A chave antiga (integração "Resenha", mesma usada pelo app
+      # Resenha) foi revogada no fim de agosto/2026 e um build manual
+      # falhou com 401 NOT_AUTHORIZED por causa disso. No lugar dela foi
+      # conectada uma chave nova em Team settings > Integrations > Apple
+      # Developer Portal, só que sob o nome "OPOutsourcing" (o nome da
+      # conta de desenvolvedor Apple, puxado automaticamente) em vez de
+      # "Resenha" — por isso o nome aqui precisou mudar também. Uma
+      # chave de API do App Store Connect normalmente enxerga TODOS os
+      # apps do time, não só um, então não precisa de chave separada pro
+      # PrestadorAki.
+      app_store_connect: OPOutsourcing
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      # ASSINATURA AUTOMÁTICA — igual ao app Resenha, e é essa a diferença
+      # que fez o push funcionar lá e não aqui.
+      #
+      # Antes isto apontava pra arquivos ENVIADOS À MÃO pro Codemagic
+      # (`provisioning_profiles: ["PrestadorAki Distribution"]` +
+      # `certificates: ["PrestadorAki App Store"]`). O problema desse
+      # modelo é que o build usa a CÓPIA guardada no Codemagic, não o
+      # perfil que está no portal da Apple hoje: quando a capacidade Push
+      # Notifications foi ligada no App ID, o perfil precisou ser regerado,
+      # e a cópia antiga (sem `aps-environment`) seguiu sendo a usada nos
+      # builds. App assinado sem esse entitlement não consegue se
+      # registrar na APNs — o iPhone nunca recebia o token e o `getToken()`
+      # do FCM falhava pra sempre com "[firebase_messaging/apns-token-not-set]".
+      #
+      # A pista veio de comparar os dois perfis no portal da Apple: o do
+      # Resenha aparece como "Created By: API Key" (criado pelo próprio
+      # Codemagic via App Store Connect API — o modo automático), e o do
+      # PrestadorAki aparecia como criado à mão.
+      #
+      # No modo automático o Codemagic busca/cria o perfil na hora do
+      # build usando a integração `app_store_connect` declarada acima, de
+      # modo que ele sempre reflete as capacidades que o App ID tem HOJE —
+      # e nunca mais fica defasado quando uma capacidade nova for ligada.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.opoutsourcing.prestadoraki
+      vars:
+        # Apple ID numérico do app (não é o Bundle ID) — aparece na página
+        # do app em App Store Connect, em "Informações do App", assim que
+        # você terminar de criar o app lá. Troque o 0 abaixo por esse
+        # número antes de rodar este workflow pela primeira vez.
+        APP_STORE_APPLE_ID: 6806624870
+    scripts:
+      - name: Configurar assinatura de código no Xcode
+        script: xcode-project use-profiles
+      - name: Instalar dependências
+        script: flutter pub get
+      - name: Instalar pods do iOS
+        script: find . -name "Podfile" -execdir pod install \;
+      - name: Build IPA assinado
+        script: |
+          flutter build ipa --release \
+            --no-tree-shake-icons \
+            --build-number=$(($(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID") + 1)) \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # NÃO listar "Tester" (ou qualquer outro grupo INTERNO) aqui em
+        # `beta_groups` — build 22 (03/09) terminou com
+        # "post-processing failed": a App Store Connect API não deixa
+        # atribuir build a um grupo INTERNO por essa chamada ("Cannot add
+        # internal group to a build" / "Build is not in an externally
+        # assignable state") — grupo interno não funciona por atribuição
+        # explícita de build, é automático: TODO membro de um grupo
+        # interno já enxerga QUALQUER build novo assim que a Apple termina
+        # de processar, sem precisar (e sem PODER) vincular via
+        # `beta_groups`. Essa chave só existe pra grupos EXTERNOS de
+        # verdade (link público/testadores convidados por e-mail, que aí
+        # sim exigem Beta App Review no primeiro build). Como "Tester" é
+        # interno, o upload sozinho (`submit_to_testflight: true`) já
+        # basta — nada a vincular na mão.
+        #
+        # Deixa false até você decidir de propósito mandar pra revisão da
+        # Apple pela primeira vez — evita enviar sem querer antes de ter
+        # screenshots/descrição prontos na ficha da loja.
+        submit_to_app_store: false
+      email:
+        recipients:
+          - franck.medeiros.silva@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  ios-simulator:
+    name: iOS - build simulador (sem assinatura)
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        BUNDLE_ID: "com.opoutsourcing.prestadoraki"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Instalar dependências
+        script: flutter pub get
+      - name: Build iOS (simulador, sem assinatura)
+        script: flutter build ios --simulator --debug
+    artifacts:
+      - build/ios/iphonesimulator/Runner.app
     publishing:
       email:
         recipients:
