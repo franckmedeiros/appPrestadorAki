@@ -342,13 +342,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      // Sem AppBar: o topo virou um bloco de gradiente com título e
-      // subtítulo, e o campo de busca "sobe" por cima dele (ver o
-      // Transform.translate abaixo). Desenho aprovado pelo Franck a
-      // partir de um mockup. É o mesmo `DecorativeHeader` já usado no
-      // login, no cadastro e no perfil — a tela principal era a última
-      // que ainda tinha uma AppBar comum.
+      // Sem AppBar: o topo é o cabeçalho padrão do app (marca, área,
+      // título e a barrinha laranja) desenhado no corpo da tela.
+      //
+      // `stretch` não é detalhe: sem ele a Column centraliza cada filho
+      // que não ocupa a largura toda, e o subtítulo aqui embaixo saía
+      // centralizado no meio da tela enquanto o título ficava na
+      // margem esquerda.
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SafeArea(
             bottom: false,
@@ -358,22 +360,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               acao: NotificationBell(),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(
-              AppMetrics.margemLateral,
-              0,
-              AppMetrics.margemLateral,
-              16,
-            ),
-            child: Text(
-              'Serviços de qualidade, perto de você.',
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.45,
-                color: AppColors.muted,
-              ),
-            ),
-          ),
+          // O subtítulo "Serviços de qualidade, perto de você." saiu a
+          // pedido do Franck. Numa tela de 360 ele custava uma linha
+          // inteira antes do primeiro resultado pra dizer o que o título
+          // logo acima já diz.
           if (showBiometricOffer)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -516,6 +506,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     carregando
                         ? 'Buscando...'
                         : '$total ${total == 1 ? 'profissional encontrado' : 'profissionais encontrados'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -592,7 +584,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       child: InputDecorator(
                         decoration: InputDecoration(
                           labelText: 'Cidade',
-                          prefixIcon: const Icon(Icons.location_on_outlined),
+                          // O alfinete saiu daqui. Num aparelho de 360 de
+                          // largura, este campo fica com uns 150: o ícone
+                          // da esquerda comia 48 e a seta da direita mais
+                          // 48, sobrando 55 pro texto — e "Todas as
+                          // cidades" quebrava LETRA POR LETRA. O rótulo
+                          // "Cidade" logo acima já diz o que o alfinete
+                          // dizia.
                           suffixIcon: _locating
                               ? const Padding(
                                   padding: EdgeInsets.all(12),
@@ -605,8 +603,20 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                               : const Icon(Icons.arrow_drop_down),
                         ),
                         child: Text(
-                          loadingCities ? 'Carregando...' : (_city ?? 'Todas as cidades'),
-                          style: TextStyle(color: _city == null ? AppColors.muted : null),
+                          // "Todas", e não "Todas as cidades": o campo
+                          // tem metade da largura da tela, e o rótulo
+                          // "Cidade" logo acima já diz do que se trata.
+                          // Era isso que quebrava em quatro linhas no
+                          // Android.
+                          loadingCities ? 'Carregando...' : (_city ?? 'Todas'),
+                          // Cinto de segurança: nome de cidade comprido
+                          // ("Santa Bárbara d'Oeste") corta com reticências
+                          // em vez de empurrar o campo.
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: _city == null ? AppColors.muted : null,
+                          ),
                         ),
                       ),
                     );

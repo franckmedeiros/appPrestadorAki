@@ -69,11 +69,22 @@ class CabecalhoDeTela extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // O guia do Figma foi desenhado em 402 de largura. Num aparelho de
+    // 360 — Moto G, metade dos Android em uso no Brasil — o título de 32
+    // quebra em duas linhas, e aí o cabeçalho sozinho come um terço da
+    // tela: o Franck abriu a busca e não via nenhum resultado sem rolar.
+    //
+    // Então o título encolhe com a tela. Não é "responsivo" no sentido
+    // chique: são dois tamanhos, e o menor só entra onde o maior não
+    // caberia.
+    final estreita = MediaQuery.sizeOf(context).width < 380;
+    final corpoDoTitulo = estreita ? 26.0 : 32.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 44,
+          height: estreita ? 40 : 44,
           child: Row(
             children: [
               Padding(
@@ -123,8 +134,8 @@ class CabecalhoDeTela extends StatelessWidget {
             titulo,
             maxLines: umaLinha ? 1 : 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 32,
+            style: TextStyle(
+              fontSize: corpoDoTitulo,
               height: 1.06,
               letterSpacing: -0.6,
               fontWeight: FontWeight.w800,
@@ -132,11 +143,11 @@ class CabecalhoDeTela extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: estreita ? 10 : 14),
         // A barrinha encostada na borda esquerda — ver o comentário da
         // classe.
         Container(width: 62, height: 5, color: AppColors.primary),
-        const SizedBox(height: 18),
+        SizedBox(height: estreita ? 14 : 18),
       ],
     );
   }
