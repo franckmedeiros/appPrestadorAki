@@ -313,8 +313,13 @@ Future<void> abrirWhatsapp(BuildContext context, String whatsappLocal) async {
   }
 }
 
-/// Selo redondo verde com um telefone branco dentro - usado no perfil
-/// público (ver ProviderPublicProfileScreen) ao lado do número.
+/// Selo redondo verde com o logo do WhatsApp em branco — usado ao lado de
+/// todo número de WhatsApp (perfil público, orçamento, cliente).
+///
+/// O `alignment: center` é o que segura o logo no meio do círculo: sem
+/// ele o `Container` desenha o filho no canto de cima à esquerda, e o
+/// logo saía torto e pequeno (relato do Franck, 08/10, tela "Editar
+/// orçamento").
 class WhatsappBadge extends StatelessWidget {
   const WhatsappBadge({super.key, this.size = 18});
 
@@ -325,8 +330,9 @@ class WhatsappBadge extends StatelessWidget {
     return Container(
       width: size,
       height: size,
+      alignment: Alignment.center,
       decoration: const BoxDecoration(color: Color(0xFF25D366), shape: BoxShape.circle),
-      child: FaIcon(FontAwesomeIcons.whatsapp, size: size * 0.55, color: Colors.white),
+      child: FaIcon(FontAwesomeIcons.whatsapp, size: size * 0.62, color: Colors.white),
     );
   }
 }

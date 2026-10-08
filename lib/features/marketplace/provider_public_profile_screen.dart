@@ -6,7 +6,7 @@ import '../../core/auth_controller.dart';
 import '../../core/date_text_utils.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
-import 'widgets/provider_listing_card.dart' show abrirWhatsapp;
+import 'widgets/provider_listing_card.dart' show abrirWhatsapp, WhatsappBadge;
 import 'widgets/star_rating_bar.dart';
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
@@ -709,26 +709,13 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+/// O logo do WhatsApp (era um telefone genérico) — o mesmo selo usado
+/// no orçamento, pra o contato ser reconhecido de relance.
 class _WhatsappContactIcon extends StatelessWidget {
   const _WhatsappContactIcon();
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 30,
-      height: 30,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: Color(0xFF25D366),
-        shape: BoxShape.circle,
-      ),
-      child: const Icon(
-        Icons.phone_rounded,
-        color: Colors.white,
-        size: 17,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const WhatsappBadge(size: 30);
 }
 
 class _ProfileActionRow extends StatelessWidget {

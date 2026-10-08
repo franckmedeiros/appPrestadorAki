@@ -76,6 +76,7 @@ class Job {
     required this.totalCents,
     this.providerUid,
     this.budgetId,
+    this.customerId,
     this.appointmentId,
     this.clientUid,
     this.providerDirectoryId,
@@ -99,6 +100,7 @@ class Job {
       totalCents: (data['totalCents'] as num?)?.toInt() ?? 0,
       providerUid: data['providerUid'] as String?,
       budgetId: data['budgetId'] as String?,
+      customerId: data['customerId'] as String?,
       appointmentId: data['appointmentId'] as String?,
       clientUid: data['clientUid'] as String?,
       providerDirectoryId: data['providerDirectoryId'] as String?,
@@ -120,6 +122,15 @@ class Job {
   final int totalCents;
   final String? providerUid;
   final String? budgetId;
+
+  /// Id do cadastro do cliente (`providers/{uid}/customers/{id}`) — a
+  /// ligação DIRETA do serviço com a pessoa. Antes só existia o nome
+  /// (`customerName`), e dois clientes com o mesmo nome e celulares
+  /// diferentes viravam um só (pedido do Franck, 08/10: "mesmo nome, mas
+  /// celular diferente" é outra pessoa). Serviços antigos não têm o
+  /// campo: pra esses a ligação continua pelo orçamento (`budgetId` ->
+  /// `Budget.customerId`). NUNCA casar por nome.
+  final String? customerId;
   final String? appointmentId;
 
   /// Uid do cliente do app dono do pedido original — nulo pra um job que,

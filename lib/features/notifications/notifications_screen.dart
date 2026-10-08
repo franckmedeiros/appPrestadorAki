@@ -33,8 +33,8 @@ class NotificationsScreen extends StatelessWidget {
           // e aparece. Daí o relato do Franck: "só aparece quando as
           // mensagens foram todas lidas".
           //
-          // Dois ajustes: texto branco explícito (a AppBar inteira usa
-          // branco, ver AppTheme.appBarTheme), e agora ele SOME quando
+          // Dois ajustes na época: texto branco explícito (hoje removido —
+          // ver abaixo), e agora ele SOME quando
           // não há nada a marcar, em vez de ficar ali desabilitado sem
           // servir pra nada. O número de não lidas vai junto, pra deixar
           // claro o que o toque vai fazer.
@@ -43,8 +43,12 @@ class NotificationsScreen extends StatelessWidget {
             builder: (context, snapshot) {
               final naoLidas = snapshot.data ?? 0;
               if (naoLidas == 0) return const SizedBox.shrink();
+              // Cor: a do tema (laranja da marca). Com o visual novo a
+              // AppBar deixou de ser laranja e virou creme — o branco
+              // forçado que resolvia o problema antigo passou a deixar o
+              // botão invisível (branco sobre creme). Relato do Franck,
+              // 08/10: "sumiu o botão de marcar todas como lidas".
               return TextButton(
-                style: TextButton.styleFrom(foregroundColor: Colors.white),
                 onPressed: () async {
                   await repository.markAllAsRead();
                   if (context.mounted) {

@@ -671,6 +671,10 @@ async function main() {
       const quando = diaDoMes(mes.mesAtras, diasDoMes[i] || 20);
       loteJobs.set(providerRef.collection('jobs').doc(`demo-job-m${mes.mesAtras}-${i}`), {
         status: 'concluido',
+        // `customerId`: liga o serviço ao cadastro do cliente — o card do
+        // cliente ("Já pagou") e o celular no Financeiro dependem disso.
+        // Nunca pelo nome: dois clientes podem ter o mesmo nome.
+        customerId: clienteId,
         customerName: nomeDoCliente(clienteId),
         totalCents: centavos,
         providerUid: uid,

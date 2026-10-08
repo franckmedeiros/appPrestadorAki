@@ -254,10 +254,14 @@ const double kAlturaDaBarraDeTela = 121;
 /// inteiro pra dentro de uma `Column` mexeria em dezenas de linhas por
 /// tela sem nenhum ganho.
 ///
-/// A altura soma a faixa do sistema (relógio, bateria) à mão em vez de
-/// confiar no `Scaffold`: ele só acrescenta essa folga sozinho pra uma
-/// `AppBar` de verdade, e um cabeçalho com altura declarada a menos
-/// aparece cortado em cima.
+/// A altura declarada NÃO inclui a faixa do sistema (relógio, bateria):
+/// o `Scaffold` já soma `MediaQuery.padding.top` ao `preferredSize` de
+/// QUALQUER `appBar:`, não só de uma `AppBar` de verdade. Somar aqui
+/// também fazia a faixa entrar duas vezes — sobrava um vão em branco do
+/// tamanho da barra de status entre o cabeçalho e o conteúdo (Conversas,
+/// Divulgar, Avaliações, Perfil do profissional — relato do Franck,
+/// 08/10). O `Padding` abaixo continua empurrando o cabeçalho pra baixo
+/// do relógio, dentro da área que o `Scaffold` reservou.
 PreferredSizeWidget barraDeTela(
   BuildContext context, {
   required String titulo,
@@ -267,7 +271,7 @@ PreferredSizeWidget barraDeTela(
 }) {
   final faixaDoSistema = MediaQuery.of(context).padding.top;
   return PreferredSize(
-    preferredSize: Size.fromHeight(kAlturaDaBarraDeTela + faixaDoSistema),
+    preferredSize: const Size.fromHeight(kAlturaDaBarraDeTela),
     child: Material(
       color: AppColors.background,
       child: Padding(

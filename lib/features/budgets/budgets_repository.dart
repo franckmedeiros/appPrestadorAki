@@ -421,6 +421,7 @@ class BudgetsRepository {
               customerName: budget.customerName,
               totalCents: budget.totalCents,
               budgetId: budget.id,
+              customerId: budget.customerId,
               appointmentId: appointmentId,
               clientUid: budget.clientUid,
               providerDirectoryId: budget.providerDirectoryId,

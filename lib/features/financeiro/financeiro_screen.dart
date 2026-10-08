@@ -4,6 +4,10 @@ import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
 import '../../widgets/cabecalho_de_tela.dart';
 import '../../core/currency_text_utils.dart';
+import '../budgets/budgets_repository.dart';
+import '../budgets/models/budget.dart';
+import '../customers/customers_repository.dart';
+import '../customers/models/customer.dart';
 import '../jobs/jobs_repository.dart';
 import '../jobs/models/job.dart';
 import '../marketplace/models/service_category.dart';
@@ -64,6 +68,14 @@ class _MesDeFaturamento {
 
 class _FinanceiroScreenState extends State<FinanceiroScreen> {
   late final Stream<List<Job>> _servicos = context.read<JobsRepository>().watchAll();
+
+  /// Só pra mostrar o CELULAR ao lado do nome em cada linha. Dois
+  /// clientes com o mesmo nome são pessoas diferentes (pedido do Franck,
+  /// 08/10), e o nome sozinho não deixa conferir "qual Marina pagou".
+  /// Nenhuma das duas consultas segura a tela: enquanto não chegam, as
+  /// linhas aparecem só com o nome.
+  late final Stream<List<Customer>> _clientes = context.read<CustomersRepository>().watchAll();
+  late final Stream<List<Budget>> _orcamentos = context.read<BudgetsRepository>().watchAll();
 
   /// Índice do mês selecionado dentro da lista do gráfico. Começa no
   /// último (o mês corrente), que é o que o prestador quer ver ao abrir.
@@ -126,7 +138,42 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
     );
   }
 
+  /// Monta o "de quem é este serviço -> celular" e entrega pro corpo.
+  ///
+  /// De quem é: `Job.customerId` quando existe; senão o cliente do
+  /// orçamento que gerou o serviço (`budgetId`). Nunca pelo nome.
   Widget _corpo() {
+    return StreamBuilder<List<Customer>>(
+      stream: _clientes,
+      builder: (context, clientesSnap) {
+        return StreamBuilder<List<Budget>>(
+          stream: _orcamentos,
+          builder: (context, orcamentosSnap) {
+            final clientePorId = <String, Customer>{
+              for (final c in clientesSnap.data ?? const <Customer>[]) c.id: c,
+            };
+            final clienteDoOrcamento = <String, String>{
+              for (final b in orcamentosSnap.data ?? const <Budget>[])
+                if (b.customerId != null) b.id: b.customerId!,
+            };
+            String? celularDe(Job j) {
+              final id = j.customerId ?? clienteDoOrcamento[j.budgetId];
+              final c = id == null ? null : clientePorId[id];
+              if (c == null) return null;
+              final w = (c.whatsapp ?? '').trim();
+              if (w.isNotEmpty) return w;
+              final p = (c.phone ?? '').trim();
+              return p.isEmpty ? null : p;
+            }
+
+            return _corpoComServicos(celularDe);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _corpoComServicos(String? Function(Job) celularDe) {
     return StreamBuilder<List<Job>>(
         stream: _servicos,
         builder: (context, snapshot) {
@@ -186,7 +233,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
             children: [
               _CartaoDoMes(mes: mes, ticketCents: ticketCents),
               const SizedBox(height: 12),
-              _CartaoAReceber(servicos: aReceber),
+              _CartaoAReceber(servicos: aReceber, celularDe: celularDe),
               const SizedBox(height: 20),
               _GraficoDeFaturamento(
                 meses: meses,
@@ -194,7 +241,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                 onSelecionar: (i) => setState(() => _mesSelecionado = i),
               ),
               const SizedBox(height: 24),
-              _RecebidosNoMes(servicos: doMes, mes: mes),
+              _RecebidosNoMes(servicos: doMes, mes: mes, celularDe: celularDe),
               if (categorias.length > 1) ...[
                 const SizedBox(height: 24),
                 _PorCategoria(servicos: doMes, mes: mes),
@@ -317,9 +364,10 @@ class _MiniDado extends StatelessWidget {
 /// costuma ser curta (é o que está parado agora, não o histórico), ela cabe
 /// aqui dentro em vez de virar outra tela.
 class _CartaoAReceber extends StatefulWidget {
-  const _CartaoAReceber({required this.servicos});
+  const _CartaoAReceber({required this.servicos, required this.celularDe});
 
   final List<Job> servicos;
+  final String? Function(Job) celularDe;
 
   @override
   State<_CartaoAReceber> createState() => _CartaoAReceberState();
@@ -406,6 +454,7 @@ class _CartaoAReceberState extends State<_CartaoAReceber> {
               const Divider(height: 1, color: AppColors.borda),
               _LinhaDeServico(
                 nome: job.customerName,
+                celular: widget.celularDe(job),
                 detalhe: job.addressText,
                 cents: job.totalCents,
                 cor: cor,
@@ -580,10 +629,11 @@ class _Barra extends StatelessWidget {
 /// Ordenada do pagamento mais recente pro mais antigo: conferindo, a
 /// pessoa procura o que acabou de entrar, não o começo do mês.
 class _RecebidosNoMes extends StatelessWidget {
-  const _RecebidosNoMes({required this.servicos, required this.mes});
+  const _RecebidosNoMes({required this.servicos, required this.mes, required this.celularDe});
 
   final List<Job> servicos;
   final _MesDeFaturamento mes;
+  final String? Function(Job) celularDe;
 
   @override
   Widget build(BuildContext context) {
@@ -643,6 +693,7 @@ class _RecebidosNoMes extends StatelessWidget {
                   nome: ordenados[i].customerName.isEmpty
                       ? 'Sem cliente'
                       : ordenados[i].customerName,
+                  celular: celularDe(ordenados[i]),
                   detalhe: _dataCurta(ordenados[i].paidAt),
                   cents: ordenados[i].totalCents,
                   cor: AppColors.success,
@@ -670,10 +721,15 @@ class _LinhaDeServico extends StatelessWidget {
     required this.cents,
     required this.cor,
     this.detalhe,
+    this.celular,
   });
 
   final String nome;
   final String? detalhe;
+
+  /// Celular do cliente, pequeno no canto, embaixo do valor — é o que
+  /// separa dois clientes com o mesmo nome.
+  final String? celular;
   final int cents;
   final Color cor;
 
@@ -706,9 +762,21 @@ class _LinhaDeServico extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(
-            formatCentsBRL(cents),
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: cor),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                formatCentsBRL(cents),
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: cor),
+              ),
+              if (celular != null && celular!.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  celular!,
+                  style: const TextStyle(fontSize: 10.5, color: AppColors.muted),
+                ),
+              ],
+            ],
           ),
         ],
       ),

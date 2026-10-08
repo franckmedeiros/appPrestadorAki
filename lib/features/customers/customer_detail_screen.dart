@@ -344,13 +344,38 @@ class _HistoricoEFinanceiroState extends State<_HistoricoEFinanceiro> {
           ..sort((a, b) => b.date.compareTo(a.date));
 
         final idsDosOrcamentos = doCliente.map((b) => b.id).toSet();
-
         return StreamBuilder<List<Job>>(
           stream: _servicos,
           builder: (context, servicosSnap) {
-            final servicos = (servicosSnap.data ?? const <Job>[])
-                .where((j) => j.budgetId != null && idsDosOrcamentos.contains(j.budgetId))
+            // De quem é o serviço, em ordem de confiança:
+            //  1. `Job.customerId` — gravado desde 08/10 no aceite final;
+            //  2. o orçamento que o gerou (`budgetId` -> `Budget.customerId`),
+            //     pros serviços antigos, que não têm o campo.
+            // NUNCA pelo nome: dois clientes com o mesmo nome e celulares
+            // diferentes são pessoas diferentes (pedido do Franck, 08/10).
+            final servicos = (servicosSnap.data ?? const <Job>[]).where((j) {
+              if (j.customerId != null) return j.customerId == widget.customer.id;
+              return j.budgetId != null && idsDosOrcamentos.contains(j.budgetId);
+            }).toList();
+            // Serviço do cliente que não está em nenhum orçamento dele (ex.:
+            // lançado direto, como os da conta demo) — entra no histórico
+            // como linha própria, pra o que soma em "Já pagou" também
+            // aparecer na lista logo abaixo.
+            final servicosAvulsos = servicos
+                .where((j) => j.budgetId == null || !idsDosOrcamentos.contains(j.budgetId))
                 .toList();
+
+            // Histórico: orçamentos + serviços avulsos, do mais novo pro
+            // mais antigo, pra o que está somado em "Já pagou" também
+            // aparecer na lista logo abaixo.
+            final linhas = <_ItemDoHistorico>[
+              for (final b in doCliente) _ItemDoHistorico(orcamento: b, data: b.date),
+              for (final j in servicosAvulsos)
+                _ItemDoHistorico(
+                  servico: j,
+                  data: j.paidAt ?? j.completedAt ?? j.createdAt ?? DateTime(0),
+                ),
+            ]..sort((a, b) => b.data.compareTo(a.data));
 
             final recebido = servicos
                 .where((j) => j.paidAt != null)
@@ -398,7 +423,7 @@ class _HistoricoEFinanceiroState extends State<_HistoricoEFinanceiro> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                if (doCliente.isEmpty)
+                if (linhas.isEmpty)
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -421,15 +446,17 @@ class _HistoricoEFinanceiroState extends State<_HistoricoEFinanceiro> {
                     ),
                     child: Column(
                       children: [
-                        for (var i = 0; i < doCliente.length; i++) ...[
+                        for (var i = 0; i < linhas.length; i++) ...[
                           if (i > 0)
                             Divider(
                               height: 1,
                               color: AppColors.muted.withValues(alpha: 0.12),
                             ),
                           _LinhaDoHistorico(
-                            orcamento: doCliente[i],
-                            servico: servicoPorOrcamento[doCliente[i].id],
+                            orcamento: linhas[i].orcamento,
+                            servico: linhas[i].servico ??
+                                servicoPorOrcamento[linhas[i].orcamento?.id],
+                            data: linhas[i].data,
                           ),
                         ],
                       ],
@@ -479,27 +506,49 @@ class _Tile extends StatelessWidget {
   }
 }
 
-class _LinhaDoHistorico extends StatelessWidget {
-  const _LinhaDoHistorico({required this.orcamento, this.servico});
+/// Uma linha do histórico: um orçamento (com ou sem serviço) OU um
+/// serviço avulso, que nasceu sem orçamento.
+class _ItemDoHistorico {
+  _ItemDoHistorico({this.orcamento, this.servico, required this.data});
 
-  final Budget orcamento;
+  final Budget? orcamento;
   final Job? servico;
+  final DateTime data;
+}
+
+class _LinhaDoHistorico extends StatelessWidget {
+  const _LinhaDoHistorico({this.orcamento, this.servico, required this.data});
+
+  final Budget? orcamento;
+  final Job? servico;
+  final DateTime data;
 
   /// O que contar de estado. O SERVIÇO manda quando existe: uma vez
   /// aceito, o que importa é a execução ("Concluído", "Em andamento"), não
   /// que o orçamento segue marcado como "Aceito".
-  String get _situacao => servico?.status.label ?? (orcamento.status?.label ?? 'Rascunho');
+  String get _situacao => servico?.status.label ?? (orcamento?.status?.label ?? 'Rascunho');
 
   Color get _cor => servico?.status.color ?? AppColors.muted;
 
+  String get _titulo {
+    final o = orcamento;
+    if (o != null) {
+      final descricao = (o.requestDescription ?? '').trim();
+      if (descricao.isNotEmpty) return descricao;
+      if (o.items.isNotEmpty) return o.items.first.description;
+      return 'Orçamento ${formatDateDdMmYyyy(o.date)}';
+    }
+    final s = servico;
+    final endereco = (s?.addressText ?? '').trim();
+    if (endereco.isNotEmpty) return endereco;
+    final categoria = (s?.category ?? '').trim();
+    if (categoria.isNotEmpty) return categoria;
+    return 'Serviço ${formatDateDdMmYyyy(data)}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final descricao = (orcamento.requestDescription ?? '').trim();
-    final titulo = descricao.isNotEmpty
-        ? descricao
-        : (orcamento.items.isNotEmpty
-            ? orcamento.items.first.description
-            : 'Orçamento ${formatDateDdMmYyyy(orcamento.date)}');
+    final titulo = _titulo;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -520,7 +569,7 @@ class _LinhaDoHistorico extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      formatDateDdMmYyyy(orcamento.date),
+                      formatDateDdMmYyyy(data),
                       style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
                     ),
                     const SizedBox(width: 8),
@@ -551,7 +600,7 @@ class _LinhaDoHistorico extends StatelessWidget {
               Text(
                 // O valor do SERVIÇO quando existe: ele já inclui
                 // aditivos aprovados depois do orçamento original.
-                formatCentsBRL(servico?.totalCents ?? orcamento.totalCents),
+                formatCentsBRL(servico?.totalCents ?? orcamento?.totalCents ?? 0),
                 style: const TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
