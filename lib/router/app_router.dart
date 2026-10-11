@@ -27,6 +27,7 @@ import '../features/marketplace/my_requests_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/marketplace/provider_public_profile_screen.dart';
 import '../features/marketplace/request_quote_form_screen.dart';
+import '../features/profile/provider_paywall_screen.dart';
 import '../features/profile/user_profile_screen.dart';
 import '../features/splash_screen.dart';
 import '../features/welcome/welcome_screen.dart';
@@ -83,6 +84,19 @@ const _providerOnlyRoutes = {
   '/divulgar',
 };
 
+// Trava de assinatura (decisão do Franck, 11/10): prestador com
+// `providers/{uid}` mas sem assinatura ativa (`listingStatus != 'active'`)
+// não entra em nenhuma rota de `_providerOnlyRoutes` — cai aqui, na tela
+// de assinatura, e só passa depois de pagar (ou restaurar a compra). Vale
+// pra quem nunca concluiu a compra e pra quem deixar de pagar no futuro
+// (ver `AuthController.providerAccessLocked`).
+//
+// Fica FORA do shell pelo mesmo motivo da trava de e-mail: com a barra de
+// navegação embaixo, bastaria tocar em "Dashboard" de novo. Mas não prende
+// a pessoa: a tela tem "continuar como cliente", que leva pra busca — o
+// lado de cliente da conta nunca dependeu de assinatura.
+const _assinar = '/assinar';
+
 GoRouter buildAppRouter(AuthController authController) {
   return GoRouter(
     initialLocation: '/splash',
@@ -99,7 +113,15 @@ GoRouter buildAppRouter(AuthController authController) {
       // precisar tocar na aba. Cliente sem essa capacidade continua
       // caindo na busca, como sempre (`isProvider` é sempre `false` pra
       // quem não está autenticado, então o convidado nunca é afetado).
-      final home = isProvider ? '/dashboard' : '/buscar';
+      //
+      // Prestador com a assinatura parada abre o app direto na tela de
+      // assinatura (ver `_assinar`).
+      final providerLocked = authController.providerAccessLocked;
+      final home = providerLocked
+          ? _assinar
+          : isProvider
+              ? '/dashboard'
+              : '/buscar';
 
       switch (status) {
         case AuthStatus.unknown:
@@ -112,7 +134,7 @@ GoRouter buildAppRouter(AuthController authController) {
           // mostram um convite pra criar conta em vez de esconder a aba
           // inteira). Só as rotas de prestador continuam exigindo login.
           if (isSplash) return home;
-          if (_providerOnlyRoutes.contains(location)) return '/welcome';
+          if (_providerOnlyRoutes.contains(location) || location == _assinar) return '/welcome';
           return null;
         case AuthStatus.authenticated:
           // A TRAVA, antes de qualquer outra regra: conta logada com
@@ -139,6 +161,13 @@ GoRouter buildAppRouter(AuthController authController) {
           if (_authScreensNaAba.contains(location)) return '/perfil';
           if (isSplash || isUnlock || isAuthScreen) return home;
           if (!isProvider && _providerOnlyRoutes.contains(location)) return home;
+          // A TRAVA DE ASSINATURA: é prestador, mas sem assinatura ativa →
+          // nenhuma tela de prestador abre; vai pra tela de assinatura.
+          if (providerLocked && _providerOnlyRoutes.contains(location)) return _assinar;
+          // Assinatura confirmada (o AuthController percebe sozinho, pela
+          // escuta de providers/{uid}) ou conta que nem é prestador: não
+          // tem o que fazer na tela de assinatura — segue pra home.
+          if (location == _assinar && !providerLocked) return home;
           return null;
       }
     },
@@ -150,6 +179,10 @@ GoRouter buildAppRouter(AuthController authController) {
       GoRoute(path: '/esqueci-senha', builder: (context, state) => const ForgotPasswordScreen()),
       GoRoute(path: '/unlock', builder: (context, state) => const BiometricUnlockScreen()),
       GoRoute(path: _confirmarEmail, builder: (context, state) => const EmailVerificationScreen()),
+      // Tela de assinatura no modo "reativar" (sem categoria/cidade): quem
+      // chega aqui já tem providers/{uid}, então o servidor ignora esses
+      // campos de qualquer jeito (ver SubscriptionService.iniciarEscuta).
+      GoRoute(path: _assinar, builder: (context, state) => const ProviderPaywallScreen()),
       // Telas do lado do prestador que antes viviam em abas próprias
       // (AppShell antigo) — depois da conta unificada, são alcançadas a partir de
       // botões dentro do Dashboard (ver DashboardScreen), como rotas

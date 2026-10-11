@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -62,6 +64,35 @@ class AuthController extends ChangeNotifier {
   /// mais exclusivo com "ser cliente" (ver comentário da classe). `false`
   /// pra quem nunca ativou a capacidade de prestador.
   bool isProvider = false;
+
+  /// `providers/{uid}.listingStatus` da conta logada (`'active'` ou
+  /// `'pending'` — quem grava é o servidor, ver `aplicarEstadoNormalizado`
+  /// em functions/src/subscription.ts). `null` pra quem não é prestador.
+  String? providerListingStatus;
+
+  /// TRAVA DE ASSINATURA (decisão do Franck, 11/10): ter `providers/{uid}`
+  /// não basta pra usar a área do prestador — precisa estar com a
+  /// assinatura valendo. Antes, `isProvider` só olhava se o documento
+  /// existia, então quem deixava de pagar (ou nunca concluiu a compra)
+  /// continuava com Dashboard, agenda, orçamentos etc. liberados — só
+  /// sumia da busca.
+  ///
+  /// `true` = é prestador, mas a assinatura não está ativa: o router manda
+  /// pra `/assinar` (ver app_router.dart) em vez de abrir qualquer rota de
+  /// prestador. O lado de cliente da conta continua livre.
+  ///
+  /// Respeita `kBypassProviderSubscriptionGate` (desktop/dev e as flags de
+  /// teste): com o bypass ligado, ninguém é travado.
+  bool get providerAccessLocked =>
+      isProvider && providerListingStatus != 'active' && !kBypassProviderSubscriptionGate;
+
+  /// Escuta `providers/{uid}` enquanto houver sessão — é o que faz a trava
+  /// reagir sozinha, sem fechar o app: a Cloud Function confirma a compra
+  /// e grava `'active'` → a pessoa sai da tela de assinatura; a loja avisa
+  /// que a assinatura venceu (RTDN/Server Notifications) e o servidor
+  /// grava `'pending'` → a pessoa cai na tela de assinatura.
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _providerSub;
+
   String? errorMessage;
   bool isBusy = false;
   bool biometricEnabled = false;
@@ -164,7 +195,7 @@ class AuthController extends ChangeNotifier {
       if (user == null) {
         status = AuthStatus.unauthenticated;
       } else {
-        isProvider = await _checkIsProvider(user.uid);
+        await _loadProviderStatus(user.uid);
         status = biometricEnabled ? AuthStatus.locked : AuthStatus.authenticated;
       }
     } catch (e) {
@@ -176,6 +207,11 @@ class AuthController extends ChangeNotifier {
       // erro local.
       debugPrint('AuthController.bootstrap falhou: $e');
       status = _auth.currentUser == null ? AuthStatus.unauthenticated : AuthStatus.authenticated;
+      // Se a leitura de providers/{uid} é que falhou (sem internet), liga a
+      // escuta mesmo assim: quando a rede voltar, ela traz o estado real
+      // do prestador e da assinatura sem precisar reabrir o app.
+      final uid = _auth.currentUser?.uid;
+      if (uid != null) _watchProvider(uid);
     }
     await minDuration;
     notifyListeners();
@@ -184,7 +220,7 @@ class AuthController extends ChangeNotifier {
   Future<bool> login(String email, String password) => _submit(() async {
         final credential =
             await _auth.signInWithEmailAndPassword(email: email, password: password);
-        isProvider = await _checkIsProvider(credential.user!.uid);
+        await _loadProviderStatus(credential.user!.uid);
         status = AuthStatus.authenticated;
       });
 
@@ -281,6 +317,10 @@ class AuthController extends ChangeNotifier {
           );
           isProvider = true;
         }
+        // Lê de volta o que acabou de ser gravado (inclusive o
+        // `listingStatus`) e liga a escuta de providers/{uid} — também pra
+        // conta de cliente, que pode virar prestador depois pela assinatura.
+        await _loadProviderStatus(uid);
 
         // Try/catch próprio: se o envio do e-mail de verificação falhar
         // (rede instável logo após criar a conta, limite de envio do
@@ -322,7 +362,7 @@ class AuthController extends ChangeNotifier {
           city: city,
           state: state,
         );
-        isProvider = true;
+        await _loadProviderStatus(user.uid);
       });
 
   /// Decisão de produto (combinada com o Franck — "só preparar o
@@ -612,10 +652,15 @@ class AuthController extends ChangeNotifier {
               EmailAuthProvider.credential(email: email, password: currentPassword);
           await user.reauthenticateWithCredential(credential);
         }
+        // Para a escuta ANTES de apagar os dados: senão o listener recebe
+        // o documento sumindo (e depois um permission-denied) no meio da
+        // exclusão.
+        _stopProviderWatch();
         await FirebaseFunctions.instance.httpsCallable('excluirContaEDados').call();
         await _storage.clear();
         biometricEnabled = false;
         isProvider = false;
+        providerListingStatus = null;
         status = AuthStatus.unauthenticated;
       });
 
@@ -627,10 +672,14 @@ class AuthController extends ChangeNotifier {
     // Sem isso, a conta antiga continuaria recebendo os pushes deste
     // aparelho e a conta nova ficaria sem token nenhum.
     await NotificationService.instance.aoSairDaConta();
+    // Antes do signOut: sem sessão, a escuta de providers/{uid} passaria a
+    // receber permission-denied das regras.
+    _stopProviderWatch();
     await _auth.signOut();
     await _storage.clear();
     biometricEnabled = false;
     isProvider = false;
+    providerListingStatus = null;
     // Zera junto com a sessão: o controle é "já mandei e-mail pra ESTA
     // conta", não "pra este aparelho" — sem isso, quem sai de uma conta
     // confirmada e entra numa não confirmada cairia na tela de
@@ -745,12 +794,60 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  /// Descobre se a conta também é prestador, olhando se `providers/{uid}`
-  /// existe. Diferente de antes, isso NÃO é mais exclusivo com ser
-  /// cliente — só responde "essa conta tem a capacidade de prestador?".
-  Future<bool> _checkIsProvider(String uid) async {
+  /// Descobre se a conta também é prestador (se `providers/{uid}` existe)
+  /// e em que pé está a assinatura (`listingStatus`), e liga a escuta em
+  /// tempo real desse documento (ver [_providerSub]). Diferente de antes,
+  /// ser prestador NÃO é exclusivo com ser cliente — só responde "essa
+  /// conta tem a capacidade de prestador?".
+  ///
+  /// A primeira leitura é um `get` normal, de propósito: o bootstrap e o
+  /// login precisam da resposta ANTES de decidir a primeira tela, e a
+  /// escuta só começa a valer depois.
+  Future<void> _loadProviderStatus(String uid) async {
     final providerDoc = await _firestore.collection('providers').doc(uid).get();
-    return providerDoc.exists;
+    _applyProviderSnapshot(providerDoc);
+    _watchProvider(uid);
+  }
+
+  /// Aplica um snapshot de `providers/{uid}`. Devolve `true` se algo que
+  /// importa pra navegação mudou — o listener só chama `notifyListeners`
+  /// nesse caso, pra não reconstruir o app inteiro a cada edição de perfil
+  /// (que também mexe nesse documento, ex.: `updatedAt`).
+  bool _applyProviderSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final novoIsProvider = doc.exists;
+    final novoStatus = doc.exists ? (doc.data()?['listingStatus'] as String?) : null;
+    final mudou = novoIsProvider != isProvider || novoStatus != providerListingStatus;
+    isProvider = novoIsProvider;
+    providerListingStatus = novoStatus;
+    return mudou;
+  }
+
+  void _watchProvider(String uid) {
+    _stopProviderWatch();
+    _providerSub = _firestore.collection('providers').doc(uid).snapshots().listen(
+      (doc) {
+        // Sessão trocou no meio do caminho (logout/troca de conta): ignora
+        // o evento atrasado da conta anterior.
+        if (_auth.currentUser?.uid != uid) return;
+        if (_applyProviderSnapshot(doc)) notifyListeners();
+      },
+      onError: (Object e) {
+        // Sem rede, regra negando etc. — mantém o último estado conhecido
+        // em vez de travar/destravar alguém por um erro passageiro.
+        debugPrint('AuthController: escuta de providers/$uid falhou: $e');
+      },
+    );
+  }
+
+  void _stopProviderWatch() {
+    _providerSub?.cancel();
+    _providerSub = null;
+  }
+
+  @override
+  void dispose() {
+    _stopProviderWatch();
+    super.dispose();
   }
 
   /// Chamado depois que a Cloud Function `confirmarAssinaturaPrestador`
@@ -761,7 +858,7 @@ class AuthController extends ChangeNotifier {
   Future<void> refreshProviderStatus() async {
     final user = _auth.currentUser;
     if (user == null) return;
-    isProvider = await _checkIsProvider(user.uid);
+    await _loadProviderStatus(user.uid);
     notifyListeners();
   }
 

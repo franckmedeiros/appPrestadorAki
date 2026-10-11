@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:provider/provider.dart';
 
@@ -22,17 +23,27 @@ import '../../widgets/cabecalho_de_tela.dart';
 /// concluída e confirmada com sucesso pelo servidor, fecha sozinha
 /// devolvendo `true` — quem chamou já pode tratar a conta como
 /// prestador (ver `AuthController.refreshProviderStatus`).
+///
+/// MODO REATIVAR (sem [category]/[city]): é a mesma tela aberta pelo router
+/// em `/assinar`, pra quem JÁ tem `providers/{uid}` mas está com a
+/// assinatura parada (ver `AuthController.providerAccessLocked`). Aí não
+/// tem quem dar `pop`: quando a compra é confirmada, o servidor grava
+/// `listingStatus: 'active'`, o AuthController percebe pela escuta de
+/// providers/{uid} e o próprio router tira a pessoa daqui.
 class ProviderPaywallScreen extends StatefulWidget {
   const ProviderPaywallScreen({
     super.key,
-    required this.category,
-    required this.city,
+    this.category,
+    this.city,
     this.state,
   });
 
-  final String category;
-  final String city;
+  final String? category;
+  final String? city;
   final String? state;
+
+  /// Já é prestador e só precisa voltar a pagar (aberta pelo router).
+  bool get modoReativar => category == null;
 
   @override
   State<ProviderPaywallScreen> createState() => _ProviderPaywallScreenState();
@@ -57,7 +68,9 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
         await context.read<AuthController>().refreshProviderStatus();
         if (!mounted) return;
         setState(() => _comprando = false);
-        Navigator.of(context).pop(true);
+        // No modo reativar (rota `/assinar`) quem tira a pessoa daqui é o
+        // redirect do router — não há tela embaixo pra voltar.
+        if (Navigator.of(context).canPop()) Navigator.of(context).pop(true);
       },
       onErro: (mensagem) {
         if (!mounted) return;
@@ -151,7 +164,7 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
       backgroundColor: AppColors.background,
       appBar: barraDeTela(
         context,
-        titulo: 'Virar prestador',
+        titulo: widget.modoReativar ? 'Assinatura de prestador' : 'Virar prestador',
         area: AreaDoApp.prestador,
         aoVoltar: Navigator.of(context).canPop()
             ? () => Navigator.of(context).maybePop()
@@ -164,14 +177,20 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
           children: [
             const Icon(Icons.handyman_outlined, color: AppColors.primary, size: 40),
             const SizedBox(height: 12),
-            const Text(
-              'Assine e apareça pros clientes',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            Text(
+              widget.modoReativar
+                  ? 'Sua assinatura não está ativa'
+                  : 'Assine e apareça pros clientes',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Sua conta continua a mesma — isso só adiciona a área de prestador.',
-              style: TextStyle(color: AppColors.muted, fontSize: 13.5),
+            Text(
+              widget.modoReativar
+                  ? 'Pra usar a área de prestador e aparecer nas buscas, ative a '
+                      'assinatura mensal. Se você já pagou, toque em "Já assinei, '
+                      'restaurar compra".'
+                  : 'Sua conta continua a mesma — isso só adiciona a área de prestador.',
+              style: const TextStyle(color: AppColors.muted, fontSize: 13.5),
             ),
             const SizedBox(height: 24),
             const _BeneficioItem(
@@ -262,6 +281,17 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
                 ],
               ),
             ),
+            // Saída da trava (modo reativar): o lado de cliente da conta
+            // nunca dependeu de assinatura, então a pessoa pode seguir
+            // buscando/contratando. Tocar em "Dashboard" de novo traz de
+            // volta pra cá.
+            if (widget.modoReativar) ...[
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: _comprando ? null : () => context.go('/buscar'),
+                child: const Text('Agora não, continuar como cliente'),
+              ),
+            ],
           ],
         ),
       ),
