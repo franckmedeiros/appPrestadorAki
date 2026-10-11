@@ -76,14 +76,22 @@ function deAuth(u: UserRecord): UsuarioHub {
   };
 }
 
-async function todosUsuariosAuth(): Promise<UsuarioHub[]> {
+async function todosUsuariosAuth(ignorar?: RegExp): Promise<UsuarioHub[]> {
+  // Contas marcadas como teste no hub (coleção hubContasTeste/{uid}).
+  const marcadas = new Set<string>();
+  try {
+    (await dbAdmin.collection('hubContasTeste').get()).forEach((d) => marcadas.add(d.id));
+  } catch {
+    // sem a coleção: segue só com o regex
+  }
   const lista: UsuarioHub[] = [];
   let token: string | undefined;
   do {
     const r = await getAuth().listUsers(1000, token);
     for (const u of r.users) {
       if (HUB_ADMINS.includes(String(u.email ?? '').toLowerCase())) continue;
-      lista.push(deAuth(u));
+      const teste = marcadas.has(u.uid) || Boolean(ignorar?.test(String(u.email ?? '')));
+      lista.push({ ...deAuth(u), teste });
     }
     token = r.pageToken;
   } while (token);
@@ -131,6 +139,8 @@ export interface HubCfg {
   metricas: (db: Firestore) => Promise<{ chave: string; rotulo: string; valor: number | null }[]>;
   aoBloquear?: (db: Firestore, uid: string, bloqueado: boolean) => Promise<void>;
   emailInterno?: RegExp;
+  /** Contas fora da lista e das métricas (ex.: demonstração). */
+  ignorarEmail?: RegExp;
 }
 
 export function criarHub(cfg: HubCfg) {
@@ -149,8 +159,10 @@ export function criarHub(cfg: HubCfg) {
     exigirAdmin(req);
     const agora = Date.now();
     const dia = 24 * 3600 * 1000;
-    const usuarios = await todosUsuariosAuth();
-    const assinantes = await assinantesSeguro();
+    const todos = await todosUsuariosAuth(cfg.ignorarEmail);
+    const usuarios = todos.filter((u) => !u.teste);
+    const uidsTeste = new Set(todos.filter((u) => u.teste).map((u) => u.uid));
+    const assinantes = (await assinantesSeguro()).filter((a) => !uidsTeste.has(a.uid));
     const ativos = assinantes.filter((a) => a.ativa);
     const hoje = new Date();
     const meses: { mes: string; cadastros: number }[] = [];
@@ -204,7 +216,10 @@ export function criarHub(cfg: HubCfg) {
 
     const assinantes = await assinantesSeguro();
     const mapa = new Map(assinantes.map((a) => [a.uid, a]));
-    let lista: UsuarioHub[] = (await todosUsuariosAuth()).map((u) => {
+    let todos = await todosUsuariosAuth(cfg.ignorarEmail);
+    const totalTeste = todos.filter((u) => u.teste).length;
+    if (d.incluirTeste !== true) todos = todos.filter((u) => !u.teste);
+    let lista: UsuarioHub[] = todos.map((u) => {
       const a = mapa.get(u.uid);
       return { ...u, assinante: Boolean(a?.ativa), statusAssinatura: a ? a.status : null };
     });
@@ -236,7 +251,7 @@ export function criarHub(cfg: HubCfg) {
         }
       }),
     );
-    return { total, pagina, tamanho, itens };
+    return { total, pagina, tamanho, itens, totalTeste };
   });
 
   const hubUsuario = onCall(opcoes, async (req) => {
@@ -255,6 +270,8 @@ export function criarHub(cfg: HubCfg) {
       if (s.exists) perfis[p.colecao] = serializar(s.data());
     }
     const assinantes = await assinantesSeguro();
+    const marcada = await db.collection('hubContasTeste').doc(uid).get().then((s) => s.exists).catch(() => false);
+    u.teste = marcada || Boolean(cfg.ignorarEmail?.test(u.email));
     return { ...u, perfis, assinatura: assinantes.find((a) => a.uid === uid) ?? null };
   });
 
@@ -310,6 +327,12 @@ export function criarHub(cfg: HubCfg) {
     }
     if (typeof d.bloqueado === 'boolean' && cfg.aoBloquear) {
       await cfg.aoBloquear(db, uid, d.bloqueado);
+    }
+    // Conta de teste: fica fora da lista e das métricas do hub.
+    if (typeof d.teste === 'boolean') {
+      const ref = db.collection('hubContasTeste').doc(uid);
+      if (d.teste) await ref.set({ email: atual.email ?? null, por: admin, em: Timestamp.now() });
+      else await ref.delete();
     }
     await db.collection('hubAuditoria').add({
       acao: 'atualizarUsuario',

@@ -30,3 +30,4 @@ export { gerarDescricaoPrestador } from './bio';
 
 // HUB OP Outsourcing (painel único de gestão) — ver hub.ts / hub_core.ts.
 export { hubResumo, hubUsuarios, hubUsuario, hubAtualizarUsuario, hubAssinantes } from './hub';
+export { hubAvisoCadastro } from './hub_aviso';

@@ -18,6 +18,8 @@ const ESTADOS_ATIVOS = new Set([
 const hub = criarHub({
   app: 'prestadoraki',
   region: 'us-central1',
+  // Conta de demonstração (lojas/revisão) — fora da lista e das métricas.
+  ignorarEmail: /^demo@prestadoraki\.app$/i,
   perfis: [
     { colecao: 'clients', nome: 'name', telefone: 'whatsapp', email: 'email' },
     { colecao: 'providers', nome: 'name', telefone: 'whatsapp', email: 'email' },
