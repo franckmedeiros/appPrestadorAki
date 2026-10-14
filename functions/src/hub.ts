@@ -109,7 +109,7 @@ const hub = criarHub({
 
   testeGratis: {
     ler: (_db, uid) => lerTesteGratis(uid),
-    ajustar: (_db, uid, dias, admin) => ajustarTesteGratis(uid, dias, admin),
+    ajustar: (_db, uid, dias, admin, extra) => ajustarTesteGratis(uid, dias, admin, extra),
   },
 
   // Bloqueado some do diretório público; liberado volta (se a assinatura

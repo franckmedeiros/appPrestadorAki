@@ -32,6 +32,7 @@ import { logger } from 'firebase-functions';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from './lib/admin';
 import { aplicarEstadoNormalizado } from './subscription';
+import { CATEGORIAS } from './categorias';
 
 export const DIAS_TESTE_GRATIS = 7;
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -153,14 +154,35 @@ export const iniciarTesteGratisPrestador = onCall(async (request) => {
  * → encerra o teste agora (a pessoa cai na tela de assinatura).
  * Não exige elegibilidade: é decisão sua.
  */
-export async function ajustarTesteGratis(uid: string, dias: number, admin: string): Promise<void> {
+export async function ajustarTesteGratis(
+  uid: string,
+  dias: number,
+  admin: string,
+  extra: { categoria?: string; cidade?: string; uf?: string } = {},
+): Promise<void> {
   const ref = db.collection('providers').doc(uid);
   const p = (await ref.get()).data();
   if (!p) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Essa conta ainda não é prestador. Peça pra ela tocar em "Virar prestador" no app (o teste começa sozinho).',
-    );
+    // Conta só de cliente: o hub cria o cadastro de prestador já em teste
+    // (funciona até com versões antigas do app, que só olham
+    // listingStatus). Categoria vem do hub; cidade/UF do endereço da conta
+    // se o hub não mandar.
+    if (dias <= 0) throw new HttpsError('failed-precondition', 'Essa conta não está em teste grátis.');
+    const cliente = (await db.collection('clients').doc(uid).get()).data();
+    if (!cliente?.name) {
+      throw new HttpsError('failed-precondition', 'Essa conta ainda não terminou o cadastro no app.');
+    }
+    const categoria = String(extra.categoria ?? '').trim();
+    if (!CATEGORIAS.some((c) => c.id === categoria)) {
+      throw new HttpsError('invalid-argument', 'Escolha a categoria de atuação.');
+    }
+    const cidade = String(extra.cidade ?? cliente.addressCity ?? '').trim();
+    const uf = String(extra.uf ?? cliente.addressState ?? '').trim().toUpperCase();
+    if (!cidade) throw new HttpsError('invalid-argument', 'Informe a cidade de atuação.');
+    const ate = new Date(Date.now() + Math.min(dias, 365) * DIA_MS);
+    await aplicarTeste(uid, ate, `hub:${admin}`, { category: categoria, city: cidade, state: uf || undefined });
+    logger.info(`Hub (${admin}) criou o prestador ${uid} (${categoria}, ${cidade}) em teste até ${ate.toISOString()}.`);
+    return;
   }
   const loja = String(p.subscriptionStore ?? '');
   const expira: number | null = p.subscriptionExpiresAt?.toMillis?.() ?? null;
@@ -185,14 +207,27 @@ export async function ajustarTesteGratis(uid: string, dias: number, admin: strin
 
 /** Situação do teste pra mostrar no hub. */
 export async function lerTesteGratis(uid: string): Promise<Record<string, unknown>> {
-  const [t, p] = await Promise.all([
+  const [t, p, c] = await Promise.all([
     db.collection('testesGratis').doc(uid).get(),
     db.collection('providers').doc(uid).get(),
+    db.collection('clients').doc(uid).get(),
   ]);
   const prov = p.data() ?? {};
+  const cli = c.data() ?? {};
   const emTeste = prov.subscriptionStore === LOJA_TESTE && prov.listingStatus === 'active';
+  // Só cliente (sem providers/{uid}): o hub pode criar o prestador já em
+  // teste, escolhendo a categoria — cidade/UF sugeridas do endereço.
+  const soCliente = !p.exists && Boolean(cli.name);
   return {
-    disponivel: p.exists,
+    disponivel: p.exists || soCliente,
+    ...(soCliente
+      ? {
+          precisaCategoria: true,
+          cidade: cli.addressCity ?? null,
+          uf: cli.addressState ?? null,
+          categorias: CATEGORIAS,
+        }
+      : {}),
     usado: t.exists,
     emTeste,
     ate: emTeste ? prov.subscriptionExpiresAt?.toMillis?.() ?? null : t.data()?.ate?.toMillis?.() ?? null,

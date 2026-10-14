@@ -147,7 +147,13 @@ export interface HubCfg {
    */
   testeGratis?: {
     ler: (db: Firestore, uid: string) => Promise<Record<string, unknown>>;
-    ajustar: (db: Firestore, uid: string, dias: number, admin: string) => Promise<void>;
+    ajustar: (
+      db: Firestore,
+      uid: string,
+      dias: number,
+      admin: string,
+      extra: { categoria?: string; cidade?: string; uf?: string },
+    ) => Promise<void>;
   };
 }
 
@@ -364,7 +370,12 @@ export function criarHub(cfg: HubCfg) {
       if (!cfg.testeGratis) throw new HttpsError('failed-precondition', 'Este app não tem teste grátis.');
       const dias = Math.floor(Number(d.testeGratisDias));
       if (!Number.isFinite(dias) || dias < 0) throw new HttpsError('invalid-argument', 'Dias de teste inválidos.');
-      await cfg.testeGratis.ajustar(db, uid, dias, admin);
+      const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+      await cfg.testeGratis.ajustar(db, uid, dias, admin, {
+        categoria: texto(d.categoria),
+        cidade: texto(d.cidade),
+        uf: texto(d.uf),
+      });
     }
     await db.collection('hubAuditoria').add({
       acao: 'atualizarUsuario',
