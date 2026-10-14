@@ -18,12 +18,25 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == providerId;
     }
 
+    // Campos que só o servidor grava (assinatura da loja e teste grátis —
+    // ver functions/src/subscription.ts e testeGratis.ts). Sem esta trava,
+    // bastava o próprio prestador gravar listingStatus: 'active' pra
+    // aparecer na busca sem pagar (ou esticar o próprio teste grátis).
+    function camposDeAssinatura() {
+      return ['listingStatus', 'subscriptionState', 'subscriptionStore', 'subscriptionExpiresAt'];
+    }
+
     match /providers/{providerId} {
-      allow read, update: if isOwner(providerId);
+      allow read: if isOwner(providerId);
+      allow update: if isOwner(providerId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(camposDeAssinatura());
       // Criado uma única vez, logo após o cadastro (ver
       // AuthRepository.register no app) — o próprio usuário recém-criado
-      // é quem grava o próprio documento de prestador.
-      allow create: if isOwner(providerId);
+      // é quem grava o próprio documento de prestador, sempre como
+      // 'pending' (quem ativa é o servidor: assinatura ou teste grátis).
+      allow create: if isOwner(providerId) &&
+        request.resource.data.get('listingStatus', 'pending') == 'pending' &&
+        !request.resource.data.keys().hasAny(['subscriptionState', 'subscriptionStore', 'subscriptionExpiresAt']);
       allow delete: if false;
 
       match /customers/{customerId} {
@@ -354,6 +367,14 @@ service cloud.firestore {
     // o que a pessoa está tentando evitar.
     match /blocks/{uid} {
       allow read, write: if isOwner(uid);
+    }
+
+    // Registro do teste grátis de 7 dias (só o servidor grava — ver
+    // functions/src/testeGratis.ts). O dono lê pra saber se ainda tem
+    // direito ao teste (tela de assinatura).
+    match /testesGratis/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
     }
 
     match /providerDirectory/{listingId} {

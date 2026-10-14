@@ -9,6 +9,7 @@ import '../../widgets/app_list_card.dart';
 import '../../widgets/biometric_offer_card.dart';
 import '../../widgets/cabecalho_de_tela.dart';
 import '../../widgets/notification_bell.dart';
+import '../profile/provider_paywall_screen.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
 import '../budgets/budgets_repository.dart';
@@ -207,6 +208,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         );
                       },
                     ),
+                    const _AvisoTesteGratis(),
                     TituloDeBloco(
                       'Compromissos de hoje',
                       rotuloDaAcao: 'Ver agenda',
@@ -780,3 +782,58 @@ class _TodayEmptyStateState extends State<_TodayEmptyState> {
   }
 }
 
+
+
+/// Aviso do TESTE GRÁTIS de 7 dias (ver functions/src/testeGratis.ts):
+/// mostra quantos dias faltam e leva pra tela de assinatura. Some sozinho
+/// quando a pessoa assina (a loja passa a valer) ou quando o teste acaba
+/// (aí o router já manda pra tela de assinatura).
+class _AvisoTesteGratis extends StatelessWidget {
+  const _AvisoTesteGratis();
+
+  @override
+  Widget build(BuildContext context) {
+    final fim = context.watch<AuthController>().providerTrialEndsAt;
+    if (fim == null) return const SizedBox.shrink();
+    final restante = fim.difference(DateTime.now());
+    final dias = (restante.inHours / 24).ceil();
+    final texto = restante.isNegative
+        ? 'Seu teste grátis terminou.'
+        : dias <= 1
+            ? 'Seu teste grátis termina hoje.'
+            : 'Teste grátis: faltam $dias dias.';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: AppColors.primarySuave,
+        borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppMetrics.raioDeCartao),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ProviderPaywallScreen()),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                const Icon(Icons.card_giftcard_outlined, color: AppColors.primary, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '$texto Assine pra continuar aparecendo nas buscas depois.',
+                    style: const TextStyle(fontSize: 13, height: 1.4, color: AppColors.ink),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Assinar',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

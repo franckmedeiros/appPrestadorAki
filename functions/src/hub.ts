@@ -7,6 +7,7 @@
  */
 import { Timestamp } from 'firebase-admin/firestore';
 import { criarHub, ms, contar, Assinante } from './hub_core';
+import { ajustarTesteGratis, lerTesteGratis, LOJA_TESTE } from './testeGratis';
 
 const ESTADOS_ATIVOS = new Set([
   'SUBSCRIPTION_STATE_ACTIVE',
@@ -45,6 +46,26 @@ const hub = criarHub({
         x.listingStatus === 'active' &&
         (ESTADOS_ATIVOS.has(String(x.subscriptionState)) || (validoAte != null && validoAte > agora));
       const loja = String(x.subscriptionStore ?? '').toLowerCase();
+      // Teste grátis de 7 dias (testeGratis.ts): aparece na lista, mas não
+      // conta como assinante pagante.
+      if (loja === LOJA_TESTE) {
+        lista.push({
+          uid: d.id,
+          nome: x.name ?? x.tradeName ?? '',
+          email: x.email ?? '',
+          telefone: x.whatsapp ?? '',
+          ativa: x.listingStatus === 'active' && validoAte != null && validoAte > agora,
+          emTeste: true,
+          status: x.listingStatus === 'active' ? 'teste' : 'TESTE_EXPIRADO',
+          loja: null,
+          plano: 'Teste grátis',
+          idAssinatura: null,
+          validoAte,
+          categoria: x.category ?? null,
+          cidade: x.city ?? null,
+        });
+        return;
+      }
       lista.push({
         uid: d.id,
         nome: x.name ?? x.tradeName ?? '',
@@ -84,6 +105,11 @@ const hub = criarHub({
       },
       { chave: 'servicos', rotulo: 'Serviços/jobs (total)', valor: await contar(db.collectionGroup('jobs')) },
     ];
+  },
+
+  testeGratis: {
+    ler: (_db, uid) => lerTesteGratis(uid),
+    ajustar: (_db, uid, dias, admin) => ajustarTesteGratis(uid, dias, admin),
   },
 
   // Bloqueado some do diretório público; liberado volta (se a assinatura

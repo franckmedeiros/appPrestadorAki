@@ -18,6 +18,7 @@ import 'my_reviews_screen.dart';
 import '../../widgets/service_category_field.dart';
 import '../../widgets/gradient_pill_button.dart';
 import 'provider_paywall_screen.dart';
+import '../../core/subscription_service.dart';
 import 'about_screen.dart';
 
 /// Aba "Meu perfil" — igual ao pedido do Franck ("colocar a opção de
@@ -793,6 +794,10 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
   String? _uf;
   ServiceCategory? _category;
   bool _loadingAddress = true;
+  bool _iniciandoTeste = false;
+
+  static String _dataCurta(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
 
   @override
   void initState() {
@@ -834,6 +839,34 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
       if (ok && mounted) Navigator.pop(context, true);
       return;
     }
+    // TESTE GRÁTIS automático (decisão do Franck, 13/10): primeiro tenta
+    // liberar os 7 dias grátis — o servidor cria providers/{uid} já ativo.
+    // Só quem já usou o teste (ou se der erro) segue pra tela de
+    // assinatura, como antes.
+    setState(() => _iniciandoTeste = true);
+    try {
+      final ate = await SubscriptionService.instance.iniciarTesteGratis(
+        category: _category!.wireValue,
+        city: city,
+        state: state.isEmpty ? null : state,
+      );
+      if (!mounted) return;
+      await context.read<AuthController>().refreshProviderStatus();
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context, true);
+      messenger.showSnackBar(SnackBar(
+        content: Text(ate == null
+            ? 'Pronto! Sua área de prestador está liberada.'
+            : 'Pronto! Você ganhou 7 dias grátis (até ${_dataCurta(ate)}).'),
+      ));
+      return;
+    } catch (e) {
+      debugPrint('_BecomeProviderSheet: teste grátis não iniciado: $e');
+    } finally {
+      if (mounted) setState(() => _iniciandoTeste = false);
+    }
+    if (!mounted) return;
     final confirmed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ProviderPaywallScreen(
@@ -954,8 +987,14 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: (_loadingAddress || !_hasAddress) ? null : _submit,
-                child: const Text('Continuar para assinatura'),
+                onPressed: (_loadingAddress || !_hasAddress || _iniciandoTeste) ? null : _submit,
+                child: _iniciandoTeste
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Continuar'),
               ),
             ],
           ),

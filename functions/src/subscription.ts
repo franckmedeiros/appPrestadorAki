@@ -32,6 +32,12 @@
  * O lado Apple segue a MESMA filosofia (ver o comentário no topo de
  * `subscriptionApple.ts`).
  *
+ * As notificações são a primeira linha, não a única: `consultarEstadoGoogle`
+ * (no fim deste arquivo) e sua irmã `consultarEstadoApple` expõem esse
+ * mesmo caminho de verificação pra reconciliação diária
+ * (`subscriptionReconciliacao.ts`), que é quem pega os casos em que a
+ * notificação simplesmente não chegou.
+ *
  * A chave da service account NUNCA fica no código nem no repositório —
  * fica no Secret Manager do Firebase (`PLAY_SERVICE_ACCOUNT_KEY`), e essa
  * service account precisa ter sido convidada em Play Console > Usuários e
@@ -47,7 +53,10 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { db } from './lib/admin';
 
-const playServiceAccountKey = defineSecret('PLAY_SERVICE_ACCOUNT_KEY');
+// Exportado pra que `subscriptionReconciliacao.ts` possa declarar o mesmo
+// secret nas funções dele (o Firebase exige que CADA função declare os
+// secrets que vai usar).
+export const playServiceAccountKey = defineSecret('PLAY_SERVICE_ACCOUNT_KEY');
 
 // Precisa bater exatamente com o applicationId de android/app/build.gradle.kts.
 const PACKAGE_NAME = 'com.opoutsourcing.prestadoraki';
@@ -193,8 +202,8 @@ export interface EstadoNormalizado {
    * `subscriptionApple.ts` pro da Apple).
    */
   rawState: string;
-  /** Qual loja gerou esse estado — grava em `providers/{uid}.subscriptionStore`, útil pra suporte saber onde olhar (Play Console x App Store Connect) sem precisar perguntar pro prestador. */
-  loja: 'google' | 'apple';
+  /** Qual loja gerou esse estado — grava em `providers/{uid}.subscriptionStore`, útil pra suporte saber onde olhar (Play Console x App Store Connect) sem precisar perguntar pro prestador. `'teste'` = teste grátis de 7 dias, sem loja (ver testeGratis.ts). */
+  loja: 'google' | 'apple' | 'teste';
 }
 
 /**
@@ -434,7 +443,15 @@ export const confirmarAssinaturaPrestador = onCall(
     }
 
     await tokenRef.set(
-      { uid, productId, subscriptionState: dadosAssinatura.subscriptionState ?? null, atualizadoEm: Timestamp.now() },
+      {
+        uid,
+        productId,
+        // Explícito pra que a reconciliação diária saiba a qual loja
+        // perguntar sem ter que deduzir pelo formato do id.
+        loja: 'google',
+        subscriptionState: dadosAssinatura.subscriptionState ?? null,
+        atualizadoEm: Timestamp.now(),
+      },
       { merge: true },
     );
 
@@ -500,3 +517,23 @@ export const processarNotificacaoPlay = onMessagePublished(
     await aplicarEstadoDaAssinatura(uid, dadosAssinatura);
   },
 );
+
+/**
+ * Estado atual, perguntado à própria Play Store, de uma assinatura
+ * identificada pelo `purchaseToken`. Exportada pra que a reconciliação
+ * diária (`subscriptionReconciliacao.ts`) use exatamente o mesmo caminho
+ * de verificação já usado por `confirmarAssinaturaPrestador` e
+ * `processarNotificacaoPlay` — o espelho de `consultarEstadoApple` em
+ * `subscriptionApple.ts`.
+ */
+export async function consultarEstadoGoogle(purchaseToken: string): Promise<EstadoNormalizado> {
+  const credentials = lerCredenciais();
+  const dados = await buscarAssinaturaNaPlayStore(purchaseToken, credentials);
+  const linha = (dados.lineItems || [])[0];
+  return {
+    ativa: ESTADOS_ATIVOS.has(dados.subscriptionState ?? ''),
+    expiraEm: linha?.expiryTime ? Timestamp.fromDate(new Date(linha.expiryTime)) : null,
+    rawState: dados.subscriptionState ?? 'DESCONHECIDO',
+    loja: 'google',
+  };
+}

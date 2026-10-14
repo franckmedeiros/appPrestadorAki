@@ -22,30 +22,19 @@
  * (nunca confiam soltas no que o app ou a notificação dizem) — mesma
  * prática já usada do lado Google.
  *
- * Nota honesta sobre verificação de assinatura JWS: pra verificar
- * CRIPTOGRAFICAMENTE que um JWS (transação ou notificação) veio mesmo da
- * Apple, a biblioteca oficial (`@apple/app-store-server-library`, classe
- * `SignedDataVerifier`) pede os certificados-raiz da Apple (baixados de
- * https://www.apple.com/certificateauthority/) como entrada, embutidos no
- * deploy. O ambiente onde este arquivo foi escrito não tinha acesso de
- * rede pra apple.com pra baixar esses certificados — então, por enquanto,
- * `decodificarPayloadJws` abaixo só faz um base64url-decode do "meio" do
- * JWS, SEM checar a assinatura, e usa isso só pra extrair o
- * `transactionId`/`originalTransactionId` (ou seja: só pra saber QUAL
- * assinatura ir perguntar pra Apple). A fonte de verdade de fato continua
- * sendo a resposta da própria App Store Server API, chamada com um JWT
- * assinado por NÓS (`AppStoreServerAPIClient`, autenticado com a chave do
- * secret abaixo) por HTTPS — exatamente a mesma decisão de design já
- * usada pro Google (a Play Developer API também não tem a resposta
- * verificada por assinatura extra, só HTTPS + autenticação da nossa
- * service account). Mesmo que alguém forje o corpo de uma
- * notificação/transação com o transactionId de outra pessoa, tudo que
- * isso consegue é fazer a gente reconsultar pra própria Apple qual é o
- * estado VERDADEIRO daquele transactionId (e, se não achar o uid dono
- * dele em `assinaturasVerificadas`, a notificação é ignorada — mesma
- * "lacuna consciente" do lado Google) — nunca força um estado "ativo"
- * falso. Se um dia quiser fechar essa lacuna de verdade, baixe os
- * certificados-raiz e passe pra um `SignedDataVerifier`.
+ * VERIFICAÇÃO DE ASSINATURA JWS (atualizado): a "nota honesta" que estava
+ * aqui descrevia o decode sem verificação como solução provisória, porque
+ * o ambiente onde o arquivo foi escrito não alcançava apple.com pra baixar
+ * os certificados-raiz. Isso agora está em `appleJws.ts`: os certificados
+ * ficam commitados em `functions/certs/apple/` e a `SignedDataVerifier`
+ * oficial confere a cadeia de verdade. O raciocínio antigo continua
+ * valendo como rede de segurança — a fonte de verdade ainda é a
+ * re-consulta à App Store Server API, e se os certificados faltarem o
+ * módulo degrada pro decode simples em vez de derrubar a produção. O que
+ * a verificação acrescenta é fechar a fresta do callable: antes, um
+ * `originalTransactionId` válido e ainda não reivindicado podia ser
+ * associado à conta errada por quem descobrisse o número; agora é preciso
+ * ter o JWS emitido pela Apple.
  *
  * A chave da App Store Connect NUNCA fica no código nem no repositório —
  * fica no Secret Manager do Firebase (`APPLE_APP_STORE_CONNECT_KEY`, um
@@ -68,8 +57,14 @@ import {
 } from '@apple/app-store-server-library';
 import { db } from './lib/admin';
 import { aplicarEstadoNormalizado, EstadoNormalizado } from './subscription';
+import {
+  decodificarPayloadJws,
+  verificacaoDisponivel,
+  verificarNotificacao,
+  verificarTransacao,
+} from './appleJws';
 
-const appleAppStoreConnectKey = defineSecret('APPLE_APP_STORE_CONNECT_KEY');
+export const appleAppStoreConnectKey = defineSecret('APPLE_APP_STORE_CONNECT_KEY');
 
 // Precisa bater exatamente com o bundle identifier do app no Xcode/App
 // Store Connect (mesmo valor usado em `iosBundleId` de
@@ -122,22 +117,6 @@ function criarCliente(
 }
 
 /**
- * Decodifica (SEM verificar assinatura — ver nota honesta no topo do
- * arquivo) o "payload" (parte do meio) de um JWS de 3 partes
- * (header.payload.assinatura) — formato usado tanto pelas transações
- * (`JWSTransaction`) quanto pelo `signedPayload` das notificações da
- * Apple.
- */
-function decodificarPayloadJws(jws: string): any {
-  const partes = jws.split('.');
-  if (partes.length !== 3) {
-    throw new Error('JWS mal formado (esperava 3 partes separadas por ".")');
-  }
-  const json = Buffer.from(partes[1], 'base64url').toString('utf-8');
-  return JSON.parse(json);
-}
-
-/**
  * Consulta "Get All Subscription Statuses" — tenta primeiro em Produção;
  * se a Apple responder "transação não encontrada" (sinal de que o
  * transactionId foi gerado no Sandbox), tenta de novo em Sandbox. Esse
@@ -170,6 +149,11 @@ async function buscarStatusNaAppStore(
  * conta só devia ter uma assinatura ativa do nosso produto, mas a API é
  * genérica pra qualquer app) à transação mais recente do produto que
  * interessa aqui.
+ *
+ * Os JWS aqui dentro vêm NA RESPOSTA da App Store Server API, que já
+ * chegou por HTTPS autenticado com a nossa própria chave — por isso o
+ * decode simples (sem verificação de assinatura) é o certo neste ponto,
+ * e não a `verificarTransacao`. Verificar de novo não acrescentaria nada.
  */
 function extrairUltimaTransacao(
   statusResponse: StatusResponse,
@@ -187,7 +171,9 @@ function extrairUltimaTransacao(
   return null;
 }
 
-function paraEstadoNormalizado(item: { status?: Status | number; transacao: any } | null): EstadoNormalizado {
+function paraEstadoNormalizado(
+  item: { status?: Status | number; transacao: any } | null,
+): EstadoNormalizado {
   if (!item) {
     return { ativa: false, expiraEm: null, rawState: 'SEM_TRANSACAO', loja: 'apple' };
   }
@@ -196,8 +182,23 @@ function paraEstadoNormalizado(item: { status?: Status | number; transacao: any 
     typeof item.transacao?.expiresDate === 'number'
       ? Timestamp.fromMillis(item.transacao.expiresDate)
       : null;
-  const rawState = typeof item.status === 'number' ? Status[item.status] ?? String(item.status) : 'DESCONHECIDO';
+  const rawState =
+    typeof item.status === 'number' ? Status[item.status] ?? String(item.status) : 'DESCONHECIDO';
   return { ativa, expiraEm, rawState, loja: 'apple' };
+}
+
+/**
+ * Estado atual, perguntado à própria Apple, de uma assinatura identificada
+ * pelo `originalTransactionId`. Exportada pra que a reconciliação diária
+ * (`subscriptionReconciliacao.ts`) possa reusar exatamente o mesmo caminho
+ * de verificação usado aqui — sem duplicar a lógica de ambiente/produto.
+ */
+export async function consultarEstadoApple(transactionId: string): Promise<EstadoNormalizado> {
+  const credenciais = lerCredenciaisApple();
+  const statusResponse = await buscarStatusNaAppStore(transactionId, credenciais);
+  return paraEstadoNormalizado(
+    extrairUltimaTransacao(statusResponse, APPLE_SUBSCRIPTION_PRODUCT_ID),
+  );
 }
 
 export const confirmarAssinaturaPrestadorApple = onCall(
@@ -233,12 +234,24 @@ export const confirmarAssinaturaPrestadorApple = onCall(
       );
     }
 
+    // Verificação criptográfica do JWS da transação (ver appleJws.ts).
+    // É aqui que ela importa de verdade: sem ela, bastaria conhecer um
+    // originalTransactionId alheio ainda não reivindicado pra associá-lo
+    // a esta conta. Se os certificados-raiz não estiverem no deploy, o
+    // módulo devolve `verificado: false` e seguimos como antes, com o
+    // aviso nos logs.
     let transactionId: string | undefined;
     try {
-      const decodificado = decodificarPayloadJws(signedTransactionInfo);
-      transactionId = decodificado.originalTransactionId ?? decodificado.transactionId;
+      const { payload, verificado } = await verificarTransacao(signedTransactionInfo);
+      if (!verificado) {
+        logger.warn(
+          'Transação aceita SEM verificação de assinatura (certificados-raiz da Apple ausentes).',
+        );
+      }
+      transactionId = payload.originalTransactionId ?? payload.transactionId;
     } catch (e) {
-      logger.error('signedTransactionInfo mal formado', e);
+      logger.error('signedTransactionInfo inválido ou com assinatura não confiável', e);
+      throw new HttpsError('invalid-argument', 'Dados da compra inválidos.');
     }
     if (!transactionId) {
       throw new HttpsError('invalid-argument', 'Dados da compra inválidos.');
@@ -253,19 +266,23 @@ export const confirmarAssinaturaPrestadorApple = onCall(
       throw new HttpsError('permission-denied', 'Essa compra já está associada a outra conta.');
     }
 
-    const credenciais = lerCredenciaisApple();
-    let statusResponse: StatusResponse;
+    let estado: EstadoNormalizado;
     try {
-      statusResponse = await buscarStatusNaAppStore(transactionId, credenciais);
+      estado = await consultarEstadoApple(transactionId);
     } catch (e) {
       logger.error('Falha ao consultar a App Store Server API', e);
       throw new HttpsError('unavailable', 'Não foi possível confirmar a compra junto à App Store.');
     }
 
-    const estado = paraEstadoNormalizado(extrairUltimaTransacao(statusResponse, productId));
-
     await tokenRef.set(
-      { uid, productId, subscriptionState: estado.rawState, atualizadoEm: Timestamp.now() },
+      {
+        uid,
+        productId,
+        loja: 'apple',
+        transactionId,
+        subscriptionState: estado.rawState,
+        atualizadoEm: Timestamp.now(),
+      },
       { merge: true },
     );
 
@@ -276,7 +293,10 @@ export const confirmarAssinaturaPrestadorApple = onCall(
     );
 
     if (!ativa) {
-      throw new HttpsError('failed-precondition', `Assinatura não está ativa (status: ${estado.rawState}).`);
+      throw new HttpsError(
+        'failed-precondition',
+        `Assinatura não está ativa (status: ${estado.rawState}).`,
+      );
     }
 
     return { ativa: true };
@@ -296,14 +316,32 @@ export const processarNotificacaoApple = onRequest(
       return;
     }
 
+    // Verificação criptográfica da notificação (ver appleJws.ts). Uma
+    // assinatura inválida vira 400: a Apple não reenvia 4xx, e reenviar
+    // não adiantaria — um payload forjado continuaria forjado. Erros de
+    // CONSULTA, mais abaixo, viram 500 justamente pra que ela reenvie.
     let payload: any;
     try {
-      payload = decodificarPayloadJws(signedPayload);
+      const resultado = await verificarNotificacao(signedPayload);
+      payload = resultado.payload;
+      if (!resultado.verificado) {
+        logger.warn(
+          'Notificação aceita SEM verificação de assinatura (certificados-raiz da Apple ausentes).',
+        );
+      }
     } catch (e) {
-      logger.error('Notificação da Apple mal formada', e);
+      logger.error('Notificação da Apple com assinatura inválida ou mal formada', e);
       res.status(400).send('payload inválido');
       return;
     }
+
+    logger.info(
+      `Notificação da Apple recebida: ${payload?.notificationType ?? '?'}` +
+        `${payload?.subtype ? '/' + payload.subtype : ''} ` +
+        `(ambiente: ${payload?.data?.environment ?? '?'}, verificação: ${
+          verificacaoDisponivel() ? 'ativa' : 'DESLIGADA'
+        })`,
+    );
 
     const signedTransactionInfo = payload?.data?.signedTransactionInfo;
     if (typeof signedTransactionInfo !== 'string') {
@@ -316,6 +354,8 @@ export const processarNotificacaoApple = onRequest(
       return;
     }
 
+    // Esta transação veio DENTRO de um payload cuja assinatura já foi
+    // verificada acima, então o decode simples basta.
     let transactionId: string | undefined;
     try {
       const transacao = decodificarPayloadJws(signedTransactionInfo);
@@ -343,19 +383,14 @@ export const processarNotificacaoApple = onRequest(
     }
     const uid = tokenSnap.data()!.uid as string;
 
-    const credenciais = lerCredenciaisApple();
-    let statusResponse: StatusResponse;
+    let estado: EstadoNormalizado;
     try {
-      statusResponse = await buscarStatusNaAppStore(transactionId, credenciais);
+      estado = await consultarEstadoApple(transactionId);
     } catch (e) {
       logger.error('Falha ao consultar a App Store Server API a partir da notificação', e);
       res.status(500).send('erro ao consultar a App Store');
       return;
     }
-
-    const estado = paraEstadoNormalizado(
-      extrairUltimaTransacao(statusResponse, APPLE_SUBSCRIPTION_PRODUCT_ID),
-    );
 
     await tokenRef.set(
       { subscriptionState: estado.rawState, atualizadoEm: Timestamp.now() },

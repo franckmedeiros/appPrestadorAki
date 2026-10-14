@@ -141,6 +141,14 @@ export interface HubCfg {
   emailInterno?: RegExp;
   /** Contas fora da lista e das métricas (ex.: demonstração). */
   ignorarEmail?: RegExp;
+  /**
+   * Teste grátis (Resenha/PrestadorAki): `ler` mostra a situação no modal
+   * do usuário; `ajustar` com dias > 0 libera/estende, com 0 encerra.
+   */
+  testeGratis?: {
+    ler: (db: Firestore, uid: string) => Promise<Record<string, unknown>>;
+    ajustar: (db: Firestore, uid: string, dias: number, admin: string) => Promise<void>;
+  };
 }
 
 export function criarHub(cfg: HubCfg) {
@@ -163,7 +171,9 @@ export function criarHub(cfg: HubCfg) {
     const usuarios = todos.filter((u) => !u.teste);
     const uidsTeste = new Set(todos.filter((u) => u.teste).map((u) => u.uid));
     const assinantes = (await assinantesSeguro()).filter((a) => !uidsTeste.has(a.uid));
-    const ativos = assinantes.filter((a) => a.ativa);
+    // Quem está no teste grátis não é assinante pagante — conta à parte.
+    const ativos = assinantes.filter((a) => a.ativa && !a.emTeste);
+    const emTeste = assinantes.filter((a) => a.ativa && a.emTeste).length;
     const hoje = new Date();
     const meses: { mes: string; cadastros: number }[] = [];
     for (let i = 5; i >= 0; i--) {
@@ -195,6 +205,7 @@ export function criarHub(cfg: HubCfg) {
       novos30d: usuarios.filter((u) => (u.criadoEm ?? 0) >= agora - 30 * dia).length,
       ativos30d: usuarios.filter((u) => (u.ultimoAcesso ?? 0) >= agora - 30 * dia).length,
       assinantesAtivos: ativos.length,
+      emTeste,
       vencem7d: ativos.filter(
         (a) => a.validoAte != null && a.validoAte - agora <= 7 * dia && a.validoAte >= agora,
       ).length,
@@ -221,7 +232,12 @@ export function criarHub(cfg: HubCfg) {
     if (d.incluirTeste !== true) todos = todos.filter((u) => !u.teste);
     let lista: UsuarioHub[] = todos.map((u) => {
       const a = mapa.get(u.uid);
-      return { ...u, assinante: Boolean(a?.ativa), statusAssinatura: a ? a.status : null };
+      return {
+        ...u,
+        assinante: Boolean(a?.ativa && !a?.emTeste),
+        emTeste: Boolean(a?.ativa && a?.emTeste),
+        statusAssinatura: a ? a.status : null,
+      };
     });
     if (busca) {
       const dig = busca.replace(/\D/g, '');
@@ -235,6 +251,7 @@ export function criarHub(cfg: HubCfg) {
     }
     if (filtro === 'bloqueados') lista = lista.filter((u) => u.bloqueado);
     if (filtro === 'assinantes') lista = lista.filter((u) => u.assinante);
+    if (filtro === 'emTeste') lista = lista.filter((u) => u.emTeste);
     lista.sort((a, b) => (b.criadoEm ?? 0) - (a.criadoEm ?? 0));
     const total = lista.length;
     const itens = lista.slice(pagina * tamanho, (pagina + 1) * tamanho);
@@ -272,7 +289,15 @@ export function criarHub(cfg: HubCfg) {
     const assinantes = await assinantesSeguro();
     const marcada = await db.collection('hubContasTeste').doc(uid).get().then((s) => s.exists).catch(() => false);
     u.teste = marcada || Boolean(cfg.ignorarEmail?.test(u.email));
-    return { ...u, perfis, assinatura: assinantes.find((a) => a.uid === uid) ?? null };
+    let testeGratis: Record<string, unknown> | null = null;
+    if (cfg.testeGratis) {
+      try {
+        testeGratis = serializar(await cfg.testeGratis.ler(db, uid));
+      } catch {
+        testeGratis = null;
+      }
+    }
+    return { ...u, perfis, assinatura: assinantes.find((a) => a.uid === uid) ?? null, testeGratis };
   });
 
   const hubAtualizarUsuario = onCall(opcoes, async (req) => {
@@ -333,6 +358,13 @@ export function criarHub(cfg: HubCfg) {
       const ref = db.collection('hubContasTeste').doc(uid);
       if (d.teste) await ref.set({ email: atual.email ?? null, por: admin, em: Timestamp.now() });
       else await ref.delete();
+    }
+    // Teste grátis: dias > 0 libera/estende, 0 encerra.
+    if (d.testeGratisDias != null) {
+      if (!cfg.testeGratis) throw new HttpsError('failed-precondition', 'Este app não tem teste grátis.');
+      const dias = Math.floor(Number(d.testeGratisDias));
+      if (!Number.isFinite(dias) || dias < 0) throw new HttpsError('invalid-argument', 'Dias de teste inválidos.');
+      await cfg.testeGratis.ajustar(db, uid, dias, admin);
     }
     await db.collection('hubAuditoria').add({
       acao: 'atualizarUsuario',

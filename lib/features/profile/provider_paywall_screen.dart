@@ -56,6 +56,13 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
   bool _comprando = false;
   String? _erro;
 
+  /// TESTE GRÁTIS (ver functions/src/testeGratis.ts): a conta ainda não
+  /// usou os 7 dias grátis → mostra "Começar 7 dias grátis" como opção
+  /// principal. Normalmente o teste já começa sozinho ao virar prestador;
+  /// isto cobre quem ficou pra trás (sem rede na hora, contas antigas).
+  bool _testeDisponivel = false;
+  bool _iniciandoTeste = false;
+
   @override
   void initState() {
     super.initState();
@@ -81,7 +88,41 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
       },
     );
     _carregarProduto();
+    _service.testeGratisDisponivel().then((ok) {
+      if (mounted) setState(() => _testeDisponivel = ok);
+    });
   }
+
+  Future<void> _comecarTeste() async {
+    setState(() {
+      _iniciandoTeste = true;
+      _erro = null;
+    });
+    try {
+      await _service.iniciarTesteGratis(
+        category: widget.category,
+        city: widget.city,
+        state: widget.state,
+      );
+      if (!mounted) return;
+      await context.read<AuthController>().refreshProviderStatus();
+      if (!mounted) return;
+      // Mesmo caminho da compra confirmada: quem abriu com categoria/cidade
+      // recebe `true`; no modo reativar o router tira a pessoa daqui.
+      if (Navigator.of(context).canPop()) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _testeDisponivel = false;
+        _erro = _service.descreverErro(e);
+      });
+    } finally {
+      if (mounted) setState(() => _iniciandoTeste = false);
+    }
+  }
+
+  static String _dataCurta(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
 
   @override
   void dispose() {
@@ -160,6 +201,10 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Aberta pelo aviso do Dashboard durante o teste grátis: assinar agora
+    // só garante que nada pare quando o teste acabar.
+    final fimDoTeste = context.watch<AuthController>().providerTrialEndsAt;
+    final ocupado = _comprando || _iniciandoTeste;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: barraDeTela(
@@ -178,18 +223,28 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
             const Icon(Icons.handyman_outlined, color: AppColors.primary, size: 40),
             const SizedBox(height: 12),
             Text(
-              widget.modoReativar
-                  ? 'Sua assinatura não está ativa'
-                  : 'Assine e apareça pros clientes',
+              fimDoTeste != null
+                  ? 'Seu teste grátis vai até ${_dataCurta(fimDoTeste)}'
+                  : _testeDisponivel
+                      ? 'Experimente 7 dias grátis'
+                      : widget.modoReativar
+                          ? 'Sua assinatura não está ativa'
+                          : 'Assine e apareça pros clientes',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Text(
-              widget.modoReativar
-                  ? 'Pra usar a área de prestador e aparecer nas buscas, ative a '
-                      'assinatura mensal. Se você já pagou, toque em "Já assinei, '
-                      'restaurar compra".'
-                  : 'Sua conta continua a mesma — isso só adiciona a área de prestador.',
+              fimDoTeste != null
+                  ? 'Assine agora pra continuar aparecendo nas buscas quando o teste '
+                      'acabar. Você não perde nada do que já cadastrou.'
+                  : _testeDisponivel
+                      ? 'Use a área de prestador e apareça nas buscas por 7 dias, sem '
+                          'cartão e sem compromisso. Depois, é só assinar pra continuar.'
+                      : widget.modoReativar
+                          ? 'Pra usar a área de prestador e aparecer nas buscas, ative a '
+                              'assinatura mensal. Se você já pagou, toque em "Já assinei, '
+                              'restaurar compra".'
+                          : 'Sua conta continua a mesma — isso só adiciona a área de prestador.',
               style: const TextStyle(color: AppColors.muted, fontSize: 13.5),
             ),
             const SizedBox(height: 24),
@@ -262,8 +317,28 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
+                  if (_testeDisponivel && fimDoTeste == null) ...[
+                    ElevatedButton(
+                      onPressed: ocupado ? null : _comecarTeste,
+                      style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                      child: _iniciandoTeste
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Começar 7 dias grátis'),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Sem cartão. Ou, se preferir, assine direto:',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11.5, color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   ElevatedButton(
-                    onPressed: (_carregandoProduto || _comprando || _produto == null) ? null : _assinar,
+                    onPressed: (_carregandoProduto || ocupado || _produto == null) ? null : _assinar,
                     style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                     child: _comprando
                         ? const SizedBox(
@@ -275,7 +350,7 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
                   ),
                   const SizedBox(height: 4),
                   TextButton(
-                    onPressed: _comprando ? null : _restaurar,
+                    onPressed: ocupado ? null : _restaurar,
                     child: const Text('Já assinei, restaurar compra'),
                   ),
                 ],

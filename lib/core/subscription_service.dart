@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -116,6 +118,37 @@ class SubscriptionService {
 
   Future<void> restaurarCompras() => _iap.restorePurchases();
 
+  /// TESTE GRÁTIS DE 7 DIAS (ver functions/src/testeGratis.ts): libera a
+  /// área de prestador sem passar pela loja. Quem decide se a conta tem
+  /// direito (1 vez por pessoa/WhatsApp) e quando acaba é o servidor.
+  /// Devolve o fim do teste, ou `null` se a conta já estava ativa.
+  ///
+  /// Lança [FirebaseFunctionsException] com `already-exists` se a conta
+  /// já usou o teste — aí o caminho é a assinatura normal.
+  Future<DateTime?> iniciarTesteGratis({String? category, String? city, String? state}) async {
+    final r = await FirebaseFunctions.instance.httpsCallable('iniciarTesteGratisPrestador').call({
+      if (category != null) 'category': category,
+      if (city != null) 'city': city,
+      if (state != null) 'state': state,
+    });
+    final ate = (r.data is Map) ? (r.data as Map)['ate'] : null;
+    return ate is num ? DateTime.fromMillisecondsSinceEpoch(ate.toInt()) : null;
+  }
+
+  /// `true` se a conta logada ainda não usou o teste grátis — só pra
+  /// decidir se mostra o botão na tela de assinatura (a palavra final é
+  /// do servidor, que também confere o WhatsApp).
+  Future<bool> testeGratisDisponivel() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('testesGratis').doc(uid).get();
+      return !doc.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void pararEscuta() {
     _subscription?.cancel();
     _subscription = null;
@@ -132,6 +165,9 @@ class SubscriptionService {
       switch (erro.code) {
         case 'permission-denied':
           return 'Essa compra já está associada a outra conta.';
+        case 'already-exists':
+          // Teste grátis já usado — a mensagem do servidor já explica.
+          return erro.message ?? 'Você já usou o teste grátis.';
         case 'failed-precondition':
           return 'Sua assinatura ainda não está ativa. Se você acabou de '
               'pagar, aguarde um instante e tente "Já assinei, restaurar '

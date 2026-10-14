@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'biometric_service.dart';
 import 'notification_service.dart';
+import 'subscription_service.dart';
 import 'testing_flags.dart';
 import 'token_storage.dart';
 
@@ -69,6 +70,13 @@ class AuthController extends ChangeNotifier {
   /// `'pending'` — quem grava é o servidor, ver `aplicarEstadoNormalizado`
   /// em functions/src/subscription.ts). `null` pra quem não é prestador.
   String? providerListingStatus;
+
+  /// Fim do TESTE GRÁTIS de 7 dias (`providers/{uid}.subscriptionExpiresAt`
+  /// quando `subscriptionStore == 'teste'` — ver functions/src/testeGratis.ts).
+  /// `null` pra quem não está em teste (assinante de loja, pendente, cliente).
+  /// Só informativo (aviso "faltam X dias" no Dashboard): quem trava de
+  /// verdade quando o teste acaba é o servidor, gravando `'pending'`.
+  DateTime? providerTrialEndsAt;
 
   /// TRAVA DE ASSINATURA (decisão do Franck, 11/10): ter `providers/{uid}`
   /// não basta pra usar a área do prestador — precisa estar com a
@@ -316,6 +324,16 @@ class AuthController extends ChangeNotifier {
             state: state,
           );
           isProvider = true;
+          // TESTE GRÁTIS automático (decisão do Franck, 13/10): quem se
+          // cadastra como prestador já entra com 7 dias liberados, sem
+          // cartão. Se falhar (sem rede, já usou o teste com esse
+          // WhatsApp), não atrapalha o cadastro — a pessoa só cai na tela
+          // de assinatura, como antes.
+          try {
+            await SubscriptionService.instance.iniciarTesteGratis();
+          } catch (e) {
+            debugPrint('AuthController.register: teste grátis não iniciado: $e');
+          }
         }
         // Lê de volta o que acabou de ser gravado (inclusive o
         // `listingStatus`) e liga a escuta de providers/{uid} — também pra
@@ -413,11 +431,12 @@ class AuthController extends ChangeNotifier {
         'logoUrl',
       ])
         if (clientData[field] != null) field: clientData[field],
-      // kBypassProviderSubscriptionGate é TEMPORÁRIO — ver
-      // lib/core/testing_flags.dart. Com ele ligado, isso já nasce
-      // 'active' (sem paywall) só pra testar a busca/listagem antes do
-      // Play Billing estar configurado de verdade.
-      'listingStatus': kBypassProviderSubscriptionGate ? 'active' : 'pending',
+      // Sempre nasce 'pending': quem ativa é o servidor (assinatura ou
+      // teste grátis) — o firestore.rules nega qualquer outro valor aqui.
+      // Com kBypassProviderSubscriptionGate (desktop/dev) a área de
+      // prestador abre do mesmo jeito, porque `providerAccessLocked`
+      // ignora o status nesse caso.
+      'listingStatus': 'pending',
       'nextBudgetNumber': 1,
       'createdAt': now,
       'updatedAt': now,
@@ -597,11 +616,6 @@ class AuthController extends ChangeNotifier {
             'category': categories.first,
             'city': city,
             'state': (state != null && state.isNotEmpty) ? state : FieldValue.delete(),
-            // TEMPORÁRIO (ver lib/core/testing_flags.dart) — com a flag
-            // ligada, salvar aqui também já reativa uma conta que ficou
-            // 'pending' (ex.: criada antes desse bypass existir), sem
-            // precisar editar o Firestore na mão de novo.
-            if (kBypassProviderSubscriptionGate) 'listingStatus': 'active',
             'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
@@ -661,6 +675,7 @@ class AuthController extends ChangeNotifier {
         biometricEnabled = false;
         isProvider = false;
         providerListingStatus = null;
+        providerTrialEndsAt = null;
         status = AuthStatus.unauthenticated;
       });
 
@@ -680,6 +695,7 @@ class AuthController extends ChangeNotifier {
     biometricEnabled = false;
     isProvider = false;
     providerListingStatus = null;
+    providerTrialEndsAt = null;
     // Zera junto com a sessão: o controle é "já mandei e-mail pra ESTA
     // conta", não "pra este aparelho" — sem isso, quem sai de uma conta
     // confirmada e entra numa não confirmada cairia na tela de
@@ -815,10 +831,18 @@ class AuthController extends ChangeNotifier {
   /// (que também mexe nesse documento, ex.: `updatedAt`).
   bool _applyProviderSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
     final novoIsProvider = doc.exists;
-    final novoStatus = doc.exists ? (doc.data()?['listingStatus'] as String?) : null;
-    final mudou = novoIsProvider != isProvider || novoStatus != providerListingStatus;
+    final data = doc.data();
+    final novoStatus = doc.exists ? (data?['listingStatus'] as String?) : null;
+    final expira = data?['subscriptionExpiresAt'];
+    final novoFimTeste = (doc.exists && data?['subscriptionStore'] == 'teste' && novoStatus == 'active' && expira is Timestamp)
+        ? expira.toDate()
+        : null;
+    final mudou = novoIsProvider != isProvider ||
+        novoStatus != providerListingStatus ||
+        novoFimTeste != providerTrialEndsAt;
     isProvider = novoIsProvider;
     providerListingStatus = novoStatus;
+    providerTrialEndsAt = novoFimTeste;
     return mudou;
   }
 
