@@ -21,6 +21,8 @@ const hub = criarHub({
   region: 'us-central1',
   // Conta de demonstração (lojas/revisão) — fora da lista e das métricas.
   ignorarEmail: /^demo@prestadoraki\.app$/i,
+  // O app trava quem não confirmou o e-mail (EmailVerificationScreen).
+  liberarEmail: true,
   perfis: [
     { colecao: 'clients', nome: 'name', telefone: 'whatsapp', email: 'email' },
     { colecao: 'providers', nome: 'name', telefone: 'whatsapp', email: 'email' },

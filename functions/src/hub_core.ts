@@ -142,6 +142,11 @@ export interface HubCfg {
   /** Contas fora da lista e das métricas (ex.: demonstração). */
   ignorarEmail?: RegExp;
   /**
+   * O app exige e-mail confirmado: o hub mostra "Marcar e-mail como
+   * confirmado" (pra quem não recebeu/achou o link).
+   */
+  liberarEmail?: boolean;
+  /**
    * Teste grátis (Resenha/PrestadorAki): `ler` mostra a situação no modal
    * do usuário; `ajustar` com dias > 0 libera/estende, com 0 encerra.
    */
@@ -303,7 +308,13 @@ export function criarHub(cfg: HubCfg) {
         testeGratis = null;
       }
     }
-    return { ...u, perfis, assinatura: assinantes.find((a) => a.uid === uid) ?? null, testeGratis };
+    return {
+      ...u,
+      perfis,
+      assinatura: assinantes.find((a) => a.uid === uid) ?? null,
+      testeGratis,
+      podeLiberarEmail: cfg.liberarEmail === true,
+    };
   });
 
   const hubAtualizarUsuario = onCall(opcoes, async (req) => {
@@ -335,6 +346,8 @@ export function criarHub(cfg: HubCfg) {
       if (atual.phoneNumber && e164 && e164 !== atual.phoneNumber) authUpd.phoneNumber = e164;
     }
     if (typeof d.bloqueado === 'boolean') authUpd.disabled = d.bloqueado;
+    // Libera a trava de "confirme seu e-mail" sem a pessoa clicar no link.
+    if (d.emailVerificado === true && cfg.liberarEmail && !atual.emailVerified) authUpd.emailVerified = true;
     try {
       if (Object.keys(authUpd).length) await getAuth().updateUser(uid, authUpd);
     } catch (e: any) {
