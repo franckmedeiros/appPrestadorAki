@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:fast_contacts/fast_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
@@ -70,14 +71,14 @@ class _ImportarContatosScreenState extends State<ImportarContatosScreen> {
       _erro = null;
     });
     try {
-      final permitido = await FlutterContacts.requestPermission(readonly: true);
+      final permitido = (await Permission.contacts.request()).isGranted;
       if (!permitido) {
         if (mounted) setState(() => _estado = _Estado.semPermissao);
         return;
       }
       final repo = context.read<CustomersRepository>();
       final results = await Future.wait([
-        FlutterContacts.getContacts(withProperties: true),
+        FastContacts.getAllContacts(fields: [ContactField.displayName, ContactField.phoneNumbers]),
         repo.digitosDosTelefonesCadastrados(),
       ]);
       final contatos = results[0] as List<Contact>;
@@ -119,7 +120,7 @@ class _ImportarContatosScreenState extends State<ImportarContatosScreen> {
   static String? _melhorNumero(List<Phone> phones) {
     String? fixo;
     for (final p in phones) {
-      final d = digitosTelefoneBR(p.normalizedNumber.isNotEmpty ? p.normalizedNumber : p.number);
+      final d = digitosTelefoneBR(p.number);
       if (d == null) continue;
       if (d.length == 11) return d;
       fixo ??= d;
@@ -212,9 +213,10 @@ class _ImportarContatosScreenState extends State<ImportarContatosScreen> {
               'Só o nome e o número dos contatos que você marcar são salvos nos seus clientes.',
           botao: 'Permitir acesso',
           aoTocar: () async {
-            final ok = await FlutterContacts.requestPermission(readonly: true);
+            final ok = (await Permission.contacts.request()).isGranted;
             if (ok) return _carregar();
             // Negado "para sempre": o sistema não mostra mais o pedido.
+            if (await Permission.contacts.isPermanentlyDenied) await openAppSettings();
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Libere em Ajustes do celular → Apps → PrestadorAki → Permissões → Contatos.'),

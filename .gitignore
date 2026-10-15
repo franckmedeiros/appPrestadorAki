@@ -100,3 +100,5 @@ app.*.map.json
 apple-secret.json
 *firebase-adminsdk*.json
 functions/backup-*.json
+
+certificados_ios/
