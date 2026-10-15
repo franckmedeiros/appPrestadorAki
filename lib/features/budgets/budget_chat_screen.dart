@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/mascarar_contato.dart';
 import 'budget_messages_repository.dart';
 import 'models/budget_message.dart';
 
@@ -98,9 +99,19 @@ class _BudgetChatScreenState extends State<BudgetChatScreen> {
     });
   }
 
+  /// Prestador sem assinatura paga: contato mascarado nos dois sentidos
+  /// (ver lib/core/mascarar_contato.dart). O cliente nunca é travado.
+  bool get _mascarar => widget.souPrestador && !context.read<AuthController>().contatoClienteLiberado;
+
   Future<void> _enviar() async {
-    final texto = _controller.text.trim();
+    var texto = _controller.text.trim();
     if (texto.isEmpty || _enviando) return;
+    if (_mascarar && temContato(texto)) {
+      texto = mascararContatos(texto);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contatos diretos são liberados com a assinatura — enviamos a mensagem sem eles.')),
+      );
+    }
     setState(() => _enviando = true);
     // Limpa o campo ANTES de esperar a rede: o Firestore mostra a
     // mensagem na hora pelo cache local, então deixar o texto no campo
@@ -175,7 +186,7 @@ class _BudgetChatScreenState extends State<BudgetChatScreen> {
                     final minha = widget.souPrestador
                         ? m.autorTipo == AutorMensagem.prestador
                         : m.autorTipo == AutorMensagem.cliente;
-                    return _Balao(mensagem: m, minha: minha);
+                    return _Balao(mensagem: m, minha: minha, mascarar: _mascarar && !minha);
                   },
                 );
               },
@@ -226,10 +237,13 @@ class _BudgetChatScreenState extends State<BudgetChatScreen> {
 }
 
 class _Balao extends StatelessWidget {
-  const _Balao({required this.mensagem, required this.minha});
+  const _Balao({required this.mensagem, required this.minha, this.mascarar = false});
 
   final BudgetMessage mensagem;
   final bool minha;
+
+  /// Esconde telefone/e-mail do texto (prestador sem assinatura paga).
+  final bool mascarar;
 
   @override
   Widget build(BuildContext context) {
@@ -253,7 +267,7 @@ class _Balao extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              mensagem.texto,
+              mascarar ? mascararContatos(mensagem.texto) : mensagem.texto,
               style: TextStyle(
                 fontSize: 14,
                 height: 1.35,

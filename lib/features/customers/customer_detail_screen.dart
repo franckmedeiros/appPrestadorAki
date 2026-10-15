@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/auth_controller.dart';
+
 import '../../core/app_theme.dart';
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
@@ -95,7 +97,11 @@ class _CartaoDeContato extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final numero = _numeroParaWhatsapp;
+    // Trava de contato (ver lib/core/mascarar_contato.dart): cliente que
+    // veio pelo app (`clientUid`) só tem o contato mostrado com assinatura
+    // paga. Cliente cadastrado à mão pelo próprio prestador nunca é travado.
+    final travado = customer.clientUid != null && !context.read<AuthController>().contatoClienteLiberado;
+    final numero = travado ? null : _numeroParaWhatsapp;
     final local = customer.locationLabel;
 
     return Container(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -169,7 +170,18 @@ Widget providerListingCard({
                     ),
                   ],
                 ),
-                if (!listing.claimed) ...[
+                if (listing.parceiroEstiloAki) ...[
+                  const SizedBox(height: 10),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Chip(
+                      avatar: Icon(Icons.event_available, size: 14),
+                      label: Text('Agende pelo EstiloAki', style: TextStyle(fontSize: 10)),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ] else if (!listing.claimed) ...[
                   const SizedBox(height: 10),
                   const Align(
                     alignment: Alignment.centerLeft,
@@ -333,6 +345,39 @@ class WhatsappBadge extends StatelessWidget {
       alignment: Alignment.center,
       decoration: const BoxDecoration(color: Color(0xFF25D366), shape: BoxShape.circle),
       child: FaIcon(FontAwesomeIcons.whatsapp, size: size * 0.62, color: Colors.white),
+    );
+  }
+}
+
+/// Abre o EstiloAki direto no estabelecimento parceiro [codigo]
+/// ("Agendar pelo EstiloAki"). Com o app instalado, abre nele; senão, a
+/// loja (celular) ou o site (computador).
+Future<void> abrirEstiloAki(BuildContext context, String codigo) async {
+  final app = Uri.parse('estiloaki://app/b/$codigo');
+  final site = Uri.parse('https://estiloaki.web.app/b/$codigo');
+  final plataforma = Theme.of(context).platform;
+  final celular = !kIsWeb &&
+      (plataforma == TargetPlatform.android || plataforma == TargetPlatform.iOS);
+  var abriu = false;
+  if (celular) {
+    try {
+      abriu = await launchUrl(app, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      abriu = false;
+    }
+    if (!abriu) {
+      final loja = plataforma == TargetPlatform.iOS
+          ? Uri.parse('https://apps.apple.com/app/id6818670803')
+          : Uri.parse(
+              'https://play.google.com/store/apps/details?id=br.com.opoutsourcing.estiloaki');
+      abriu = await launchUrl(loja, mode: LaunchMode.externalApplication);
+    }
+  } else {
+    abriu = await launchUrl(site, mode: LaunchMode.externalApplication);
+  }
+  if (!abriu && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Não foi possível abrir o EstiloAki.')),
     );
   }
 }

@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'biometric_service.dart';
 import 'notification_service.dart';
-import 'subscription_service.dart';
 import 'testing_flags.dart';
 import 'token_storage.dart';
 
@@ -77,6 +76,20 @@ class AuthController extends ChangeNotifier {
   /// Só informativo (aviso "faltam X dias" no Dashboard): quem trava de
   /// verdade quando o teste acaba é o servidor, gravando `'pending'`.
   DateTime? providerTrialEndsAt;
+
+  /// `providers/{uid}.subscriptionStore` ('google' | 'apple' | 'teste'),
+  /// `null` pra contas antigas ou quem não é prestador.
+  String? providerSubscriptionStore;
+
+  /// TRAVA DE CONTATO (ver lib/core/mascarar_contato.dart): o prestador só
+  /// vê telefone/WhatsApp/e-mail do cliente com assinatura PAGA ativa. No
+  /// teste liberado pelo hub (`subscriptionStore == 'teste'`) ele usa o
+  /// app normalmente, mas o contato fica mascarado. Contas antigas (sem
+  /// `subscriptionStore`, ativadas à mão) continuam liberadas.
+  bool get contatoClienteLiberado =>
+      kBypassProviderSubscriptionGate ||
+      !isProvider ||
+      (providerListingStatus == 'active' && providerSubscriptionStore != 'teste');
 
   /// TRAVA DE ASSINATURA (decisão do Franck, 11/10): ter `providers/{uid}`
   /// não basta pra usar a área do prestador — precisa estar com a
@@ -324,16 +337,9 @@ class AuthController extends ChangeNotifier {
             state: state,
           );
           isProvider = true;
-          // TESTE GRÁTIS automático (decisão do Franck, 13/10): quem se
-          // cadastra como prestador já entra com 7 dias liberados, sem
-          // cartão. Se falhar (sem rede, já usou o teste com esse
-          // WhatsApp), não atrapalha o cadastro — a pessoa só cai na tela
-          // de assinatura, como antes.
-          try {
-            await SubscriptionService.instance.iniciarTesteGratis();
-          } catch (e) {
-            debugPrint('AuthController.register: teste grátis não iniciado: $e');
-          }
+          // Teste grátis automático desligado (14/10): o teste só é
+          // liberado pelo hub. Quem se cadastra como prestador segue pra
+          // tela de assinatura normalmente.
         }
         // Lê de volta o que acabou de ser gravado (inclusive o
         // `listingStatus`) e liga a escuta de providers/{uid} — também pra
@@ -837,10 +843,13 @@ class AuthController extends ChangeNotifier {
     final novoFimTeste = (doc.exists && data?['subscriptionStore'] == 'teste' && novoStatus == 'active' && expira is Timestamp)
         ? expira.toDate()
         : null;
+    final novaLoja = doc.exists ? (data?['subscriptionStore'] as String?) : null;
     final mudou = novoIsProvider != isProvider ||
         novoStatus != providerListingStatus ||
-        novoFimTeste != providerTrialEndsAt;
+        novoFimTeste != providerTrialEndsAt ||
+        novaLoja != providerSubscriptionStore;
     isProvider = novoIsProvider;
+    providerSubscriptionStore = novaLoja;
     providerListingStatus = novoStatus;
     providerTrialEndsAt = novoFimTeste;
     return mudou;

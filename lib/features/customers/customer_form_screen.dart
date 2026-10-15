@@ -3,6 +3,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
+import '../../core/auth_controller.dart';
+import '../../core/mascarar_contato.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/state_city_fields.dart';
 import 'customers_repository.dart';
@@ -25,8 +27,13 @@ class CustomerFormScreen extends StatefulWidget {
 class _CustomerFormScreenState extends State<CustomerFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final _nameController = TextEditingController(text: widget.customer?.name ?? '');
-  late final _phoneController =
-      TextEditingController(text: widget.customer?.phone ?? widget.customer?.whatsapp ?? '');
+  /// Trava de contato (ver lib/core/mascarar_contato.dart): cliente que
+  /// veio pelo app não tem o telefone mostrado nem editável sem assinatura
+  /// paga — e o número original é preservado ao salvar.
+  late final bool _telefoneTravado = widget.customer?.clientUid != null &&
+      !context.read<AuthController>().contatoClienteLiberado;
+  late final _phoneController = TextEditingController(
+      text: _telefoneTravado ? kContatoOculto : (widget.customer?.phone ?? widget.customer?.whatsapp ?? ''));
   late String? _city = widget.customer?.addressCity;
   late String? _uf = widget.customer?.addressState;
 
@@ -56,7 +63,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
         await repository.update(
           widget.customer!.id,
           name: _nameController.text.trim(),
-          phone: _phoneController.text.trim(),
+          phone: _telefoneTravado ? widget.customer!.phone : _phoneController.text.trim(),
           addressCity: (_city ?? '').trim(),
           addressState: (_uf ?? '').trim().toUpperCase(),
         );
@@ -143,9 +150,10 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                       ),
                       label: 'Telefone / WhatsApp',
                       required: true,
-                      helperText: 'Número usado para contato.',
+                      helperText: _telefoneTravado ? kAvisoContatoBloqueado : 'Número usado para contato.',
                       child: TextFormField(
                         controller: _phoneController,
+                        readOnly: _telefoneTravado,
                         keyboardType: TextInputType.phone,
                         inputFormatters: [_phoneMask],
                         decoration: const InputDecoration(

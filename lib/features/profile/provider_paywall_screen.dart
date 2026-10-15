@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -6,8 +8,11 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/mascarar_contato.dart';
 import '../../core/subscription_service.dart';
 import '../../widgets/cabecalho_de_tela.dart';
+import '../marketplace/models/service_category.dart';
+import 'codigo_convite_dialog.dart';
 
 /// Tela de venda da assinatura mensal — único jeito de virar prestador
 /// (aparecer na busca "Encontre um profissional"). Decisão combinada com
@@ -247,6 +252,11 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
                           : 'Sua conta continua a mesma — isso só adiciona a área de prestador.',
               style: const TextStyle(color: AppColors.muted, fontSize: 13.5),
             ),
+            // Pré-cadastro com consentimento (ver functions/src/convites.ts):
+            // quem ativou o perfil pelo código do WhatsApp vê aqui os
+            // pedidos que estão esperando — sem nome nem contato do
+            // cliente, que é o que a assinatura libera.
+            const _PedidosEsperando(),
             const SizedBox(height: 24),
             const _BeneficioItem(
               icon: Icons.search_outlined,
@@ -360,8 +370,14 @@ class _ProviderPaywallScreenState extends State<ProviderPaywallScreen> {
             // nunca dependeu de assinatura, então a pessoa pode seguir
             // buscando/contratando. Tocar em "Dashboard" de novo traz de
             // volta pra cá.
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: ocupado ? null : () => abrirCodigoConvite(context),
+              icon: const Icon(Icons.pin_outlined, size: 18),
+              label: const Text('Recebi um aviso de pedido no WhatsApp'),
+            ),
             if (widget.modoReativar) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               TextButton(
                 onPressed: _comprando ? null : () => context.go('/buscar'),
                 child: const Text('Agora não, continuar como cliente'),
@@ -398,6 +414,110 @@ class _BeneficioItem extends StatelessWidget {
           child: Text(
             texto,
             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.ink),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+/// Pedidos de clientes esperando resposta, mostrados na tela de assinatura
+/// pra quem ativou o perfil pelo código do WhatsApp. Só serviço, pedido e
+/// data — nome e contato do cliente aparecem depois de assinar.
+class _PedidosEsperando extends StatefulWidget {
+  const _PedidosEsperando();
+
+  @override
+  State<_PedidosEsperando> createState() => _PedidosEsperandoState();
+}
+
+class _PedidosEsperandoState extends State<_PedidosEsperando> {
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      _stream = FirebaseFirestore.instance
+          .collection('providers')
+          .doc(uid)
+          .collection('budgets')
+          .where('providerUid', isEqualTo: uid)
+          .where('status', isEqualTo: 'pendente')
+          .limit(20)
+          .snapshots();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stream = _stream;
+    if (stream == null || !context.watch<AuthController>().isProvider) return const SizedBox.shrink();
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? const [];
+        if (docs.isEmpty) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(top: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                docs.length == 1
+                    ? '1 cliente está esperando sua resposta'
+                    : '${docs.length} clientes estão esperando sua resposta',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink),
+              ),
+              const SizedBox(height: 10),
+              for (final d in docs.take(3)) ...[
+                _PedidoResumo(dados: d.data()),
+                const SizedBox(height: 8),
+              ],
+              const Text(
+                'Assine para ver quem pediu e responder pelo chat.',
+                style: TextStyle(fontSize: 12.5, color: AppColors.muted),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PedidoResumo extends StatelessWidget {
+  const _PedidoResumo({required this.dados});
+
+  final Map<String, dynamic> dados;
+
+  @override
+  Widget build(BuildContext context) {
+    final cat = dados['category'] as String?;
+    final rotulo = cat == null ? 'Serviço' : serviceCategoryFromWire(cat).label;
+    final texto = mascararContatos((dados['requestDescription'] as String? ?? '').trim());
+    final data = dados['preferredDate'] as String?;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.request_quote_outlined, size: 18, color: AppColors.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            [
+              rotulo,
+              if (texto.isNotEmpty) '"${texto.length > 70 ? '${texto.substring(0, 67)}...' : texto}"',
+              if (data != null && data.isNotEmpty) 'para $data',
+            ].join(' · '),
+            style: const TextStyle(fontSize: 13, color: AppColors.ink, height: 1.35),
           ),
         ),
       ],

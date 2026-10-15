@@ -11,7 +11,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'core/app_theme.dart';
 import 'core/auth_controller.dart';
+import 'core/atualizacao_service.dart';
 import 'core/biometric_service.dart';
+import 'core/instalacao_service.dart';
 import 'core/notification_service.dart';
 import 'core/token_storage.dart';
 import 'features/agenda/appointments_repository.dart';
@@ -88,6 +90,13 @@ void main() async {
     // ativado, porque só Auth/Firestore estavam apontados pro emulador.
     FirebaseFunctions.instance.useFunctionsEmulator(_emulatorHost, 5001);
   }
+
+  // Contagem de instalações (inclusive de quem não cria conta) e aviso de
+  // versão nova nas lojas. Nenhum dos dois é aguardado: rodam em segundo
+  // plano e qualquer falha só vai pro log. Ver core/instalacao_service.dart
+  // e core/atualizacao_service.dart.
+  InstalacaoService.instance.iniciar();
+  AtualizacaoService.instance.iniciar();
 
   final authController = AuthController(
     biometricStorage: TokenStorage(
@@ -168,6 +177,8 @@ class _PrestadorAkiAppState extends State<PrestadorAkiApp> {
           GlobalCupertinoLocalizations.delegate,
         ],
         routerConfig: _router,
+        // Faixa "Há uma nova versão" (ver AtualizacaoService).
+        scaffoldMessengerKey: AtualizacaoService.mensageiro,
       ),
     );
   }

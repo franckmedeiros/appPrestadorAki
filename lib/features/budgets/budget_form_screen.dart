@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_theme.dart';
 import '../../core/auth_controller.dart';
+import '../../core/mascarar_contato.dart';
 import '../../core/currency_text_utils.dart';
 import '../../core/date_text_utils.dart';
 import '../../widgets/cabecalho_de_tela.dart';
@@ -1413,6 +1414,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   }
 
   Widget _buildPendingBanner(Budget budget) {
+    // Trava de contato (ver lib/core/mascarar_contato.dart).
+    final contatoLiberado = context.read<AuthController>().contatoClienteLiberado;
     final category = budget.category != null ? serviceCategoryFromWire(budget.category!) : null;
     final botaoConversa = _botaoConversa(budget);
     // Só o primeiro nome, pra caber numa linha; nome vazio viraria um
@@ -1463,7 +1466,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           // mesmo atalho aparece depois no resumo somente-leitura (ver
           // `_buildReadOnlySummary`), pra quando a conversa continuar com
           // o orçamento já enviado.
-          if ((budget.clientPhone ?? '').trim().isNotEmpty) ...[
+          if ((budget.clientPhone ?? '').trim().isNotEmpty && !contatoLiberado) ...[
+            const SizedBox(height: 10),
+            const Text(kAvisoContatoBloqueado, style: TextStyle(fontSize: 12, color: AppColors.muted)),
+          ],
+          if ((budget.clientPhone ?? '').trim().isNotEmpty && contatoLiberado) ...[
             const SizedBox(height: 10),
             InkWell(
               onTap: () => abrirWhatsapp(context, budget.clientPhone!),
@@ -1535,6 +1542,8 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   /// daqui pra frente é só o status e (em `aprovado`) o horário do
   /// serviço pro aceite final.
   Widget _buildReadOnlySummary(Budget budget) {
+    // Trava de contato (ver lib/core/mascarar_contato.dart).
+    final contatoLiberado = context.read<AuthController>().contatoClienteLiberado;
     final status = budget.status!;
     final botaoConversa = _botaoConversa(budget);
     return SingleChildScrollView(
@@ -1594,7 +1603,11 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 // aqui mesmo; só nunca tinha aparecido numa tela. Não é
                 // exposição nova de dado, é o dado saindo do banco pra
                 // onde ele é útil.
-                if ((budget.clientPhone ?? '').trim().isNotEmpty) ...[
+                if ((budget.clientPhone ?? '').trim().isNotEmpty && !contatoLiberado) ...[
+                  const SizedBox(height: 12),
+                  const Text(kAvisoContatoBloqueado, style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                ],
+                if ((budget.clientPhone ?? '').trim().isNotEmpty && contatoLiberado) ...[
                   const SizedBox(height: 12),
                   _BudgetField(
                     label: 'WhatsApp do cliente',

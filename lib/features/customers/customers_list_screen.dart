@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
+import '../../core/auth_controller.dart';
 import '../../widgets/app_list_card.dart';
 import '../../widgets/botao_com_seta.dart';
 import '../../widgets/cabecalho_de_tela.dart';
@@ -167,7 +168,12 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                           ),
                         ),
                         title: customer.name,
-                        subtitle: [customer.phone, customer.locationLabel]
+                        subtitle: [
+                          (customer.clientUid != null && !context.read<AuthController>().contatoClienteLiberado)
+                              ? null
+                              : customer.phone,
+                          customer.locationLabel,
+                        ]
                             .where((value) => value != null && value.isNotEmpty)
                             .join(' · '),
                         trailing: const Icon(

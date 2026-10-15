@@ -94,3 +94,9 @@ app.*.map.json
 # valor pra mais ninguém. Versionar isso faz todo deploy virar sujeira no
 # diff do próximo commit.
 /.firebase/
+
+# Chaves e segredos: nunca no git
+*.p8
+apple-secret.json
+*firebase-adminsdk*.json
+functions/backup-*.json

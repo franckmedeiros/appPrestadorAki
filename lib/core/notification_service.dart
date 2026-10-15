@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'testing_flags.dart';
+import 'atualizacao_service.dart';
 
 /// Handler de mensagens recebidas com o app em segundo plano ou fechado.
 /// PRECISA ser uma função de nível top-level (fora de qualquer classe) e
@@ -303,6 +304,10 @@ class NotificationService {
       }
 
       await _saveCurrentToken();
+      // Push "Nova versão do PrestadorAki": só depois que o token FCM foi
+      // salvo (= notificação permitida). Falha aqui não derruba o resto.
+      await AtualizacaoService.instance.inscreverNoTopico()
+          .catchError((e) => debugPrint('Tópico de atualização: $e'));
       _acompanharNaoLidas(uid);
 
       // Com o app ABERTO, o Android não mostra a notificação sozinho —

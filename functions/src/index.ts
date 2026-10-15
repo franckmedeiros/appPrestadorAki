@@ -37,3 +37,12 @@ export { hubAvisoCadastro } from './hub_aviso';
 
 // Teste grátis de 7 dias do prestador — ver testeGratis.ts.
 export { iniciarTesteGratisPrestador, expirarTestesGratis } from './testeGratis';
+
+// Pré-cadastro com consentimento: aviso de pedido por WhatsApp + reivindicação por código — ver convites.ts.
+export { onPedidoSemContaCriado, reivindicarPerfilPrestador } from './convites';
+
+// Instalações sem cadastro (hub) + aviso automático de nova versão nas lojas — ver instalacoes.ts.
+export { registrarAbertura, painelInstalacoes, verificarNovaVersao } from './instalacoes';
+
+// Parceria EstiloAki: estabelecimentos do EstiloAki no diretório — ver estiloaki.ts.
+export { estiloakiSincronizar } from './estiloaki';

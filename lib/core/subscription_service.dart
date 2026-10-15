@@ -139,14 +139,9 @@ class SubscriptionService {
   /// decidir se mostra o botão na tela de assinatura (a palavra final é
   /// do servidor, que também confere o WhatsApp).
   Future<bool> testeGratisDisponivel() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return false;
-    try {
-      final doc = await FirebaseFirestore.instance.collection('testesGratis').doc(uid).get();
-      return !doc.exists;
-    } catch (_) {
-      return false;
-    }
+    // Teste automático desligado (14/10): só o hub libera. O botão
+    // "Começar 7 dias grátis" não aparece mais na tela de assinatura.
+    return false;
   }
 
   void pararEscuta() {

@@ -6,7 +6,9 @@ import '../../core/auth_controller.dart';
 import '../../core/date_text_utils.dart';
 import 'client_auth_gate.dart';
 import 'favorites_controller.dart';
-import 'widgets/provider_listing_card.dart' show abrirWhatsapp, WhatsappBadge;
+import 'package:url_launcher/url_launcher.dart';
+import 'widgets/provider_listing_card.dart'
+    show abrirWhatsapp, abrirEstiloAki, WhatsappBadge;
 import 'widgets/star_rating_bar.dart';
 import 'models/provider_listing.dart';
 import 'models/provider_rating.dart';
@@ -282,6 +284,26 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                               ),
                             ],
 
+                            // Parceiro do EstiloAki: endereço liberado,
+                            // com rota no mapa.
+                            if ((listing.endereco ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              _ProfileActionRow(
+                                leading: const Icon(Icons.location_on_outlined,
+                                    color: AppColors.primary, size: 21),
+                                background: AppColors.background,
+                                title: listing.endereco!.trim(),
+                                subtitle: 'Como chegar',
+                                onTap: () => launchUrl(
+                                  Uri.https('www.google.com', '/maps/search/', {
+                                    'api': '1',
+                                    'query': listing.endereco!.trim(),
+                                  }),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                              ),
+                            ],
+
                             const SizedBox(height: 10),
                             _ProfileActionRow(
                               leading: Icon(
@@ -470,9 +492,9 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                         ),
                       ),
 
-                      if (!listing.claimed) ...[
+                      if (!listing.claimed && !listing.parceiroEstiloAki) ...[
                         const SizedBox(height: 12),
-                        const _UnclaimedNotice(),
+                        _UnclaimedNotice(aceitaPedidos: listing.aceitaPedidos),
                       ],
 
                       if (_canRate) ...[
@@ -549,7 +571,21 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                         Expanded(
                           child: SizedBox(
                             height: 48,
-                            child: ElevatedButton.icon(
+                            // Parceiro do EstiloAki: sem orçamento/chat;
+                            // o agendamento é feito no EstiloAki.
+                            child: listing.parceiroEstiloAki
+                                ? ElevatedButton.icon(
+                                    onPressed: () => abrirEstiloAki(
+                                        context, listing.estiloakiCodigo!),
+                                    icon: const Icon(
+                                      Icons.event_available,
+                                      size: 17,
+                                    ),
+                                    label: const Text(
+                                      'Agendar pelo EstiloAki',
+                                    ),
+                                  )
+                                : ElevatedButton.icon(
                               onPressed: () => _requestQuote(listing),
                               icon: const Icon(
                                 Icons.send_rounded,
@@ -794,7 +830,10 @@ class _ProfileActionRow extends StatelessWidget {
 }
 
 class _UnclaimedNotice extends StatelessWidget {
-  const _UnclaimedNotice();
+  const _UnclaimedNotice({this.aceitaPedidos = false});
+
+  /// Pré-cadastrado com consentimento: recebe aviso do pedido no WhatsApp.
+  final bool aceitaPedidos;
 
   @override
   Widget build(BuildContext context) {
@@ -807,19 +846,21 @@ class _UnclaimedNotice extends StatelessWidget {
           color: const Color(0xFFF1C68C).withValues(alpha: 0.65),
         ),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
+          const Icon(
             Icons.info_outline_rounded,
             color: Color(0xFFB7791F),
             size: 19,
           ),
-          SizedBox(width: 9),
+          const SizedBox(width: 9),
           Expanded(
             child: Text(
-              'Este profissional ainda não usa o PrestadorAki. Sua solicitação fica registrada e ele poderá responder quando criar uma conta.',
-              style: TextStyle(
+              aceitaPedidos
+                  ? 'Este profissional está chegando ao PrestadorAki. Peça seu orçamento: ele recebe um aviso no WhatsApp e responde por aqui.'
+                  : 'Este profissional ainda não usa o PrestadorAki. Sua solicitação fica registrada e ele poderá responder quando criar uma conta.',
+              style: const TextStyle(
                 fontSize: 12,
                 height: 1.4,
                 color: AppColors.ink,

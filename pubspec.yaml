@@ -17,7 +17,7 @@ publish_to: "none"
 # iOS NÃO usa este número: o workflow ios-release pergunta ao TestFlight
 # qual foi o último build e soma 1, pra não depender de alguém lembrar de
 # editar o arquivo.
-version: 1.0.4+30
+version: 1.0.6+32
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -81,6 +81,12 @@ dependencies:
   # de busca/favoritos (link https://wa.me/..., ver provider_listing_card.dart)
   # - so aparece pra quem tem assinatura ativa (ver ProviderListing.whatsapp).
   url_launcher: ^6.3.1
+
+  # Contagem de instalações (ID do aparelho em hash) e aviso de versão
+  # nova — ver lib/core/instalacao_service.dart e atualizacao_service.dart.
+  package_info_plus: ^8.0.0
+  android_id: ^0.4.0
+  crypto: ^3.0.3
 
   # QR Code do Pix na tela de Serviços (ver lib/core/pix_payload.dart) —
   # gera a imagem do QR a partir do payload "Copia e Cola" já montado.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/auth_controller.dart';
 import '../../widgets/cabecalho_de_tela.dart';
 import '../../core/currency_text_utils.dart';
 import '../budgets/budgets_repository.dart';
@@ -160,6 +161,8 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
               final id = j.customerId ?? clienteDoOrcamento[j.budgetId];
               final c = id == null ? null : clientePorId[id];
               if (c == null) return null;
+              // Trava de contato (ver lib/core/mascarar_contato.dart).
+              if (c.clientUid != null && !context.read<AuthController>().contatoClienteLiberado) return null;
               final w = (c.whatsapp ?? '').trim();
               if (w.isNotEmpty) return w;
               final p = (c.phone ?? '').trim();

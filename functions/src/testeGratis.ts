@@ -35,6 +35,15 @@ import { aplicarEstadoNormalizado } from './subscription';
 import { CATEGORIAS } from './categorias';
 
 export const DIAS_TESTE_GRATIS = 7;
+
+/**
+ * Teste grátis AUTOMÁTICO desligado (decisão do Franck, 14/10): o teste
+ * passa a ser liberado só pelo hub (`ajustarTesteGratis`), quando ele
+ * achar necessário. Com isto em `false`, `iniciarTesteGratisPrestador`
+ * recusa com `already-exists` — inclusive pra versões antigas do app, que
+ * já tratam esse erro seguindo pra tela de assinatura.
+ */
+const TESTE_AUTOMATICO_ATIVO = false;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** Valor gravado em `providers/{uid}.subscriptionStore` durante o teste. */
@@ -130,6 +139,9 @@ export const iniciarTesteGratisPrestador = onCall(async (request) => {
     state?: string;
   };
 
+  if (!TESTE_AUTOMATICO_ATIVO) {
+    throw new HttpsError('already-exists', 'O teste grátis agora é liberado pelo suporte do PrestadorAki.');
+  }
   const motivo = await motivoInelegivel(uid);
   if (motivo) throw new HttpsError('already-exists', motivo);
 

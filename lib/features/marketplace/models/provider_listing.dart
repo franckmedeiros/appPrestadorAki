@@ -25,6 +25,9 @@ class ProviderListing {
     this.cidadesAtendidas = const [],
     this.logoUrl,
     this.fotos = const [],
+    this.aceitaPedidos = false,
+    this.estiloakiCodigo,
+    this.endereco,
   });
 
   factory ProviderListing.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -59,11 +62,32 @@ class ProviderListing {
           (data['cidadesAtendidas'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       logoUrl: data['logoUrl'] as String?,
       fotos: (data['fotos'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      aceitaPedidos: data['aceitaPedidos'] as bool? ?? false,
+      estiloakiCodigo: data['estiloakiCodigo'] as String?,
+      endereco: data['endereco'] as String?,
     );
   }
 
   final String id;
   final String name;
+
+  /// Estabelecimento parceiro do EstiloAki (barbearia, salão...): código
+  /// dele lá. Gravado pela função estiloakiSincronizar. O card mostra
+  /// todos os dados, sem chat nem painel, e o botão "Agendar pelo
+  /// EstiloAki" abre o app do EstiloAki direto no estabelecimento.
+  final String? estiloakiCodigo;
+
+  /// Endereço completo (hoje só dos parceiros do EstiloAki).
+  final String? endereco;
+
+  bool get parceiroEstiloAki => (estiloakiCodigo ?? '').isNotEmpty;
+
+  /// Entrada ainda sem conta (`claimed == false`) cujo dono AUTORIZOU, no
+  /// WhatsApp, receber pedidos pelo PrestadorAki (pré-cadastro com
+  /// consentimento — ver functions/src/convites.ts). O pedido do cliente
+  /// fica guardado em `pedidosSemConta` e o prestador é avisado pelo
+  /// WhatsApp oficial. Gravado só pelo scripts/registrar_convites.js.
+  final bool aceitaPedidos;
 
   /// Todas as categorias de serviço em que o prestador atua (ex.:
   /// "Esquadrias de Alumínio" + "Vidraçaria") — pedido do Franck. A

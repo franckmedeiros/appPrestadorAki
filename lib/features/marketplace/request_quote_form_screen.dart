@@ -286,7 +286,13 @@ class _RequestQuoteFormScreenState extends State<RequestQuoteFormScreen> {
               const Text('Sua solicitação foi enviada!',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
               const SizedBox(height: 8),
-              if (!widget.listing.claimed) ...[
+              if (!widget.listing.claimed && widget.listing.aceitaPedidos) ...[
+                const Text(
+                  'Avisamos o profissional pelo WhatsApp. Assim que ele entrar no '
+                  'PrestadorAki, seu pedido aparece em "Meus orçamentos" e vocês '
+                  'conversam pelo app.',
+                ),
+              ] else if (!widget.listing.claimed) ...[
                 const Text(
                   'Esse profissional ainda não usa o PrestadorAki. Convide-o '
                   'pra que ele veja sua solicitação — copie a mensagem abaixo '

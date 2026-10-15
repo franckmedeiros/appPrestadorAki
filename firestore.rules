@@ -377,6 +377,31 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // PEDIDO PRA PRESTADOR AINDA SEM CONTA (pré-cadastro com consentimento,
+    // ver functions/src/convites.ts). Só pra entrada não reivindicada que
+    // aceitou receber pedidos (`aceitaPedidos`, gravado pelo
+    // scripts/registrar_convites.js depois do "sim" no WhatsApp). O cliente
+    // cria e lê os próprios; o resto (aviso por WhatsApp, virar orçamento
+    // quando o prestador entra) é do servidor.
+    match /pedidosSemConta/{pedidoId} {
+      allow read: if request.auth != null && resource.data.clientUid == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.clientUid == request.auth.uid &&
+        request.resource.data.status == 'aguardando' &&
+        request.resource.data.keys().hasOnly([
+          'listingId', 'clientUid', 'clientName', 'clientPhone', 'providerName',
+          'category', 'description', 'addressText', 'preferredDate', 'status', 'createdAt'
+        ]) &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() <= 2000 &&
+        get(/databases/$(database)/documents/providerDirectory/$(request.resource.data.listingId)).data.get('aceitaPedidos', false) == true &&
+        get(/databases/$(database)/documents/providerDirectory/$(request.resource.data.listingId)).data.get('claimed', false) == false;
+      allow update, delete: if false;
+    }
+
+    // `convitesPrestador` (WhatsApp + consentimento + código) NÃO tem regra
+    // própria de propósito: só o Admin SDK lê/grava — cai no bloqueio final.
+
     match /providerDirectory/{listingId} {
       allow read: if true;
 

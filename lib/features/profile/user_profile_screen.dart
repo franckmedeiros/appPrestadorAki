@@ -18,8 +18,8 @@ import 'my_reviews_screen.dart';
 import '../../widgets/service_category_field.dart';
 import '../../widgets/gradient_pill_button.dart';
 import 'provider_paywall_screen.dart';
-import '../../core/subscription_service.dart';
 import 'about_screen.dart';
+import 'codigo_convite_dialog.dart';
 
 /// Aba "Meu perfil" — igual ao pedido do Franck ("colocar a opção de
 /// usuário igual do Resenha, hoje eu não consigo mudar os dados do
@@ -505,6 +505,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     if (!isProvider) ...[
                       const SizedBox(height: 12),
                       _BecomeProviderCard(onTap: _becomeProvider),
+                      // Pré-cadastro com consentimento (ver
+                      // codigo_convite_dialog.dart): quem foi avisado de um
+                      // pedido no WhatsApp ativa o perfil com o código.
+                      TextButton.icon(
+                        onPressed: () async {
+                          final ok = await abrirCodigoConvite(context);
+                          if (ok && mounted) setState(_reloadOwnData);
+                        },
+                        icon: const Icon(Icons.pin_outlined, size: 18),
+                        label: const Text('Recebi um aviso de pedido no WhatsApp'),
+                      ),
                     ],
                     // A seção Segurança passou a aparecer SEMPRE. Antes ela
                     // só existia quando o aparelho tinha biometria — e como
@@ -796,8 +807,6 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
   bool _loadingAddress = true;
   bool _iniciandoTeste = false;
 
-  static String _dataCurta(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
 
   @override
   void initState() {
@@ -839,33 +848,8 @@ class _BecomeProviderSheetState extends State<_BecomeProviderSheet> {
       if (ok && mounted) Navigator.pop(context, true);
       return;
     }
-    // TESTE GRÁTIS automático (decisão do Franck, 13/10): primeiro tenta
-    // liberar os 7 dias grátis — o servidor cria providers/{uid} já ativo.
-    // Só quem já usou o teste (ou se der erro) segue pra tela de
-    // assinatura, como antes.
-    setState(() => _iniciandoTeste = true);
-    try {
-      final ate = await SubscriptionService.instance.iniciarTesteGratis(
-        category: _category!.wireValue,
-        city: city,
-        state: state.isEmpty ? null : state,
-      );
-      if (!mounted) return;
-      await context.read<AuthController>().refreshProviderStatus();
-      if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.pop(context, true);
-      messenger.showSnackBar(SnackBar(
-        content: Text(ate == null
-            ? 'Pronto! Sua área de prestador está liberada.'
-            : 'Pronto! Você ganhou 7 dias grátis (até ${_dataCurta(ate)}).'),
-      ));
-      return;
-    } catch (e) {
-      debugPrint('_BecomeProviderSheet: teste grátis não iniciado: $e');
-    } finally {
-      if (mounted) setState(() => _iniciandoTeste = false);
-    }
+    // Teste grátis automático desligado (14/10): só o hub libera — a
+    // pessoa segue direto pra tela de assinatura.
     if (!mounted) return;
     final confirmed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(

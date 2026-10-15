@@ -44,7 +44,31 @@ class BudgetRequestsRepository {
     String? clientPhone,
   }) async {
     final providerUid = provider.providerUid;
-    if (providerUid == null) return null;
+    if (providerUid == null) {
+      // Pré-cadastro com consentimento (ver functions/src/convites.ts): o
+      // pedido fica guardado e o servidor avisa o prestador no WhatsApp.
+      // Quando ele entrar no app com o código, vira orçamento normal.
+      if (provider.aceitaPedidos) {
+        try {
+          await _firestore.collection('pedidosSemConta').add({
+            'listingId': provider.id,
+            'clientUid': _auth.currentUser!.uid,
+            'clientName': clientName,
+            if (clientPhone != null && clientPhone.isNotEmpty) 'clientPhone': clientPhone,
+            'providerName': provider.name,
+            'category': provider.category.wireValue,
+            'description': description,
+            'addressText': addressText,
+            if (preferredDate != null && preferredDate.isNotEmpty) 'preferredDate': preferredDate,
+            'status': 'aguardando',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        } on FirebaseException catch (e) {
+          throw ApiException(0, e.message ?? 'Não foi possível enviar a solicitação.');
+        }
+      }
+      return null;
+    }
     try {
       final ref = _budgetsOf(providerUid).doc();
       final now = FieldValue.serverTimestamp();
