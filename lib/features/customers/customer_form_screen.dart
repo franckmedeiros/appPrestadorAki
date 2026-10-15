@@ -92,11 +92,11 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       appBar: AppBar(
         toolbarHeight: 64,
         title: Text(_isEditing ? 'Editar cliente' : 'Novo cliente'),
-        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink),
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 16),
-            child: Icon(Icons.person_add_alt_1_outlined, color: Colors.white),
+            child: Icon(Icons.person_add_alt_1_outlined, color: AppColors.primary),
           ),
         ],
         bottom: PreferredSize(
@@ -109,7 +109,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 _isEditing
                     ? 'Atualize os dados do cliente'
                     : 'Adicione os dados para cadastrar um novo cliente',
-                style: const TextStyle(color: Colors.white, fontSize: 11),
+                style: const TextStyle(color: AppColors.muted, fontSize: 12),
               ),
             ),
           ),

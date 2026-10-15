@@ -63,6 +63,52 @@ class CustomersRepository {
         .map((snapshot) => snapshot.docs.map(Customer.fromFirestore).toList());
   }
 
+  /// Dígitos (com DDD, sem +55) de todos os telefones/WhatsApp já
+  /// cadastrados — usado pela importação de contatos pra não duplicar.
+  Future<Set<String>> digitosDosTelefonesCadastrados() async {
+    try {
+      final snapshot = await _collection.get();
+      final out = <String>{};
+      for (final doc in snapshot.docs) {
+        for (final campo in const ['phone', 'whatsapp']) {
+          var d = (doc.data()[campo] as String? ?? '').replaceAll(RegExp(r'\D'), '');
+          if (d.startsWith('55') && d.length > 11) d = d.substring(2);
+          if (d.length >= 10) out.add(d);
+        }
+      }
+      return out;
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível carregar os clientes.');
+    }
+  }
+
+  /// Cria vários clientes de uma vez (importação de contatos do celular).
+  /// Grava em lotes de até 400 (o limite do Firestore é 500 por lote).
+  /// Devolve quantos foram criados.
+  Future<int> importarContatos(List<({String nome, String telefone})> contatos) async {
+    try {
+      var criados = 0;
+      for (var i = 0; i < contatos.length; i += 400) {
+        final batch = _firestore.batch();
+        final now = FieldValue.serverTimestamp();
+        for (final c in contatos.skip(i).take(400)) {
+          batch.set(_collection.doc(), {
+            'name': c.nome,
+            'phone': c.telefone,
+            'origem': 'contatos',
+            'createdAt': now,
+            'updatedAt': now,
+          });
+          criados++;
+        }
+        await batch.commit();
+      }
+      return criados;
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível importar os contatos.');
+    }
+  }
+
   Future<Customer> create({
     required String name,
     String? phone,

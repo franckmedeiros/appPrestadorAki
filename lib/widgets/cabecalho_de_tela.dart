@@ -53,7 +53,10 @@ class CabecalhoDeTela extends StatelessWidget {
   final String titulo;
 
   /// Trava o título em uma linha só. Usado por `barraDeTela`, que tem
-  /// altura fixa — ali um título de duas linhas seria cortado.
+  /// altura fixa — ali um título de duas linhas seria cortado — e pela
+  /// busca ("Encontre um profissional", pedido do Franck: duas linhas
+  /// empurravam os resultados pra baixo). Se não couber no tamanho
+  /// normal, a fonte diminui até caber, em vez de cortar com "…".
   final bool umaLinha;
 
   final AreaDoApp area;
@@ -130,18 +133,24 @@ class CabecalhoDeTela extends StatelessWidget {
           padding: const EdgeInsets.symmetric(
             horizontal: AppMetrics.margemLateral,
           ),
-          child: Text(
-            titulo,
-            maxLines: umaLinha ? 1 : 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: corpoDoTitulo,
-              height: 1.06,
-              letterSpacing: -0.6,
-              fontWeight: FontWeight.w800,
-              color: AppColors.ink,
-            ),
-          ),
+          child: () {
+            final texto = Text(
+              titulo,
+              maxLines: umaLinha ? 1 : 2,
+              overflow: umaLinha ? TextOverflow.visible : TextOverflow.ellipsis,
+              softWrap: !umaLinha,
+              style: TextStyle(
+                fontSize: corpoDoTitulo,
+                height: 1.06,
+                letterSpacing: -0.6,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+              ),
+            );
+            return umaLinha
+                ? FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: texto)
+                : texto;
+          }(),
         ),
         SizedBox(height: estreita ? 10 : 14),
         // A barrinha encostada na borda esquerda — ver o comentário da

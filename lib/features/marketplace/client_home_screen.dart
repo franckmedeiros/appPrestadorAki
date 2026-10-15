@@ -357,6 +357,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             child: CabecalhoDeTela(
               titulo: 'Encontre um profissional',
               area: AreaDoApp.cliente,
+              umaLinha: true,
               acao: NotificationBell(),
             ),
           ),

@@ -14,6 +14,8 @@
          notificações — sem isso, o pop-up de permissão de notificação
          nem aparece (ver core/notification_service.dart). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Importar clientes da agenda (só leitura). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <application
         android:label="prestadoraki"
         android:name="${applicationName}"

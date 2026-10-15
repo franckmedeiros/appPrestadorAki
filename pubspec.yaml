@@ -17,7 +17,7 @@ publish_to: "none"
 # iOS NÃO usa este número: o workflow ios-release pergunta ao TestFlight
 # qual foi o último build e soma 1, pra não depender de alguém lembrar de
 # editar o arquivo.
-version: 1.0.6+32
+version: 1.0.7+33
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -87,6 +87,10 @@ dependencies:
   package_info_plus: ^8.0.0
   android_id: ^0.4.0
   crypto: ^3.0.3
+
+  # Importar clientes da agenda do celular (nome + WhatsApp) — ver
+  # lib/features/customers/importar_contatos_screen.dart.
+  flutter_contacts: ^1.1.9+2
 
   # QR Code do Pix na tela de Serviços (ver lib/core/pix_payload.dart) —
   # gera a imagem do QR a partir do payload "Copia e Cola" já montado.

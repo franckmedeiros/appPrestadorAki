@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import '../../widgets/app_list_card.dart';
 import '../../widgets/botao_com_seta.dart';
 import '../../widgets/cabecalho_de_tela.dart';
 import 'customers_repository.dart';
+import 'importar_contatos_screen.dart';
 import 'models/customer.dart';
 
 class CustomersListScreen extends StatefulWidget {
@@ -61,6 +63,17 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     await context.push<bool>('/clientes/editar');
     // Não precisa recarregar nada manualmente — a stream já reflete a
     // escrita sozinha (ver `_stream` acima).
+  }
+
+  /// Importa vários contatos da agenda do celular (nome + WhatsApp).
+  Future<void> _importarContatos() async {
+    final n = await Navigator.of(context).push<int>(
+      MaterialPageRoute(builder: (_) => const ImportarContatosScreen()),
+    );
+    if (!mounted || n == null || n == 0) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(n == 1 ? '1 cliente importado.' : '$n clientes importados.'),
+    ));
   }
 
   @override
@@ -196,11 +209,28 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                 AppMetrics.margemLateral,
                 10,
               ),
-              child: BotaoComSeta(
-                rotulo: 'Novo cliente',
-                icone: Icons.add,
-                comCaixa: false,
-                aoTocar: _novoCliente,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  BotaoComSeta(
+                    rotulo: 'Novo cliente',
+                    icone: Icons.add,
+                    comCaixa: false,
+                    aoTocar: _novoCliente,
+                  ),
+                  // Lê a agenda do celular — não existe no navegador.
+                  if (!kIsWeb) ...[
+                    const SizedBox(height: 8),
+                    BotaoComSeta(
+                      rotulo: 'Importar contatos',
+                      icone: Icons.contacts_outlined,
+                      comCaixa: false,
+                      preenchido: false,
+                      aoTocar: _importarContatos,
+                    ),
+                  ],
+                ],
               ),
             ),
           ),

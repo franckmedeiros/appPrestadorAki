@@ -1,0 +1,9 @@
+const admin = require('firebase-admin');
+const [, , email] = process.argv;
+if (!email) { console.error('Uso: node verificar-email.js <email>'); process.exit(1); }
+admin.initializeApp({ projectId: 'prestadoraki' });
+(async () => {
+  const u = await admin.auth().getUserByEmail(email);
+  await admin.auth().updateUser(u.uid, { emailVerified: true });
+  console.log('OK: e-mail marcado como verificado para', u.uid);
+})().catch((e) => { console.error(e); process.exit(1); });

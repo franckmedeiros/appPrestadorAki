@@ -153,11 +153,11 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
       appBar: AppBar(
         toolbarHeight: 64,
         title: Text(_isEditing ? 'Editar compromisso' : 'Novo compromisso'),
-        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white),
+        titleTextStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.ink),
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 16),
-            child: Icon(Icons.calendar_month_outlined, color: Colors.white),
+            child: Icon(Icons.calendar_month_outlined, color: AppColors.primary),
           ),
         ],
         bottom: PreferredSize(
@@ -168,7 +168,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
               alignment: Alignment.centerLeft,
               child: Text(
                 _isEditing ? 'Atualize os dados do compromisso' : 'Agende uma visita técnica ou serviço',
-                style: const TextStyle(color: Colors.white, fontSize: 11),
+                style: const TextStyle(color: AppColors.muted, fontSize: 12),
               ),
             ),
           ),

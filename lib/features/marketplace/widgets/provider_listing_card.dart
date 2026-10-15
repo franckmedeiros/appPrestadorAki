@@ -354,7 +354,7 @@ class WhatsappBadge extends StatelessWidget {
 /// loja (celular) ou o site (computador).
 Future<void> abrirEstiloAki(BuildContext context, String codigo) async {
   final app = Uri.parse('estiloaki://app/b/$codigo');
-  final site = Uri.parse('https://estiloaki.web.app/b/$codigo');
+  final site = Uri.parse('https://estiloaki.com.br/b/$codigo');
   final plataforma = Theme.of(context).platform;
   final celular = !kIsWeb &&
       (plataforma == TargetPlatform.android || plataforma == TargetPlatform.iOS);

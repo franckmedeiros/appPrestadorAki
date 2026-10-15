@@ -35,6 +35,8 @@
 	     IPHONEOS_DEPLOYMENT_TARGET aqui é 13.0. -->
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Usamos sua localização só pra sugerir sua cidade na busca por prestadores — nunca é salva nem compartilhada.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Usamos seus contatos para você importar clientes. Só o nome e o número dos contatos que você escolher são salvos.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Usamos a câmera para você fotografar a logo que aparece no seu perfil de prestador.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
