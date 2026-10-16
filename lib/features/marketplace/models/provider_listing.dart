@@ -19,6 +19,7 @@ class ProviderListing {
     this.ratingCount = 0,
     this.bio,
     this.whatsapp,
+    this.instagram,
     this.visible,
     this.respostasContadas = 0,
     this.respostaMinutosSoma = 0,
@@ -55,6 +56,7 @@ class ProviderListing {
       ratingCount: (data['ratingCount'] as num?)?.toInt() ?? 0,
       bio: data['bio'] as String?,
       whatsapp: data['whatsapp'] as String?,
+      instagram: data['instagram'] as String?,
       visible: data['visible'] as bool?,
       respostasContadas: (data['respostasContadas'] as num?)?.toInt() ?? 0,
       respostaMinutosSoma: (data['respostaMinutosSoma'] as num?)?.toInt() ?? 0,
@@ -129,6 +131,9 @@ class ProviderListing {
   /// pro cliente enquanto não reivindicada; ver
   /// `functions/src/subscription.ts`, `reivindicarListagemPorTelefone`).
   final String? whatsapp;
+
+  /// Instagram do prestador, só o nome de usuário (sem @).
+  final String? instagram;
 
   /// `visible` cru do Firestore - null pra quem nunca passou pela
   /// assinatura (listagem nao reivindicada, ou reivindicada de antes

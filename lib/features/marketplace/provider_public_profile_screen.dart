@@ -17,6 +17,8 @@ import 'provider_directory_repository.dart';
 import '../moderation/blocked_users_controller.dart';
 import '../moderation/review_moderation_menu.dart';
 import '../../widgets/cabecalho_de_tela.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../../core/instagram.dart';
 
 /// Perfil público de um prestador do marketplace — visto pelo cliente,
 /// seja um perfil "reivindicado" (com conta no PrestadorAki) ou "não
@@ -280,6 +282,21 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                                 onTap: () => abrirWhatsapp(
                                   context,
                                   listing.whatsapp!,
+                                ),
+                              ),
+                            ],
+
+                            if ((listing.instagram ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              _ProfileActionRow(
+                                leading: const FaIcon(FontAwesomeIcons.instagram,
+                                    color: AppColors.primary, size: 21),
+                                background: AppColors.background,
+                                title: '@${listing.instagram!.trim()}',
+                                subtitle: 'Ver no Instagram',
+                                onTap: () => launchUrl(
+                                  linkInstagram(listing.instagram!.trim()),
+                                  mode: LaunchMode.externalApplication,
                                 ),
                               ),
                             ],

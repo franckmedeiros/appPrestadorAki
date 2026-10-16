@@ -11,6 +11,7 @@ import '../../core/auth_controller.dart';
 import '../../core/validators.dart';
 import '../../core/provider_logo_service.dart';
 import '../../core/provider_bio_ai_service.dart';
+import '../../core/instagram.dart';
 import '../../widgets/mask_text_input_formatter.dart';
 import '../../widgets/service_area_field.dart';
 import '../../widgets/service_photos_field.dart';
@@ -49,6 +50,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
   final _whatsappController = TextEditingController();
+  final _instagramController = TextEditingController();
   final _pixKeyController = TextEditingController();
   String _logoUrl = '';
   bool _uploadingLogo = false;
@@ -122,6 +124,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _addressCity = data['addressCity'] as String?;
       _addressUf = data['addressState'] as String?;
       _whatsappController.text = data['whatsapp'] as String? ?? '';
+      final insta = data['instagram'] as String? ?? '';
+      _instagramController.text = insta.isEmpty ? '' : '@$insta';
       _pixKeyController.text = data['pixKey'] as String? ?? '';
       _logoUrl = data['logoUrl'] as String? ?? '';
       _bioController.text = data['bio'] as String? ?? '';
@@ -286,6 +290,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _whatsappController.dispose();
+    _instagramController.dispose();
     _pixKeyController.dispose();
     _bioController.dispose();
     _cepController.dispose();
@@ -414,6 +419,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
 
     final name = _nameController.text.trim();
+    // Já validado no formulário; aqui só converte "@fulano"/link em "fulano".
+    final instagram = _isProvider ? normalizarInstagram(_instagramController.text) : null;
     final ok = await auth.updateOwnProfile(
       name: name,
       whatsapp: _whatsappController.text.trim(),
@@ -425,6 +432,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       pixKey: _isProvider ? _pixKeyController.text.trim() : null,
       logoUrl: _isProvider ? _logoUrl.trim() : null,
       bio: _isProvider ? _bioController.text.trim() : null,
+      instagram: instagram,
     );
 
     // Confere no servidor se esta conta é prestadora, em vez de confiar
@@ -481,6 +489,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 // ao diretório público, que é o que o cliente lê.
                 logoUrl: _logoUrl,
                 fotos: _fotos,
+                instagram: instagram,
               );
         }
       } catch (e) {
@@ -656,6 +665,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const Text(
                     'Cidade e categoria são o que faz você aparecer nas buscas '
                     'dos clientes no PrestadorAki.',
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 20),
+                  const _SectionHeader(icon: Icons.camera_alt_outlined, title: 'Instagram'),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _instagramController,
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    textCapitalization: TextCapitalization.none,
+                    decoration: const InputDecoration(
+                      labelText: 'Instagram (opcional)',
+                      hintText: '@seuperfil',
+                      prefixIcon: Icon(Icons.alternate_email),
+                    ),
+                    validator: validarInstagram,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Aparece no seu perfil público, com um botão pro cliente ver seus trabalhos. '
+                    'Pode colar o link do perfil, que a gente pega só o nome.',
                     style: TextStyle(fontSize: 12, color: AppColors.muted),
                   ),
                   const SizedBox(height: 20),

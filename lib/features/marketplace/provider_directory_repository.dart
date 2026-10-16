@@ -277,6 +277,7 @@ class ProviderDirectoryRepository {
     List<String> cidadesAtendidas = const [],
     String? logoUrl,
     List<String> fotos = const [],
+    String? instagram,
   }) async {
     assert(categories.isNotEmpty, 'upsertOwnListing precisa de ao menos uma categoria');
     try {
@@ -339,6 +340,10 @@ class ProviderDirectoryRepository {
             ? logoUrl.trim()
             : FieldValue.delete(),
         'fotos': fotos.where((f) => f.trim().isNotEmpty).toList(),
+        // Instagram (só o nome de usuário) — aparece no perfil público.
+        'instagram': (instagram != null && instagram.trim().isNotEmpty)
+            ? instagram.trim()
+            : FieldValue.delete(),
         'claimed': true,
         'providerUid': uid,
         'updatedAt': now,
