@@ -20,6 +20,8 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
+import { randomUUID } from 'crypto';
 import { logger } from 'firebase-functions';
 import { db } from './lib/admin';
 
@@ -34,6 +36,28 @@ const CATEGORIA: Record<string, string> = {
 };
 
 const texto = (v: unknown, max = 300) => String(v ?? '').trim().slice(0, max);
+
+/**
+ * Sobe o logo (base64 vindo do EstiloAki) pro Storage e devolve a URL
+ * pública com token — o mesmo formato do upload feito pelo app.
+ */
+async function salvarLogo(codigo: string, base64: string): Promise<string> {
+  const bytes = Buffer.from(base64, 'base64');
+  const png = bytes.length > 4 && bytes[0] === 0x89 && bytes[1] === 0x50;
+  const bucket = getStorage().bucket();
+  const caminho = `estiloaki/${codigo}/logo.${png ? 'png' : 'jpg'}`;
+  const token = randomUUID();
+  await bucket.file(caminho).save(bytes, {
+    resumable: false,
+    metadata: {
+      contentType: png ? 'image/png' : 'image/jpeg',
+      cacheControl: 'public, max-age=86400',
+      metadata: { firebaseStorageDownloadTokens: token },
+    },
+  });
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+    `${encodeURIComponent(caminho)}?alt=media&token=${token}`;
+}
 
 export const estiloakiSincronizar = onRequest(
   { secrets: [CHAVE], maxInstances: 2, invoker: 'public' },
@@ -57,6 +81,27 @@ export const estiloakiSincronizar = onRequest(
         return;
       }
       const categoria = CATEGORIA[texto(d.segmento, 30)] ?? 'barbeiro';
+
+      // Logo: só sobe de novo quando mudou (hash); "" remove.
+      const logo: Record<string, unknown> = {};
+      if (d.logoBase64 !== undefined) {
+        const b64 = String(d.logoBase64 ?? '');
+        const hash = texto(d.logoHash, 64);
+        if (!b64) {
+          logo.logoUrl = FieldValue.delete();
+          logo.estiloakiLogoHash = FieldValue.delete();
+        } else {
+          const atual = (await ref.get()).data() ?? {};
+          if (!atual.logoUrl || atual.estiloakiLogoHash !== hash) {
+            try {
+              logo.logoUrl = await salvarLogo(codigo, b64);
+              logo.estiloakiLogoHash = hash;
+            } catch (e) {
+              logger.error('estiloakiSincronizar logo', e);
+            }
+          }
+        }
+      }
       const slogan = texto(d.slogan, 200);
       await ref.set(
         {
@@ -76,6 +121,7 @@ export const estiloakiSincronizar = onRequest(
           visible: d.ativa !== false,
           estiloakiCodigo: codigo,
           origem: 'estiloaki',
+          ...logo,
           atualizadoEm: FieldValue.serverTimestamp(),
         },
         { merge: true },
