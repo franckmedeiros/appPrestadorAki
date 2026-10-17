@@ -24,8 +24,8 @@ const hub = criarHub({
   // O app trava quem não confirmou o e-mail (EmailVerificationScreen).
   liberarEmail: true,
   perfis: [
-    { colecao: 'clients', nome: 'name', telefone: 'whatsapp', email: 'email' },
-    { colecao: 'providers', nome: 'name', telefone: 'whatsapp', email: 'email' },
+    { colecao: 'clients', nome: 'name', telefone: 'whatsapp', email: 'email', foto: 'logoUrl' },
+    { colecao: 'providers', nome: 'name', telefone: 'whatsapp', email: 'email', foto: 'logoUrl' },
   ],
 
   assinantes: async (db) => {
@@ -64,6 +64,7 @@ const hub = criarHub({
           idAssinatura: null,
           validoAte,
           categoria: x.category ?? null,
+          foto: x.logoUrl ?? null,
           cidade: x.city ?? null,
         });
         return;
@@ -83,6 +84,7 @@ const hub = criarHub({
           : null,
         validoAte,
         categoria: x.category ?? null,
+        foto: x.logoUrl ?? null,
         cidade: x.city ?? null,
       });
     });

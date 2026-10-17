@@ -250,6 +250,8 @@ export const reivindicarPerfilPrestador = onCall(async (request) => {
       categories: Array.isArray(listing.categories) && listing.categories.length ? listing.categories : [categoria],
       city: listing.city ?? convite.cidade ?? '',
       ...(listing.state ? { state: listing.state } : {}),
+      // Instagram guardado no convite pelo hub (nunca público antes daqui).
+      ...(convite.instagram ? { instagram: convite.instagram } : {}),
       listingStatus: 'pending',
       nextBudgetNumber: 1,
       perfilReivindicado: listingId,
@@ -257,7 +259,16 @@ export const reivindicarPerfilPrestador = onCall(async (request) => {
       updatedAt: agora,
     });
   } else {
-    await providerRef.set({ whatsapp: convite.whatsapp, perfilReivindicado: listingId, updatedAt: agora }, { merge: true });
+    await providerRef.set(
+      {
+        whatsapp: convite.whatsapp,
+        // Não sobrescreve um Instagram que a conta já tenha.
+        ...(convite.instagram && !providerSnap.data()?.instagram ? { instagram: convite.instagram } : {}),
+        perfilReivindicado: listingId,
+        updatedAt: agora,
+      },
+      { merge: true },
+    );
   }
 
   await conviteDoc.ref.update({ uid, reivindicadoEm: agora });

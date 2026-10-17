@@ -286,7 +286,10 @@ class _ProviderPublicProfileScreenState extends State<ProviderPublicProfileScree
                               ),
                             ],
 
-                            if ((listing.instagram ?? '').trim().isNotEmpty) ...[
+                            // Só de quem já assumiu o perfil: pra quem está
+                            // chegando, o contato direto é o que a
+                            // assinatura libera.
+                            if (listing.claimed && (listing.instagram ?? '').trim().isNotEmpty) ...[
                               const SizedBox(height: 10),
                               _ProfileActionRow(
                                 leading: const FaIcon(FontAwesomeIcons.instagram,

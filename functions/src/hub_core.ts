@@ -129,6 +129,8 @@ export interface PerfilCfg {
   nome?: string;
   telefone?: string;
   email?: string;
+  /** Campo com a URL da foto/logo (ex.: 'logoUrl'), mostrada na lista do hub. */
+  foto?: string;
 }
 
 export interface HubCfg {
@@ -268,7 +270,8 @@ export function criarHub(cfg: HubCfg) {
     const itens = lista.slice(pagina * tamanho, (pagina + 1) * tamanho);
     await Promise.all(
       itens.map(async (u) => {
-        if (u.nome && u.telefone) return;
+        const querFoto = cfg.perfis.some((p) => p.foto);
+        if (u.nome && u.telefone && !querFoto) return;
         for (const p of cfg.perfis) {
           const s = await db.collection(p.colecao).doc(u.uid).get();
           if (!s.exists) continue;
@@ -276,6 +279,7 @@ export function criarHub(cfg: HubCfg) {
           if (!u.nome && p.nome && x[p.nome]) u.nome = String(x[p.nome]);
           if (!u.telefone && p.telefone && x[p.telefone]) u.telefone = String(x[p.telefone]);
           if (!u.email && p.email && x[p.email]) u.email = String(x[p.email]);
+          if (!u.foto && p.foto && x[p.foto]) u.foto = String(x[p.foto]);
         }
       }),
     );
