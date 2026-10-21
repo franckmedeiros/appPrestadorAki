@@ -77,7 +77,13 @@ export interface ResultadoJuntar {
 /**
  * Move avaliações, logo/descrição (se a conta não tiver) e pedidos
  * esperando do pré-cadastro pra conta, liga o convite ao uid e apaga o
- * pré-cadastro. A conta precisa já ter `providerDirectory/{uid}`.
+ * pré-cadastro.
+ *
+ * Se a conta ainda não tem perfil na busca (`providerDirectory/{uid}`) —
+ * caso Alluvetro: assinou sem categoria/cidade preenchidas, e o servidor só
+ * publica com as duas —, o perfil dela NASCE a partir do pré-cadastro
+ * (nome, categorias, cidades, logo, descrição, avaliações), e o que faltar
+ * em `providers/{uid}` (categoria, cidade, logo) é completado também.
  */
 export async function juntarPreCadastro(listingId: string, uid: string): Promise<ResultadoJuntar> {
   if (!listingId || !uid || listingId === uid) return { juntou: false, motivo: 'mesmo registro' };
@@ -87,10 +93,65 @@ export async function juntarPreCadastro(listingId: string, uid: string): Promise
   const [antiga, nova] = await Promise.all([antigaRef.get(), novaRef.get()]);
   if (!antiga.exists) return { juntou: false, motivo: 'pré-cadastro não existe mais' };
   if (antiga.data()?.claimed === true) return { juntou: false, motivo: 'pré-cadastro já é de outra conta' };
-  if (!nova.exists) return { juntou: false, motivo: 'a conta ainda não tem perfil publicado no app' };
-
   const a = antiga.data() ?? {};
-  const n = nova.data() ?? {};
+  const providerRef = db.collection('providers').doc(uid);
+  const providerSnap = await providerRef.get();
+
+  if (!nova.exists) {
+    if (!providerSnap.exists) return { juntou: false, motivo: 'essa conta não é de prestador no app' };
+    const p = providerSnap.data() ?? {};
+    const categorias: string[] = Array.isArray(p.categories) && p.categories.length
+      ? p.categories
+      : p.category
+        ? [p.category]
+        : Array.isArray(a.categories) && a.categories.length
+          ? a.categories
+          : [a.category].filter(Boolean);
+    const cidade = String(p.city || a.city || '');
+    const uf = String(p.state || a.state || '');
+    const ativa = p.listingStatus === 'active';
+    const tel = telefoneSemDdi(p.whatsapp);
+    // Completa a conta com o que só o pré-cadastro tinha.
+    await providerRef.set(
+      {
+        ...(!p.category && categorias[0] ? { category: categorias[0], categories: categorias } : {}),
+        ...(!p.city && cidade ? { city: cidade } : {}),
+        ...(!p.state && uf ? { state: uf } : {}),
+        ...(!p.logoUrl && a.logoUrl ? { logoUrl: a.logoUrl } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    // Perfil público da conta, a partir do pré-cadastro. Mesmos campos que
+    // subscription.ts e o app gravam; o nome é o do pré-cadastro (o da
+    // empresa, que é o que o cliente já via na busca).
+    await novaRef.set({
+      name: a.name || p.name || '',
+      nameNormalized: a.nameNormalized ?? null,
+      category: categorias[0] ?? null,
+      categories: categorias,
+      city: cidade,
+      cityNormalized: a.cityNormalized ?? null,
+      ...(uf ? { state: uf } : {}),
+      cidadesAtendidas: Array.isArray(a.cidadesAtendidas) ? a.cidadesAtendidas : [],
+      cidadesNormalizadas: Array.isArray(a.cidadesNormalizadas) ? a.cidadesNormalizadas : [],
+      ...(a.logoUrl ? { logoUrl: a.logoUrl } : {}),
+      ...(a.bio ? { bio: a.bio } : {}),
+      ...(Array.isArray(a.fotos) ? { fotos: a.fotos } : {}),
+      ratingAverage: a.ratingAverage ?? 0,
+      ratingCount: a.ratingCount ?? 0,
+      // WhatsApp público só com assinatura ativa (mesma regra de subscription.ts).
+      ...(ativa && p.whatsapp ? { whatsapp: p.whatsapp } : {}),
+      ...(tel ? { phoneNormalized: tel } : {}),
+      claimed: true,
+      providerUid: uid,
+      visible: ativa,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  const n = nova.exists ? nova.data() ?? {} : { logoUrl: a.logoUrl, bio: a.bio, ratingCount: a.ratingCount };
 
   // Avaliações: mesmo id (uid de quem avaliou), pra ninguém avaliar duas vezes.
   const [avAntigas, avNovas] = await Promise.all([
@@ -155,7 +216,6 @@ export async function juntarPreCadastro(listingId: string, uid: string): Promise
   for (const p of pedidos.docs) await migrarPedido(p, uid);
 
   // Conta: lembra de onde veio e herda o Instagram guardado no convite.
-  const providerRef = db.collection('providers').doc(uid);
   const prov = (await providerRef.get()).data() ?? {};
   await providerRef.set(
     {

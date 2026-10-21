@@ -229,7 +229,21 @@ export async function aplicarEstadoNormalizado(
 
   const directoryRef = db.collection('providerDirectory').doc(uid);
   if (ativa) {
-    const provider = (await providerRef.get()).data() ?? {};
+    let provider = (await providerRef.get()).data() ?? {};
+    // Sem categoria/cidade o perfil não é publicado (bloco abaixo). Se
+    // existir pré-cadastro da mesma empresa, ele completa esses dados e já
+    // vira o perfil desta conta (caso Alluvetro — ver juntar_pre_cadastro.ts).
+    if (!provider.category || !provider.city) {
+      try {
+        const preCadastro = await acharPreCadastroDaConta(uid, provider);
+        if (preCadastro) {
+          await juntarPreCadastro(preCadastro, uid);
+          provider = (await providerRef.get()).data() ?? {};
+        }
+      } catch (e) {
+        logger.error(`Não foi possível juntar o pré-cadastro da conta ${uid}`, e);
+      }
+    }
     if (provider.category && provider.city) {
       const directorySnap = await directoryRef.get();
       // `categories` (lista) é o formato novo — pedido do Franck:
