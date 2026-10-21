@@ -11,6 +11,8 @@
  *   hubSalvarChegando  — salva nome, categorias, cidades, descrição, Instagram,
  *                        WhatsApp do convite e se aparece na busca
  *   hubLogoChegando    — sobe (ou tira) a logo
+ *   hubJuntarChegando  — junta com a conta do prestador que já existe
+ *                        (mesma empresa já assinante — ver juntar_pre_cadastro.ts)
  *
  * Só atende o dono do hub (exigirAdmin, ver hub_core.ts). Entradas já
  * reivindicadas (`claimed: true`) não são editadas por aqui: a partir daí
@@ -26,10 +28,12 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { getAuth } from 'firebase-admin/auth';
 import { randomUUID } from 'crypto';
 import { db } from './lib/admin';
 import { exigirAdmin } from './hub_core';
 import { CATEGORIAS } from './categorias';
+import { juntarPreCadastro, telefoneSemDdi } from './juntar_pre_cadastro';
 
 const texto = (v: unknown, max = 300) => String(v ?? '').trim().slice(0, max);
 
@@ -78,10 +82,24 @@ async function entradaEditavel(id: string) {
 export const hubChegando = onCall({ timeoutSeconds: 120 }, async (req) => {
   exigirAdmin(req);
 
-  const [entradas, pedidos] = await Promise.all([
+  const [entradas, pedidos, contas] = await Promise.all([
     db.collection('providerDirectory').where('claimed', '==', false).where('aceitaPedidos', '==', true).get(),
     db.collection('pedidosSemConta').get(),
+    db.collection('providerDirectory').where('claimed', '==', true).get(),
   ]);
+
+  // Contas de prestador (perfil publicado) por telefone e por uid — pra
+  // avisar quando um pré-cadastro é da mesma empresa de uma conta que já
+  // existe (aí é só juntar).
+  const contaPorTelefone = new Map<string, { uid: string; nome: string; visivel: boolean }>();
+  const contaPorUid = new Map<string, { uid: string; nome: string; visivel: boolean }>();
+  for (const c of contas.docs) {
+    const x = c.data();
+    const info = { uid: c.id, nome: String(x.name ?? ''), visivel: x.visible !== false };
+    contaPorUid.set(c.id, info);
+    const tel = telefoneSemDdi(x.phoneNormalized ?? x.whatsapp);
+    if (tel && !contaPorTelefone.has(tel)) contaPorTelefone.set(tel, info);
+  }
 
   // Pedidos por pré-cadastro: total e os que ainda esperam o prestador.
   const contagem = new Map<string, { total: number; esperando: number }>();
@@ -126,6 +144,12 @@ export const hubChegando = onCall({ timeoutSeconds: 120 }, async (req) => {
       optout: c.optout === true,
       reivindicadoPor: c.uid ?? null,
       semConvite: !convitePorId.get(e.id),
+      // Conta do app que parece ser a mesma empresa: a que assumiu pelo
+      // código, ou a que tem o mesmo telefone.
+      contaEncontrada:
+        (c.uid ? contaPorUid.get(String(c.uid)) : undefined) ??
+        contaPorTelefone.get(telefoneSemDdi(c.whatsapp ?? d.phoneNormalized) ?? '') ??
+        null,
       pedidos: n.total,
       pedidosEsperando: n.esperando,
     };
@@ -265,4 +289,33 @@ export const hubLogoChegando = onCall({ timeoutSeconds: 60 }, async (req) => {
     `?alt=media&token=${token}&cb=${Date.now()}`;
   await ref.set({ logoUrl, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return { logoUrl };
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Junta o pré-cadastro com a conta do prestador que já existe (por `uid`
+ * ou pelo `email` da conta): avaliações, logo/descrição se faltarem,
+ * pedidos esperando viram orçamentos dele, e o pré-cadastro some da busca.
+ */
+export const hubJuntarChegando = onCall({ timeoutSeconds: 120 }, async (req) => {
+  exigirAdmin(req);
+  const d = (req.data ?? {}) as Record<string, unknown>;
+  const id = texto(d.id, 120);
+  await entradaEditavel(id);
+
+  let uid = texto(d.uid, 128);
+  const email = texto(d.email, 200).toLowerCase();
+  if (!uid && email) {
+    try {
+      uid = (await getAuth().getUserByEmail(email)).uid;
+    } catch {
+      throw new HttpsError('not-found', `Nenhuma conta com o e-mail ${email}.`);
+    }
+  }
+  if (!uid) throw new HttpsError('invalid-argument', 'Informe a conta (uid ou e-mail).');
+
+  const r = await juntarPreCadastro(id, uid);
+  if (!r.juntou) throw new HttpsError('failed-precondition', `Não deu pra juntar: ${r.motivo}.`);
+  return r;
 });

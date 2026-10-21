@@ -48,4 +48,4 @@ export { registrarAbertura, painelInstalacoes, verificarNovaVersao } from './ins
 export { estiloakiSincronizar } from './estiloaki';
 
 // HUB: editar os pré-cadastros "chegando" (logo, categorias, cidades...) — ver hub_chegando.ts.
-export { hubChegando, hubSalvarChegando, hubLogoChegando } from './hub_chegando';
+export { hubChegando, hubSalvarChegando, hubLogoChegando, hubJuntarChegando } from './hub_chegando';

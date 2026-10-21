@@ -108,7 +108,7 @@ async function novoCodigo(): Promise<string> {
 }
 
 /** Pedido guardado → orçamento `pendente` na subcoleção do prestador. */
-async function migrarPedido(
+export async function migrarPedido(
   pedido: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot,
   uid: string,
 ): Promise<void> {
