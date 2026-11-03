@@ -42,7 +42,7 @@ dependencies:
   local_auth: ^2.3.0
   firebase_core: ^4.13.0
   firebase_auth: ^6.5.7
-  cloud_firestore: ^6.8.0
+  cloud_firestore: ^6.10.1
   geolocator: ^13.0.0
   geocoding: ^4.0.0
 
