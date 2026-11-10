@@ -267,6 +267,7 @@ class NotificationService {
         case AuthorizationStatus.notDetermined:
           break;
         case AuthorizationStatus.denied:
+        case AuthorizationStatus.deniedPermanently:
           debugPrint(
               '[NotificationService] Usuário já negou a permissão antes nesta instalação — '
               'o pop-up não reabre (nem no Android nem no iOS). Pra testar a pergunta de novo, '
