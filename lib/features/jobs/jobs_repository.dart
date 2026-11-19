@@ -159,6 +159,13 @@ class JobsRepository {
     }
   }
 
+  /// Id do serviço ligado a um orçamento (1:1), ou null se ainda não
+  /// existe — usado por `BudgetsRepository.concluirDireto`.
+  Future<String?> idPorOrcamento(String budgetId) async {
+    final snapshot = await _collection.where('budgetId', isEqualTo: budgetId).limit(1).get();
+    return snapshot.docs.isEmpty ? null : snapshot.docs.first.id;
+  }
+
   /// Avança (ou volta, ex.: interrompido -> em andamento) o serviço pra
   /// outra raia do Kanban — `paidAt`/`completedAt` só fazem sentido nas
   /// transições correspondentes (ver chamadas em JobsKanbanScreen).

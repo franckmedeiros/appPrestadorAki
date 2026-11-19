@@ -29,11 +29,13 @@ import 'models/budget.dart';
 /// grupo (ver BudgetsRepository.watchAll). Tocar num card abre pra
 /// editar/tramitar, o botão flutuante cria um novo manualmente.
 ///
-/// Orçamentos já resolvidos (`aceito`/`recusado`) podem ser arquivados
-/// (deslizar o card — pedido do Franck: "criar a opção de arquivar") pra
-/// sair desta lista sem apagar nada; o botão no topo alterna pra ver os
-/// arquivados e desarquivar (ver `Budget.archivedByProvider`/
-/// `BudgetsRepository.setArchivedByProvider`).
+/// Menu "⋮" de cada card (pedido do Franck, 19/11): ARQUIVAR em qualquer
+/// status — pra limpar a lista enquanto faz os orçamentos — e CONCLUIR,
+/// que encerra o orçamento direto sem passar pelas etapas do serviço (ver
+/// `BudgetsRepository.concluirDireto`). Deslizar o card continua só pros
+/// já resolvidos (`aceito`/`recusado`), pra um orçamento em aberto não
+/// sumir num gesto sem querer. O botão no topo alterna pra ver os
+/// arquivados e desarquivar (ver `Budget.archivedByProvider`).
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
 
@@ -58,11 +60,53 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     setState(() => _stream = context.read<BudgetsRepository>().watchAll());
   }
 
-  /// Só orçamentos com um status "resolvido" fazem sentido arquivar (ver
-  /// pedido do Franck respondido: "só os já concluídos") — um orçamento
-  /// manual (sem status) ou ainda em aberto continua sem essa opção.
+  /// Deslizar pra arquivar: só os já resolvidos — um gesto invisível num
+  /// orçamento em aberto faria ele sumir sem querer. Pelo menu, qualquer
+  /// orçamento pode ser arquivado (ver `_menuDoCard`).
   bool _canArchive(Budget budget) =>
       budget.status == BudgetStatus.aceito || budget.status == BudgetStatus.recusado;
+
+  /// Dá pra concluir direto tudo que ainda não terminou e não foi recusado.
+  bool _podeConcluir(Budget budget) =>
+      !budget.concluido && budget.status != BudgetStatus.recusado;
+
+  Future<void> _concluir(Budget budget) async {
+    final doApp = budget.isFromClientRequest;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Concluir orçamento?'),
+        content: Text(
+          'O orçamento de ${budget.customerName} fica como concluído, sem passar pelas '
+          'etapas do serviço (andamento e pagamento).'
+          '${doApp ? '\n\nO cliente recebe o aviso para avaliar o seu atendimento.' : ''}',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Concluir')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await context.read<BudgetsRepository>().concluirDireto(budget);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(
+          content: const Text('Orçamento concluído.'),
+          action: SnackBarAction(label: 'Arquivar', onPressed: () => _archive(budget, true)),
+        ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(
+          content: Text('Não foi possível concluir: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ));
+    }
+  }
 
   void _archive(Budget budget, bool archived) {
     setState(() => _pendingArchiveIds.add(budget.id));
@@ -161,13 +205,18 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   /// rótulo de status comprido espremia o nome do cliente até quebrar
   /// letra por letra; enfiar mais 28px de menu naquele espaço traria o
   /// problema de volta.
-  Widget _menuArquivar(Budget budget) {
+  Widget _menuDoCard(Budget budget) {
     final arquivado = budget.archivedByProvider;
     return PopupMenuButton<void>(
       icon: const Icon(Icons.more_vert, size: 18, color: AppColors.muted),
       padding: EdgeInsets.zero,
-      tooltip: arquivado ? 'Desarquivar' : 'Arquivar',
+      tooltip: 'Mais opções',
       itemBuilder: (context) => [
+        if (_podeConcluir(budget))
+          PopupMenuItem(
+            onTap: () => _concluir(budget),
+            child: const Text('Concluir'),
+          ),
         PopupMenuItem(
           // `_archive`, e não `_setArchived` direto: é ele que tira o card
           // da lista na hora, o que o `Dismissible` exige pra não
@@ -185,10 +234,8 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   Widget? _rodape(Budget budget) {
     final status = budget.status;
     final servico = _rodapeDoServico(budget);
-    // Mesma regra do deslize (`_canArchive`), mais a lista de arquivados,
-    // onde sempre dá pra devolver.
-    final podeArquivar = _showArchived || _canArchive(budget);
-    if (status == null && servico == null && !podeArquivar) return null;
+    // Menu em todo card: arquivar vale pra qualquer orçamento.
+    final servicoFinal = budget.concluido ? null : servico;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -201,16 +248,18 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             // aguardando aprovação" quebravam em duas linhas de letra
             // miúda. Aqui embaixo ele tem a largura do card inteiro e
             // pode ser escrito por extenso.
-            if (status != null)
+            if (budget.concluido)
+              const Flexible(child: SeloDeEstado('Concluído', tom: TomDoSelo.positivo))
+            else if (status != null)
               Flexible(
                 child: SeloDeEstado(status.label, tom: _tomDoStatus(status)),
               )
             else
               const Spacer(),
-            if (podeArquivar) _menuArquivar(budget),
+            _menuDoCard(budget),
           ],
         ),
-        if (servico != null) ...[const SizedBox(height: 10), servico],
+        if (servicoFinal != null) ...[const SizedBox(height: 10), servicoFinal],
       ],
     );
   }
@@ -382,7 +431,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
           // Quem precisa de ação primeiro, mais recente primeiro dentro de
           // cada grupo (ver `_priority`/comentário da classe).
           budgets.sort((a, b) {
-            final diff = _priority(a.status).compareTo(_priority(b.status));
+            final diff = (a.concluido ? 2 : _priority(a.status)).compareTo(b.concluido ? 2 : _priority(b.status));
             if (diff != 0) return diff;
             return b.date.compareTo(a.date);
           });

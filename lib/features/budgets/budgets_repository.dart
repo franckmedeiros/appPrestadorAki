@@ -7,6 +7,7 @@ import '../../core/api_exception.dart';
 import '../agenda/appointments_repository.dart';
 import '../agenda/models/appointment.dart';
 import '../jobs/jobs_repository.dart';
+import '../jobs/models/job.dart';
 import 'models/budget.dart';
 
 /// Lançada por `BudgetsRepository.acceptFinal` quando já existe outro
@@ -204,6 +205,52 @@ class BudgetsRepository {
     } on FirebaseException catch (e) {
       throw ApiException(
           0, e.message ?? 'Não foi possível arquivar o orçamento.');
+    }
+  }
+
+  /// Encerra o orçamento direto, sem passar pelas etapas do serviço
+  /// (andamento, cobrança) — pedido do Franck: "às vezes ele não quer
+  /// utilizar a parte do serviço ali, do andamento, passar toda aquela
+  /// fase... ele já quer concluir o orçamento".
+  ///
+  /// - O orçamento fica `aceito` com `concluidoEm` (o selo mostra
+  ///   "Concluído").
+  /// - Veio de um cliente do app (`isFromClientRequest`): o serviço vai
+  ///   pra "Concluído" — cria o Job se ainda não existir. Isso passa por
+  ///   uma MUDANÇA de etapa (nasce "novo" e vira "concluido"), e não por
+  ///   um Job que já nasce concluído, de propósito: é a mudança que faz
+  ///   `onJobStatusChanged` (functions/src/jobs.ts) pedir a avaliação ao
+  ///   cliente, marcar o pagamento e dar baixa na agenda, igual ao fim do
+  ///   fluxo normal.
+  /// - Orçamento manual: não tem cliente do app nem Job (mesma regra de
+  ///   `acceptFinal`), então só o orçamento muda.
+  Future<void> concluirDireto(Budget budget) async {
+    try {
+      await _collection.doc(budget.id).set({
+        'providerUid': _auth.currentUser!.uid,
+        'status': BudgetStatus.aceito.wireValue,
+        'concluidoEm': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (!budget.isFromClientRequest) return;
+      final jobId = await _jobs.idPorOrcamento(budget.id) ??
+          (await _jobs.create(
+            customerName: budget.customerName,
+            totalCents: budget.totalCents,
+            budgetId: budget.id,
+            customerId: budget.customerId,
+            appointmentId: budget.appointmentId,
+            clientUid: budget.clientUid,
+            providerDirectoryId: budget.providerDirectoryId,
+            providerName: budget.providerName,
+            category: budget.category,
+            addressText: budget.addressText,
+          ))
+              .id;
+      await _jobs.updateStatus(jobId, JobStatus.concluido, markCompletedNow: true);
+    } on FirebaseException catch (e) {
+      throw ApiException(0, e.message ?? 'Não foi possível concluir o orçamento.');
     }
   }
 

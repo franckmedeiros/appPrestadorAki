@@ -155,6 +155,7 @@ class Budget {
     this.serviceStatus,
     this.archivedByClient = false,
     this.archivedByProvider = false,
+    this.concluidoEm,
     this.revisionNumber = 0,
     this.documentNumber,
     this.validadeDias,
@@ -198,6 +199,7 @@ class Budget {
       serviceStatus: data['serviceStatus'] as String?,
       archivedByClient: data['archivedByClient'] as bool? ?? false,
       archivedByProvider: data['archivedByProvider'] as bool? ?? false,
+      concluidoEm: (data['concluidoEm'] as Timestamp?)?.toDate(),
       revisionNumber: (data['revisionNumber'] as num?)?.toInt() ?? 0,
       documentNumber: (data['documentNumber'] as num?)?.toInt(),
       validadeDias: (data['validadeDias'] as num?)?.toInt(),
@@ -340,6 +342,16 @@ class Budget {
   /// cada lado arquiva (ou não) por conta própria.
   final bool archivedByProvider;
 
+  /// Quando o prestador encerrou o orçamento direto pelo menu "Concluir",
+  /// sem passar pelas etapas do serviço (andamento, pagamento) — pedido do
+  /// Franck: "às vezes ele não quer utilizar a parte do serviço, passar
+  /// toda aquela fase". Ver BudgetsRepository.concluirDireto.
+  final DateTime? concluidoEm;
+
+  /// Encerrado: concluído direto pelo menu ou serviço que chegou em
+  /// "Concluído" pelo fluxo normal.
+  bool get concluido => concluidoEm != null || serviceStatus == 'concluido';
+
   /// Contagem de aditivos já registrados neste orçamento (0 = nunca
   /// revisado) — pedido do Franck: "quando o orçamento sofrer revisão,
   /// realizar a opção de aditivo de orçamento". Cada aditivo grava uma
@@ -462,6 +474,7 @@ class Budget {
         serviceStatus: serviceStatus,
         archivedByClient: archivedByClient,
         archivedByProvider: archivedByProvider,
+        concluidoEm: concluidoEm,
         revisionNumber: revisionNumber,
         documentNumber: documentNumber,
         validadeDias: validadeDias,
