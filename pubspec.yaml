@@ -17,7 +17,7 @@ publish_to: "none"
 # iOS NÃO usa este número: o workflow ios-release pergunta ao TestFlight
 # qual foi o último build e soma 1, pra não depender de alguém lembrar de
 # editar o arquivo.
-version: 1.0.9+35
+version: 1.0.10+36
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -40,9 +40,9 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   intl: ^0.20.2
   local_auth: ^2.3.0
-  firebase_core: ^4.13.0
-  firebase_auth: ^6.5.7
-  cloud_firestore: ^6.10.1
+  firebase_core: ^4.15.2
+  firebase_auth: ^6.7.1
+  cloud_firestore: ^6.10.2
   geolocator: ^13.0.0
   geocoding: ^4.0.0
 
@@ -54,7 +54,7 @@ dependencies:
   printing: ^5.15.0
 
   # Chama Cloud Functions do app (confirmar assinatura do prestador).
-  cloud_functions: ^6.3.6
+  cloud_functions: ^6.5.1
 
   # Assinatura mensal (Google Play Billing) — só quem assina consegue
   # virar prestador (aparecer na busca). Ver lib/core/subscription_service.dart
@@ -66,7 +66,7 @@ dependencies:
   # app fechado), flutter_local_notifications mostra a notificação na
   # hora quando o app está ABERTO (o Android não faz isso sozinho nesse
   # caso). Ver lib/core/notification_service.dart.
-  firebase_messaging: ^16.5.0
+  firebase_messaging: ^16.7.1
   flutter_local_notifications: ^18.0.1
 
   # Upload de imagem de verdade pra logo do prestador (ver
