@@ -17,7 +17,10 @@
  * Entradas já reivindicadas (`claimed: true`) são puladas.
  *
  * CSV (separado por vírgula ou ponto e vírgula, com cabeçalho):
- *   nome,categoria,cidade,uf,whatsapp
+ *   nome,categoria,cidade,uf,whatsapp[,logo]
+ * `logo` é opcional: caminho de um arquivo de imagem (jpg/png/webp) —
+ * ex.: a foto de perfil do WhatsApp salva no PC — ou um link https.
+ * Sobe pra Storage em providers/<id>/logo.jpg e grava `logoUrl`.
  * `categoria` pode ser o id (eletricista) ou o nome que aparece na
  * planilha ("Eletricista", "Pedreiro / Alvenaria").
  *
@@ -30,6 +33,7 @@
  * como optout.
  */
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 
 let admin;
@@ -86,7 +90,13 @@ function categoriaId(valor) {
 }
 
 function lerCsv(caminho) {
-  const linhas = fs.readFileSync(caminho, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
+  // CSV salvo pelo Excel costuma vir em ANSI (Windows-1252), não UTF-8: lido
+  // como UTF-8, "Criciúma" virava "Crici\uFFFDma" (20/10). Se aparecer o
+  // caractere inválido, lê de novo como latin1.
+  const bruto = fs.readFileSync(caminho);
+  let texto = bruto.toString('utf8');
+  if (texto.includes('\uFFFD')) texto = bruto.toString('latin1');
+  const linhas = texto.replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
   const sep = linhas[0].includes(';') ? ';' : ',';
   const dividir = (l) => {
     const out = [];
@@ -108,16 +118,44 @@ function lerCsv(caminho) {
   const iCat = idx('categoria', 'category', 'servico');
   const iCid = idx('cidade', 'city');
   const iUf = idx('uf', 'estado', 'state');
+  const iLogo = idx('logo', 'logotipo', 'foto', 'imagem');
   const iTel = idx('whatsapp', 'telefone', 'whatsapp_normalizado', 'phone', 'celular');
   if (iNome < 0 || iTel < 0) throw new Error('O CSV precisa das colunas nome e whatsapp.');
   return linhas.slice(1).map((l) => {
     const c = dividir(l);
-    return { nome: c[iNome], categoria: c[iCat], cidade: c[iCid], uf: c[iUf], whatsapp: c[iTel] };
+    return { nome: c[iNome], categoria: c[iCat], cidade: c[iCid], uf: c[iUf], whatsapp: c[iTel], logo: iLogo >= 0 ? c[iLogo] : '' };
   });
 }
 
 async function main() {
-  admin.initializeApp({ credential: admin.credential.cert(require(path.resolve(chave))) });
+  admin.initializeApp({
+    credential: admin.credential.cert(require(path.resolve(chave))),
+    storageBucket: 'prestadoraki.firebasestorage.app',
+  });
+  const bucket = admin.storage().bucket();
+  async function subirLogo(id, origem) {
+    let buf, tipo;
+    if (/^https?:\/\//i.test(origem)) {
+      const r = await fetch(origem);
+      if (!r.ok) throw new Error(`download falhou (${r.status})`);
+      buf = Buffer.from(await r.arrayBuffer());
+      tipo = r.headers.get('content-type') || 'image/jpeg';
+    } else {
+      const arq = path.resolve(path.dirname(path.resolve(arquivo)), origem);
+      buf = fs.readFileSync(arq);
+      const ext = path.extname(arq).toLowerCase();
+      tipo = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+    }
+    if (!tipo.startsWith('image/')) throw new Error(`não é imagem (${tipo})`);
+    if (buf.length > 8 * 1024 * 1024) throw new Error('imagem maior que 8 MB');
+    const token = crypto.randomUUID();
+    const destino = `providers/${id}/logo.jpg`;
+    await bucket.file(destino).save(buf, {
+      contentType: tipo,
+      metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+    });
+    return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(destino)}?alt=media&token=${token}`;
+  }
   const db = admin.firestore();
   const agora = admin.firestore.FieldValue.serverTimestamp();
 
@@ -160,7 +198,19 @@ async function main() {
       continue;
     }
 
-    console.log(`${GRAVAR ? 'GRAVANDO' : '[simulação]'} ${l.nome} · ${cat} · ${cidade}/${l.uf || ''} · ${tel} → ${id}${ja ? ' (já existia)' : ' (nova)'}`);
+    let logoUrl = null;
+    if (l.logo) {
+      if (GRAVAR) {
+        try {
+          logoUrl = await subirLogo(id, l.logo);
+        } catch (e) {
+          problemas.push(`linha ${n + 2}: logo de ${l.nome} não subiu (${e.message}) — gravado sem logo`);
+        }
+      } else if (!/^https?:\/\//i.test(l.logo) && !fs.existsSync(path.resolve(path.dirname(path.resolve(arquivo)), l.logo))) {
+        problemas.push(`linha ${n + 2}: arquivo de logo não encontrado (${l.logo})`);
+      }
+    }
+    console.log(`${GRAVAR ? 'GRAVANDO' : '[simulação]'} ${l.logo ? '[com logo] ' : ''}${l.nome} · ${cat} · ${cidade}/${l.uf || ''} · ${tel} → ${id}${ja ? ' (já existia)' : ' (nova)'}`);
     if (GRAVAR) {
       await db.collection('providerDirectory').doc(id).set(
         {
@@ -173,6 +223,7 @@ async function main() {
           visible: true,
           aceitaPedidos: true,
           phoneNormalized: tel,
+          ...(logoUrl ? { logoUrl } : {}),
           updatedAt: agora,
           ...(ja ? {} : { createdAt: agora, ratingAverage: 0, ratingCount: 0 }),
         },
